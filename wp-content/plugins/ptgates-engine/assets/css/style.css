@@ -1,0 +1,729 @@
+/**
+ * PTGates Learning Engine - Styles
+ */
+
+/* 기본 레이아웃 */
+.ptgates-quiz-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 플러그인 헤더 */
+.ptgates-header {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+    padding: 17px 30px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+.ptgates-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.ptgates-header-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -0.5px;
+}
+
+.ptgates-header-badge {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+}
+
+/* 필터 섹션 */
+.ptgates-filter-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.ptgates-filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 150px;
+}
+
+.ptgates-filter-row label {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.ptgates-filter-input {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.ptgates-filter-input:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* 버튼 */
+.ptgates-btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.ptgates-btn-primary {
+    background: #4a90e2;
+    color: white;
+}
+
+.ptgates-btn-primary:hover {
+    background: #357abd;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+}
+
+.ptgates-btn-submit {
+    background: #28a745;
+    color: white;
+}
+
+.ptgates-btn-submit:hover {
+    background: #218838;
+}
+
+.ptgates-btn-next {
+    background: #17a2b8;
+    color: white;
+}
+
+.ptgates-btn-next:hover {
+    background: #138496;
+}
+
+.ptgates-btn-giveup {
+    background: #dc3545;
+    color: white;
+}
+
+.ptgates-btn-giveup:hover {
+    background: #c82333;
+}
+
+.ptgates-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 진행 상태 */
+.ptgates-progress-section {
+    margin-top: 0;
+    margin-bottom: 30px;
+}
+
+.ptgates-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ptgates-progress-right {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 12px;
+}
+
+.ptgates-time-tip-btn {
+    background: none;
+    border: none;
+    color: #4a90e2;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    transition: color 0.2s;
+    white-space: nowrap;
+    display: inline-block !important;
+    flex-shrink: 0;
+}
+
+.ptgates-time-tip-btn:hover {
+    color: #357abd;
+}
+
+.ptgates-btn-giveup-inline {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 16px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: inline-block !important;
+    flex-shrink: 0;
+}
+
+.ptgates-btn-giveup-inline:hover {
+    background: #c82333;
+}
+
+.ptgates-timer {
+    color: #4a90e2;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    display: inline-block !important;
+}
+
+.ptgates-progress-bar {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.ptgates-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4a90e2, #357abd);
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.ptgates-progress-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+/* 문제 섹션 */
+.ptgates-question-section {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 30px;
+    margin-bottom: 20px;
+}
+
+.ptgates-question-header {
+    margin-bottom: 8px;
+}
+
+.ptgates-question-text {
+    font-size: 20px;
+    line-height: 1.4;
+    color: #333;
+    margin: 0;
+    margin-bottom: 8px;
+}
+
+/* 옵션 */
+.ptgates-options-container {
+    margin-bottom: 25px;
+    margin-top: 0 !important;
+    width: 100% !important;
+    display: block !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: white;
+    box-sizing: border-box;
+}
+
+.ptgates-options-container > * {
+    display: block !important;
+    width: 100% !important;
+    float: none !important;
+    clear: both !important;
+    flex: none !important;
+    flex-basis: auto !important;
+}
+
+/* 모든 라벨을 블록으로 강제 */
+.ptgates-options-container label,
+.ptgates-options-container .ptgates-option-label {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    float: none !important;
+    clear: both !important;
+    margin-bottom: 0 !important;
+}
+
+.ptgates-option-label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start;
+    padding: 4px 8px !important;
+    margin-bottom: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent !important;
+    width: 100% !important;
+    box-sizing: border-box;
+    min-height: auto;
+    user-select: none;
+    clear: both;
+}
+
+.ptgates-option-label:hover {
+    background: #f8f9ff !important;
+}
+
+.ptgates-option-label input[type="radio"],
+.ptgates-radio-input {
+    margin-right: 8px !important;
+    margin-top: 2px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+    position: relative !important;
+    z-index: 10 !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: inline-block !important;
+    -webkit-appearance: radio !important;
+    -moz-appearance: radio !important;
+    appearance: radio !important;
+}
+
+.ptgates-option-label input[type="radio"]:checked + .ptgates-option-text {
+    font-weight: 600;
+    color: #4a90e2;
+}
+
+.ptgates-option-text {
+    flex: 1;
+    line-height: 1.3;
+    color: #333;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    display: block !important;
+    width: calc(100% - 40px) !important;
+}
+
+.ptgates-option-text strong {
+    color: #4a90e2;
+    font-weight: 600;
+    margin-right: 5px;
+    display: inline !important;
+}
+
+/* 다른 스타일이 방해하지 않도록 */
+#ptgates-options-container .ptgates-option-label,
+.ptgates-options-container .ptgates-option-label {
+    display: flex !important;
+    width: 100% !important;
+    margin-bottom: 0 !important;
+}
+
+.ptgates-option-label.ptgates-correct-answer {
+    background: #d4edda !important;
+}
+
+.ptgates-option-label.ptgates-incorrect-answer {
+    background: #f8d7da !important;
+}
+
+.ptgates-text-answer {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border-color 0.2s;
+}
+
+.ptgates-text-answer:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.ptgates-text-answer:disabled {
+    background: #f8f9fa;
+    cursor: not-allowed;
+}
+
+/* 문제 액션 */
+.ptgates-question-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 25px;
+}
+
+/* 피드백 */
+.ptgates-feedback {
+    padding: 15px 20px;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.ptgates-feedback-correct {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.ptgates-feedback-incorrect {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* 해설 */
+.ptgates-explanation-section {
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #4a90e2;
+}
+
+.ptgates-explanation-header {
+    margin-bottom: 15px;
+}
+
+.ptgates-explanation-header h4 {
+    margin: 0;
+    color: #4a90e2;
+    font-size: 18px;
+}
+
+.ptgates-base-explanation {
+    margin-bottom: 15px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.ptgates-advanced-explanation {
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+    line-height: 1.6;
+    color: #666;
+    font-style: italic;
+}
+
+/* 결과 섹션 */
+.ptgates-result-section {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+}
+
+.ptgates-result-section h2 {
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.ptgates-result-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.ptgates-stat-item {
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.ptgates-stat-label {
+    display: block;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.ptgates-stat-value {
+    display: block;
+    font-size: 32px;
+    font-weight: 700;
+    color: #4a90e2;
+}
+
+/* 로딩 */
+.ptgates-loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.ptgates-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #4a90e2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.ptgates-loading p {
+    color: #666;
+    font-size: 16px;
+}
+
+/* 모달 */
+.ptgates-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+}
+
+.ptgates-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.ptgates-modal-content {
+    position: relative;
+    max-width: 800px;
+    max-height: 90vh;
+    margin: 5vh auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.ptgates-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.ptgates-modal-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.ptgates-modal-close {
+    background: none;
+    border: none;
+    font-size: 32px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    line-height: 28px;
+    text-align: center;
+    transition: color 0.2s;
+}
+
+.ptgates-modal-close:hover {
+    color: #dc3545;
+}
+
+.ptgates-modal-body {
+    padding: 25px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ptgates-modal-body p {
+    margin-bottom: 15px;
+    line-height: 1.7;
+    color: #333;
+}
+
+.ptgates-time-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+}
+
+.ptgates-time-table thead {
+    background: #4a90e2;
+    color: white;
+}
+
+.ptgates-time-table th,
+.ptgates-time-table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #dee2e6;
+}
+
+.ptgates-time-table tbody tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.ptgates-time-table tbody tr:hover {
+    background: #e9ecef;
+}
+
+.ptgates-tip-summary {
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #4a90e2;
+}
+
+.ptgates-tip-summary h4 {
+    margin: 0 0 15px 0;
+    color: #4a90e2;
+    font-size: 18px;
+}
+
+.ptgates-tip-summary ul {
+    margin: 15px 0;
+    padding-left: 25px;
+}
+
+.ptgates-tip-summary li {
+    margin-bottom: 10px;
+    line-height: 1.7;
+    color: #333;
+}
+
+.ptgates-tip-summary p {
+    margin-top: 15px;
+    margin-bottom: 0;
+    font-weight: 600;
+    color: #333;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+    .ptgates-quiz-wrapper {
+        padding: 15px;
+    }
+    
+    .ptgates-filter-section {
+        flex-direction: column;
+    }
+    
+    .ptgates-filter-row {
+        width: 100%;
+    }
+    
+    .ptgates-question-section {
+        padding: 20px;
+    }
+    
+    .ptgates-question-text {
+        font-size: 18px;
+    }
+    
+    .ptgates-result-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .ptgates-modal-content {
+        max-width: 95%;
+        margin: 2.5vh auto;
+        max-height: 95vh;
+    }
+    
+    .ptgates-modal-body {
+        padding: 15px;
+    }
+    
+    .ptgates-time-table {
+        font-size: 12px;
+    }
+    
+    .ptgates-time-table th,
+    .ptgates-time-table td {
+        padding: 8px;
+    }
+    
+    .ptgates-progress-right {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-end;
+    }
+    
+    .ptgates-time-tip-btn,
+    .ptgates-btn-giveup-inline {
+        font-size: 14px;
+    }
+    
+    .ptgates-btn-giveup-inline {
+        padding: 5px 12px;
+    }
+    
+    .ptgates-header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .ptgates-header-title {
+        font-size: 20px;
+    }
+}

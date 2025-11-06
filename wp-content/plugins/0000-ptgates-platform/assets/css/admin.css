@@ -1,0 +1,20 @@
+/**
+ * PTGates Platform - 관리자 CSS
+ */
+
+/* 관리자 페이지 스타일 */
+.ptg-admin-notice {
+    padding: 12px;
+    margin: 16px 0;
+    border-left: 4px solid #0073aa;
+    background: #fff;
+}
+
+.ptg-admin-notice-error {
+    border-left-color: #d63638;
+}
+
+.ptg-admin-notice-warning {
+    border-left-color: #f0b849;
+}
+
