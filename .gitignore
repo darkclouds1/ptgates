@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# secrets
+.env
+*.env.*
+*.pem
+*.key
+id_rsa
+id_dsa
+*.p12
+*.pfx
+
+# build
+dist/
+build/
