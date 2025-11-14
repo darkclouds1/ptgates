@@ -1,361 +1,179 @@
 <?php
 /**
  * Plugin Name: PTGates Quiz
- * Plugin URI: https://ptgates.com
- * Description: 문제 풀이 모듈 - 문제 카드, 선택지, 정답확인, 해설, 드로잉, 메모, 북마크 기능
- * Version: 1.0.1
+ * Description: PTGates 퀴즈 풀이 기능 플러그인.
+ * Version: 1.0.13
  * Author: PTGates
- * Author URI: https://ptgates.com
- * License: GPL v2 or later
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: ptgates-quiz
- * Domain Path: /languages
  * Requires Plugins: 0000-ptgates-platform
- * Requires PHP: 8.1
- * Requires at least: 6.0
  */
 
-// 직접 접근 방지
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
 }
 
-// 플랫폼 코어 의존성 확인 및 강제 로드
-if (!function_exists('ptg_platform_is_active')) {
-    // 플랫폼 플러그인이 아직 로드되지 않았을 수 있으므로 직접 로드 시도
-    $platform_plugin_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/ptgates-platform.php';
-    if (file_exists($platform_plugin_file)) {
-        require_once $platform_plugin_file;
-    }
-}
+final class PTG_Quiz_Plugin {
 
-if (!function_exists('ptg_platform_is_active') || !ptg_platform_is_active()) {
-    add_action('admin_notices', function() {
-        echo '<div class="notice notice-error"><p>';
-        echo '<strong>PTGates Quiz</strong> 플러그인을 사용하려면 <strong>PTGates Platform</strong> 플러그인이 활성화되어 있어야 합니다.';
-        echo '</p></div>';
-    });
-    return;
-}
-
-// 플러그인 상수 정의
-define('PTG_QUIZ_VERSION', '1.0.3');
-define('PTG_QUIZ_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PTG_QUIZ_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('PTG_QUIZ_PLUGIN_BASENAME', plugin_basename(__FILE__));
-
-/**
- * 플러그인 활성화 시 실행
- */
-function ptg_quiz_activate() {
-    flush_rewrite_rules();
-}
-register_activation_hook(__FILE__, 'ptg_quiz_activate');
-
-/**
- * 플러그인 비활성화 시 실행
- */
-function ptg_quiz_deactivate() {
-    flush_rewrite_rules();
-}
-register_deactivation_hook(__FILE__, 'ptg_quiz_deactivate');
-
-/**
- * 플러그인 메인 클래스
- */
-class PTG_Quiz {
-    
-    /**
-     * 싱글톤 인스턴스
-     */
     private static $instance = null;
-    
-    /**
-     * 싱글톤 인스턴스 반환
-     */
+
     public static function get_instance() {
-        if (null === self::$instance) {
+        if ( is_null( self::$instance ) ) {
             self::$instance = new self();
         }
         return self::$instance;
     }
-    
-    /**
-     * 생성자
-     */
+
     private function __construct() {
-        $this->init_hooks();
+        // 워드프레스 표준에 따라, 각 기능에 맞는 정확한 훅(hook)에 연결합니다.
+        
+        // 1. REST API는 'rest_api_init' 훅에서 초기화합니다.
+        add_action( 'rest_api_init', [ $this, 'init_rest_api' ] );
+        add_filter( 'rest_authentication_errors', [ $this, 'rest_auth_guard' ] );
+        
+        // 2. 숏코드는 'init' 훅에서 등록합니다.
+        add_action( 'init', [ $this, 'register_shortcode' ] );
+
+        // 3. 스크립트와 스타일은 'wp_enqueue_scripts' 훅에서 로드합니다.
+        add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
     }
-    
+
     /**
-     * 훅 초기화
+     * 우리 네임스페이스 요청일 때 비로그인은 JSON 에러로 즉시 응답
      */
-    private function init_hooks() {
-        // 필수 파일 포함
-        $this->load_dependencies();
-        
-        // REST API 등록
-        add_action('rest_api_init', array('PTG\Quiz\API', 'register_routes'));
-        
-        // 디버깅: 플러그인 초기화 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] 플러그인 초기화 완료 - REST API 훅 등록됨');
+    public function rest_auth_guard( $result ) {
+        if ( ! empty( $result ) ) {
+            return $result;
         }
-        
-        // Shortcode 등록
-        add_shortcode('ptg_quiz', array($this, 'render_quiz_shortcode'));
-        
-        // 스타일 및 스크립트 등록
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-    }
-    
-    /**
-     * 필수 파일 로드
-     */
-    private function load_dependencies() {
-        require_once PTG_QUIZ_PLUGIN_DIR . 'includes/class-api.php';
-        require_once PTG_QUIZ_PLUGIN_DIR . 'includes/class-quiz-handler.php';
-        
-        // 플랫폼 플러그인 클래스 확인
-        if (!class_exists('PTG\Platform\Permissions')) {
-            add_action('admin_notices', function() {
-                echo '<div class="notice notice-error"><p>';
-                echo '<strong>PTGates Quiz</strong>: 플랫폼 플러그인의 필수 클래스를 찾을 수 없습니다.';
-                echo '</p></div>';
-            });
-            return;
-        }
-    }
-    
-    /**
-     * 스타일 및 스크립트 로드
-     */
-    public function enqueue_scripts() {
-        // 디버깅: 스크립트 로드 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] enqueue_scripts 호출됨');
-        }
-        
-        // 플랫폼 플러그인의 스크립트가 로드되도록 보장
-        // 플랫폼 플러그인이 아직 로드되지 않았을 수 있으므로 직접 enqueue 시도
-        if (!wp_script_is('ptg-platform-script', 'registered')) {
-            // 플랫폼 스크립트 직접 등록
-            // 플랫폼 플러그인 상수가 정의되어 있으면 사용, 없으면 plugins_url 사용
-            if (defined('PTG_PLATFORM_PLUGIN_URL')) {
-                $platform_js_url = PTG_PLATFORM_PLUGIN_URL . 'assets/js/platform.js';
-            } else {
-                // plugins_url의 두 번째 인자로 플러그인 메인 파일 경로 전달
-                $platform_plugin_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/ptgates-platform.php';
-                $platform_js_url = plugins_url('assets/js/platform.js', $platform_plugin_file);
+        // 현재 요청 경로 확인
+        $route = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+        if ( strpos( $route, '/wp-json/ptg-quiz/v1/' ) !== false ) {
+            if ( ! is_user_logged_in() ) {
+                return new \WP_Error( 'rest_forbidden', '로그인이 필요합니다.', [ 'status' => 401 ] );
             }
-            
-            wp_register_script(
-                'ptg-platform-script',
-                $platform_js_url,
-                array('jquery'),
-                PTG_PLATFORM_VERSION,
-                true
+        }
+        return $result;
+    }
+
+    /**
+     * REST API를 초기화합니다.
+     */
+    public function init_rest_api() {
+        $rest_api_file = plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+
+        if ( file_exists( $rest_api_file ) && is_readable( $rest_api_file ) ) {
+            require_once $rest_api_file;
+            if ( class_exists( '\PTG\Quiz\API' ) ) {
+                \PTG\Quiz\API::register_routes();
+            }
+        }
+    }
+
+    /**
+     * 숏코드를 등록합니다.
+     */
+    public function register_shortcode() {
+        add_shortcode( 'ptg_quiz', [ $this, 'render_shortcode' ] );
+    }
+    
+    /**
+     * 스크립트와 스타일을 조건부로 enqueue 합니다.
+     * CSS는 WordPress 큐를 사용하되, JS는 숏코드 렌더링 시 별도 로더로 처리합니다.
+     */
+    public function enqueue_assets() {
+        global $post;
+        // [ptg_quiz] 숏코드가 있는 페이지에서만 스크립트와 스타일을 로드합니다.
+        if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_quiz' ) ) {
+            wp_enqueue_style(
+                'ptg-quiz-style',
+                plugin_dir_url( __FILE__ ) . 'assets/css/quiz.css',
+                [ 'ptg-platform-style' ],
+                '1.0.13' // 버전 업데이트로 캐시 무효화
             );
-            wp_enqueue_script('ptg-platform-script');
-            
-            // 플랫폼 설정 localize
-            wp_localize_script('ptg-platform-script', 'ptgPlatform', array(
-                'restUrl' => rest_url('/'),
-                'nonce' => wp_create_nonce('wp_rest'),
-                'userId' => get_current_user_id(),
-                'timezone' => wp_timezone_string()
-            ));
-            
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[PTG Quiz] ptg-platform-script 직접 등록: ' . $platform_js_url);
-            }
-        }
-        
-        if (!wp_script_is('ptg-quiz-ui-script', 'registered')) {
-            // 공통 퀴즈 UI 스크립트 직접 등록
-            // 플랫폼 플러그인 상수가 정의되어 있으면 사용, 없으면 plugins_url 사용
-            if (defined('PTG_PLATFORM_PLUGIN_URL')) {
-                $quiz_ui_js_url = PTG_PLATFORM_PLUGIN_URL . 'assets/js/quiz-ui.js';
-            } else {
-                // plugins_url의 두 번째 인자로 플러그인 메인 파일 경로 전달
-                $platform_plugin_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/ptgates-platform.php';
-                if (file_exists($platform_plugin_file)) {
-                    $quiz_ui_js_url = plugins_url('assets/js/quiz-ui.js', $platform_plugin_file);
-                } else {
-                    // 최후의 수단: 직접 URL 구성
-                    $quiz_ui_js_url = content_url('plugins/0000-ptgates-platform/assets/js/quiz-ui.js');
-                }
-            }
-            
-            // 파일 존재 확인 및 URL 검증
-            $quiz_ui_js_path = WP_PLUGIN_DIR . '/0000-ptgates-platform/assets/js/quiz-ui.js';
-            if (!file_exists($quiz_ui_js_path)) {
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log('[PTG Quiz] ⚠️ quiz-ui.js 파일이 존재하지 않음: ' . $quiz_ui_js_path);
-                }
-                return; // 파일이 없으면 스크립트 등록 중단
-            }
-            
-            wp_register_script(
-                'ptg-quiz-ui-script',
-                $quiz_ui_js_url,
-                array('ptg-platform-script'),
-                PTG_PLATFORM_VERSION,
-                true
-            );
-            wp_enqueue_script('ptg-quiz-ui-script');
-            
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[PTG Quiz] ptg-quiz-ui-script 직접 등록: ' . $quiz_ui_js_url);
-                error_log('[PTG Quiz] 파일 존재 확인: ' . (file_exists($quiz_ui_js_path) ? '예' : '아니오'));
-                error_log('[PTG Quiz] PTG_PLATFORM_PLUGIN_URL 정의됨: ' . (defined('PTG_PLATFORM_PLUGIN_URL') ? '예' : '아니오'));
-                if (defined('PTG_PLATFORM_PLUGIN_URL')) {
-                    error_log('[PTG Quiz] PTG_PLATFORM_PLUGIN_URL 값: ' . PTG_PLATFORM_PLUGIN_URL);
-                }
-            }
-        }
-        
-        // CSS
-        wp_enqueue_style(
-            'ptg-quiz-style',
-            PTG_QUIZ_PLUGIN_URL . 'assets/css/quiz.css',
-            array('ptg-platform-style'),
-            PTG_QUIZ_VERSION
-        );
-        
-        // JavaScript 의존성 (조건부로 설정)
-        // 의존성이 로드되지 않았을 수 있으므로, 조건부로 처리
-        $dependencies = array('jquery');
-        
-        // ptg-platform-script가 등록되어 있으면 의존성에 추가
-        if (wp_script_is('ptg-platform-script', 'registered')) {
-            $dependencies[] = 'ptg-platform-script';
-        }
-        
-        // ptg-quiz-ui-script가 등록되어 있으면 의존성에 추가
-        if (wp_script_is('ptg-quiz-ui-script', 'registered')) {
-            $dependencies[] = 'ptg-quiz-ui-script';
-        }
-        
-        // JavaScript
-        wp_enqueue_script(
-            'ptg-quiz-script',
-            PTG_QUIZ_PLUGIN_URL . 'assets/js/quiz.js',
-            $dependencies,
-            PTG_QUIZ_VERSION,
-            true // footer에 로드
-        );
-        
-        // REST API 엔드포인트 정보를 JS에 전달
-        // 스크립트가 등록되어 있을 때만 localize
-        if (wp_script_is('ptg-quiz-script', 'registered')) {
-            wp_localize_script('ptg-quiz-script', 'ptgQuiz', array(
-                'restUrl' => rest_url('ptg-quiz/v1/'),
-                'nonce' => wp_create_nonce('wp_rest'),
-                'userId' => get_current_user_id(),
-            ));
-        }
-        
-        // 디버깅: 스크립트 등록 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] 스크립트 등록 완료: ptg-quiz-script');
-            error_log('[PTG Quiz] 의존성: ' . implode(', ', $dependencies));
-            error_log('[PTG Quiz] 스크립트 URL: ' . PTG_QUIZ_PLUGIN_URL . 'assets/js/quiz.js');
-            error_log('[PTG Quiz] ptg-platform-script 등록됨: ' . (wp_script_is('ptg-platform-script', 'registered') ? '예' : '아니오'));
-            error_log('[PTG Quiz] ptg-quiz-ui-script 등록됨: ' . (wp_script_is('ptg-quiz-ui-script', 'registered') ? '예' : '아니오'));
         }
     }
-    
+
     /**
-     * 퀴즈 Shortcode 렌더링
+     * 숏코드를 렌더링합니다.
      */
-    public function render_quiz_shortcode($atts) {
-        $atts = shortcode_atts(array(
-            'question_id' => '',
-            'timer' => '90', // 기본 90분 (1교시)
-            'unlimited' => 'false'
-        ), $atts, 'ptg_quiz');
-        
-        // 디버깅: shortcode 실행 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] Shortcode 실행됨: question_id=' . $atts['question_id']);
+    public function render_shortcode( $atts ) {
+        $atts = shortcode_atts(
+            [
+                'id'          => null,
+                'question_id' => null,
+                'timer'       => 90,
+                'unlimited'   => '0',
+            ],
+            $atts,
+            'ptg_quiz'
+        );
+
+        // "id" 또는 "question_id" 어디로 호출해도 대응
+        $question_id = $atts['question_id'] ?: $atts['id'];
+
+        if ( ! $question_id ) {
+            return '<div class="ptg-quiz-container"><p>⚠️ 문제 ID가 지정되지 않았습니다. <code>[ptg_quiz id="380"]</code>과 같이 호출해 주세요.</p></div>';
         }
-        
-        // 스크립트가 로드되도록 보장
-        $this->enqueue_scripts();
-        
-        // wp_enqueue_scripts 훅이 이미 실행되었을 수 있으므로
-        // 스크립트를 직접 출력하도록 보장
-        add_action('wp_footer', function() {
-            // 플랫폼 스크립트가 출력되지 않았으면 직접 출력
-            if (!wp_script_is('ptg-platform-script', 'done') && !wp_script_is('ptg-platform-script', 'to_do')) {
-                $platform_js_url = defined('PTG_PLATFORM_PLUGIN_URL') 
-                    ? PTG_PLATFORM_PLUGIN_URL . 'assets/js/platform.js'
-                    : plugins_url('assets/js/platform.js', WP_PLUGIN_DIR . '/0000-ptgates-platform/ptgates-platform.php');
-                echo '<script src="' . esc_url($platform_js_url) . '?ver=' . (defined('PTG_PLATFORM_VERSION') ? PTG_PLATFORM_VERSION : '1.0.2') . '"></script>' . "\n";
-                
-                // 플랫폼 설정 localize
-                echo '<script type="text/javascript">' . "\n";
-                echo 'var ptgPlatform = ' . json_encode(array(
-                    'restUrl' => rest_url('/'),
-                    'nonce' => wp_create_nonce('wp_rest'),
-                    'userId' => get_current_user_id(),
-                    'timezone' => wp_timezone_string()
-                )) . ';' . "\n";
-                echo '</script>' . "\n";
-            }
-            
-            // 퀴즈 UI 스크립트가 출력되지 않았으면 직접 출력
-            if (!wp_script_is('ptg-quiz-ui-script', 'done') && !wp_script_is('ptg-quiz-ui-script', 'to_do')) {
-                // content_url 사용 (가장 안정적인 방법)
-                $quiz_ui_js_url = content_url('plugins/0000-ptgates-platform/assets/js/quiz-ui.js');
-                
-                // URL 검증 및 디버깅
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log('[PTG Quiz] quiz-ui.js URL 생성 (content_url): ' . $quiz_ui_js_url);
-                    error_log('[PTG Quiz] 파일 존재 확인: ' . (file_exists(WP_PLUGIN_DIR . '/0000-ptgates-platform/assets/js/quiz-ui.js') ? '예' : '아니오'));
-                }
-                
-                echo '<script src="' . esc_url($quiz_ui_js_url) . '?ver=1.0.2"></script>' . "\n";
-            }
-            
-            // 퀴즈 스크립트는 enqueue로 로드됨 (중복 방지)
-            
-            // 퀴즈 설정 localize (스크립트보다 먼저 출력)
-            echo '<script type="text/javascript">' . "\n";
-            echo 'try {' . "\n";
-            echo '  var ptgQuiz = ' . json_encode(array(
-                'restUrl' => rest_url('ptg-quiz/v1/'),
-                'nonce' => wp_create_nonce('wp_rest'),
-                'userId' => get_current_user_id(),
-            )) . ';' . "\n";
-            echo '} catch(e) {' . "\n";
-            echo '  console.error("[PTG Quiz] ptgQuiz 변수 설정 오류:", e);' . "\n";
-            echo '}' . "\n";
-            echo '</script>' . "\n";
-            
-            // 직접 출력 제거 (중복 로드 방지)
-            
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[PTG Quiz] quiz.js 직접 출력 (항상): ' . $quiz_js_url);
-            }
-        }, 999); // 높은 우선순위로 실행
-        
+
+        $plugin_url     = plugin_dir_url( __FILE__ );
+        $platform_url   = plugins_url( '0000-ptgates-platform/assets/js/platform.js' );
+        $quiz_ui_url    = plugins_url( '0000-ptgates-platform/assets/js/quiz-ui.js' );
+        $quiz_js_url    = $plugin_url . 'assets/js/quiz.js';
+        $rest_url       = esc_url_raw( rest_url( 'ptg-quiz/v1/' ) );
+        $rest_base      = esc_url_raw( rest_url( '/' ) );
+        $nonce          = wp_create_nonce( 'wp_rest' );
+        $user_id        = get_current_user_id();
+        $timezone       = wp_timezone_string();
+
+        $loader_script = sprintf(
+            '<script id="ptg-quiz-script-loader">(function(d){var cfg=d.defaultView||window;cfg.ptgQuiz=cfg.ptgQuiz||{};cfg.ptgQuiz.restUrl=%1$s;cfg.ptgQuiz.nonce=%2$s;cfg.ptgPlatform=cfg.ptgPlatform||{};if(!cfg.ptgPlatform.restUrl){cfg.ptgPlatform.restUrl=%6$s;}cfg.ptgPlatform.nonce=%2$s;cfg.ptgPlatform.userId=%7$d;cfg.ptgPlatform.timezone=%8$s;var queue=[{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},{check:function(){return typeof cfg.PTGQuizUI!=="undefined";},url:%4$s},{check:function(){return typeof cfg.PTGQuiz!=="undefined";},url:%5$s}];function load(i){if(i>=queue.length){return;}var item=queue[i];if(item.check()){load(i+1);return;}var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');if(existing){existing.addEventListener("load",function(){load(i+1);});return;}var s=d.createElement("script");s.src=item.url+(item.url.indexOf("?")===-1?"?ver=1.0.13":"");s.async=false;s.setAttribute("data-ptg-src",item.url);s.onload=function(){load(i+1);};s.onerror=function(){console.error("[PTG Quiz] 스크립트를 불러오지 못했습니다:",item.url);load(i+1);};(d.head||d.body||d.documentElement).appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}})(document);</script>',
+            wp_json_encode( $rest_url ),
+            wp_json_encode( $nonce ),
+            wp_json_encode( $platform_url ),
+            wp_json_encode( $quiz_ui_url ),
+            wp_json_encode( $quiz_js_url ),
+            wp_json_encode( $rest_base ),
+            $user_id,
+            wp_json_encode( $timezone )
+        );
+
+        $template = plugin_dir_path( __FILE__ ) . 'templates/quiz-template.php';
+
+        if ( file_exists( $template ) && is_readable( $template ) ) {
+            ob_start();
+
+            // 템플릿에서 사용할 수 있도록 어트리뷰트 정리
+            $atts = [
+                'question_id' => absint( $question_id ),
+                'timer'       => absint( $atts['timer'] ),
+                'unlimited'   => $atts['unlimited'],
+            ];
+
+            // JS 로더 출력
+            echo $loader_script; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+            include $template;
+
+            return ob_get_clean();
+        }
+
+        // 템플릿이 없을 경우 최소한의 마크업만 출력
         ob_start();
-        include PTG_QUIZ_PLUGIN_DIR . 'templates/quiz-template.php';
-        $output = ob_get_clean();
-        
-        // 디버깅: 템플릿 출력 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] 템플릿 출력 길이: ' . strlen($output));
-            error_log('[PTG Quiz] 템플릿에 스크립트 포함: ' . (strpos($output, '<script') !== false ? '예' : '아니오'));
-        }
-        
-        return $output;
+        ?>
+        <div id="ptg-quiz-container"
+             class="ptg-quiz-container"
+             data-question-id="<?php echo esc_attr( absint( $question_id ) ); ?>"
+             data-timer="<?php echo esc_attr( absint( $atts['timer'] ) ); ?>"
+             data-unlimited="<?php echo esc_attr( $atts['unlimited'] ? '1' : '0' ); ?>">
+            <div class="ptg-quiz-loading">
+                <p>문제를 불러오는 중...</p>
+            </div>
+        </div>
+        <?php echo $loader_script; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php
+        return ob_get_clean();
     }
 }
 
-// 플러그인 초기화
-PTG_Quiz::get_instance();
+// 플러그인 인스턴스 생성
+PTG_Quiz_Plugin::get_instance();
 
 

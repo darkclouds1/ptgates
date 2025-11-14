@@ -90,7 +90,8 @@ class Migration {
         
         $table_name = $wpdb->prefix . 'ptgates_exam_session_items';
         $sessions_table = $wpdb->prefix . 'ptgates_exam_sessions';
-        $questions_table = $wpdb->prefix . 'ptgates_questions';
+        // 레거시 문제 테이블은 prefix 없이 고정
+        $questions_table = 'ptgates_questions';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `item_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -120,7 +121,8 @@ class Migration {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'ptgates_user_states';
-        $questions_table = $wpdb->prefix . 'ptgates_questions';
+        // 레거시 문제 테이블은 prefix 없이 고정
+        $questions_table = 'ptgates_questions';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `user_id` bigint(20) unsigned NOT NULL,
@@ -171,7 +173,8 @@ class Migration {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'ptgates_user_drawings';
-        $questions_table = $wpdb->prefix . 'ptgates_questions';
+        // 레거시 문제 테이블은 prefix 없이 고정
+        $questions_table = 'ptgates_questions';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `drawing_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -200,8 +203,9 @@ class Migration {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'ptgates_review_schedule';
-        $questions_table = $wpdb->prefix . 'ptgates_questions';
-        $results_table = $wpdb->prefix . 'ptgates_user_results';
+        // 레거시 테이블은 prefix 없이 고정
+        $questions_table = 'ptgates_questions';
+        $results_table = 'ptgates_user_results';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `schedule_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,

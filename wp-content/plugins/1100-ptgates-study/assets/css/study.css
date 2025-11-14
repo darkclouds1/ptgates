@@ -1,0 +1,163 @@
+.ptg-study-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.ptg-course-categories {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 항상 3열 그리드 */
+    gap: 24px;
+}
+
+@media (max-width: 768px) {
+    .ptg-course-categories {
+        grid-template-columns: 1fr; /* 모바일에서는 1열 */
+    }
+}
+
+.ptg-category {
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.ptg-category:hover,
+.ptg-category.ptg-category--active {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-color: #4299e1;
+}
+
+.ptg-category-header {
+    padding: 20px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ptg-category-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.ptg-category-desc {
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: #718096;
+}
+
+.ptg-subject-list {
+    list-style: none;
+    padding: 12px 20px 20px 20px; /* 아래쪽 패딩 추가 */
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap; /* 내용이 넘치면 다음 줄로 */
+    gap: 12px; /* 아이템 간 간격 */
+}
+
+@media (max-width: 768px) {
+    .ptg-subject-list {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+/* 스크롤바 스타일 제거 */
+
+.ptg-subject-item {
+    background-color: #f1f5f9;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    font-size: 0.875rem;
+    /* margin-right 제거 (gap으로 대체) */
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .ptg-subject-item {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+.ptg-subject-item:hover {
+    background-color: #4a5568;
+    color: #fff;
+}
+
+.ptg-lesson-subjects {
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    color: #4a5568;
+}
+
+.ptg-lesson-subject-chip {
+    display: inline-block;
+    background-color: #edf2f7;
+    border-radius: 9999px;
+    padding: 4px 12px;
+    margin-right: 8px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+}
+
+/* 학습 내용 보기 (문제 목록) */
+.ptg-lesson-view {
+    padding: 20px;
+}
+
+#back-to-courses {
+    margin-bottom: 20px;
+}
+
+.ptg-lesson-list .ptg-quiz-card {
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.ptg-question-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.ptg-question-number {
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.ptg-question-options {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ptg-question-option {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.ptg-lesson-answer-area {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px dashed #e2e8f0;
+}

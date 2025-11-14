@@ -85,9 +85,9 @@ class API {
             ),
         ));
         
-        // 문제 풀이 시도
+        // 문제 풀이 시도 (정식 경로)
         register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/attempt', array(
-            'methods' => 'POST',
+            'methods' => \WP_REST_Server::CREATABLE,
             'callback' => array(__CLASS__, 'attempt_question'),
             'permission_callback' => array(__CLASS__, 'check_permission'),
             'args' => array(
@@ -106,6 +106,12 @@ class API {
                     'sanitize_callback' => 'absint',
                 ),
             ),
+        ));
+        // 호환 경로: /questions/{id}/attempt (파라미터명이 id인 경우)
+        register_rest_route(self::NAMESPACE, '/questions/(?P<id>\d+)/attempt', array(
+            'methods' => \WP_REST_Server::CREATABLE,
+            'callback' => function($request){ $request->set_param('question_id', absint($request->get_param('id'))); return self::attempt_question($request); },
+            'permission_callback' => array(__CLASS__, 'check_permission'),
         ));
         
         // 드로잉 목록 조회
@@ -355,18 +361,49 @@ class API {
      * 문제 상태 조회
      */
     public static function get_question_state($request) {
+        global $wpdb;
+        // DB 오류가 응답에 섞이지 않도록 억제
+        $wpdb->suppress_errors(true);
+
         $user_id = Permissions::get_user_id_or_error();
         if (is_wp_error($user_id)) {
             return $user_id;
         }
         
         $question_id = absint($request->get_param('question_id'));
-        
-        $state = Repo::find_one('ptgates_user_states', array(
-            'user_id' => $user_id,
-            'question_id' => $question_id
-        ));
-        
+
+        global $wpdb;
+        // 테이블 보장
+        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
+        if ($existing !== $states_table) {
+            // 최소 스키마 생성 (외래키 없이)
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
+                `user_id` bigint(20) unsigned NOT NULL,
+                `question_id` bigint(20) unsigned NOT NULL,
+                `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+                `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+                `last_result` varchar(10) DEFAULT NULL,
+                `last_answer` varchar(255) DEFAULT NULL,
+                `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                PRIMARY KEY (`user_id`,`question_id`),
+                KEY `idx_flags` (`bookmarked`,`needs_review`)
+            ) {$charset_collate};";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
+
+        // 안전한 조회
+        $state = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
+                $user_id,
+                $question_id
+            ),
+            ARRAY_A
+        );
+
         if (!$state) {
             // 기본 상태 반환
             return Rest::success(array(
@@ -389,6 +426,10 @@ class API {
      * 문제 상태 업데이트
      */
     public static function update_question_state($request) {
+        global $wpdb;
+        // DB 오류가 응답에 섞이지 않도록 억제
+        $wpdb->suppress_errors(true);
+
         $user_id = Permissions::get_user_id_or_error();
         if (is_wp_error($user_id)) {
             return $user_id;
@@ -407,10 +448,16 @@ class API {
         }
         
         // 기존 상태 조회 또는 생성
-        $existing_state = Repo::find_one('ptgates_user_states', array(
-            'user_id' => $user_id,
-            'question_id' => $question_id
-        ));
+        global $wpdb;
+        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $existing_state = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
+                $user_id,
+                $question_id
+            ),
+            ARRAY_A
+        );
         
         $update_data = array();
         
@@ -427,19 +474,17 @@ class API {
         }
         
         if ($existing_state) {
-            // 업데이트
-            Repo::update('ptgates_user_states', $update_data, array(
-                'user_id' => $user_id,
-                'question_id' => $question_id
-            ));
-        } else {
-            // 새로 생성
-            $insert_data = array(
-                'user_id' => $user_id,
-                'question_id' => $question_id,
+            $wpdb->update(
+                $states_table,
+                $update_data,
+                array('user_id' => $user_id, 'question_id' => $question_id)
             );
-            $insert_data = array_merge($insert_data, $update_data);
-            Repo::insert('ptgates_user_states', $insert_data);
+        } else {
+            $insert_data = array_merge(
+                array('user_id' => $user_id, 'question_id' => $question_id),
+                $update_data
+            );
+            $wpdb->insert($states_table, $insert_data);
         }
         
         return Rest::success(array(
@@ -452,6 +497,10 @@ class API {
      * 문제 풀이 시도
      */
     public static function attempt_question($request) {
+        global $wpdb;
+        // DB 오류 HTML 출력 방지
+        $wpdb->suppress_errors(true);
+
         $user_id = Permissions::get_user_id_or_error();
         if (is_wp_error($user_id)) {
             return $user_id;
@@ -460,6 +509,26 @@ class API {
         $question_id = absint($request->get_param('question_id'));
         $user_answer = $request->get_param('answer');
         $elapsed = absint($request->get_param('elapsed'));
+
+        // 상태 테이블 보장
+        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
+        if ($existing !== $states_table) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
+                `user_id` bigint(20) unsigned NOT NULL,
+                `question_id` bigint(20) unsigned NOT NULL,
+                `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+                `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+                `last_result` varchar(10) DEFAULT NULL,
+                `last_answer` varchar(255) DEFAULT NULL,
+                `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                PRIMARY KEY (`user_id`,`question_id`),
+                KEY `idx_flags` (`bookmarked`,`needs_review`)
+            ) {$charset_collate};";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
         
         // 문제 정보 조회
         $questions = LegacyRepo::get_questions_with_categories(array(
@@ -490,10 +559,16 @@ class API {
         }
         
         // 사용자 상태 업데이트
-        $existing_state = Repo::find_one('ptgates_user_states', array(
-            'user_id' => $user_id,
-            'question_id' => $question_id
-        ));
+        global $wpdb;
+        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $existing_state = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
+                $user_id,
+                $question_id
+            ),
+            ARRAY_A
+        );
         
         $state_data = array(
             'user_id' => $user_id,
@@ -503,12 +578,12 @@ class API {
         );
         
         if ($existing_state) {
-            Repo::update('ptgates_user_states', $state_data, array(
+            $wpdb->update($states_table, $state_data, array(
                 'user_id' => $user_id,
                 'question_id' => $question_id
             ));
         } else {
-            Repo::insert('ptgates_user_states', $state_data);
+            $wpdb->insert($states_table, $state_data);
         }
         
         return Rest::success(array(
@@ -606,11 +681,19 @@ class API {
         }
         
         $question = $questions[0];
+
+        // 과목명이 비어있으면 보강 조회
+        $subject = isset($question['subject']) ? $question['subject'] : null;
+        if (!$subject) {
+            global $wpdb;
+            $subject = $wpdb->get_var($wpdb->prepare('SELECT subject FROM ptgates_categories WHERE question_id = %d LIMIT 1', $question_id));
+        }
         
         return Rest::success(array(
             'question_id' => $question_id,
             'explanation' => $question['explanation'],
-            'answer' => $question['answer']
+            'answer' => $question['answer'],
+            'subject' => $subject ? $subject : null
         ));
     }
 }

@@ -39,6 +39,14 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
         Shortcode 사용법: <code>[ptg_quiz question_id="380"]</code>
     </div>
     <?php endif; ?>
+
+    <!-- 타이머 영역 -->
+    <?php if (!$is_unlimited): ?>
+    <div class="ptg-quiz-timer">
+        <span class="ptg-timer-label">남은 시간:</span>
+        <span class="ptg-timer-display" id="ptg-timer-display"><?php echo esc_html($timer_minutes); ?>:00</span>
+    </div>
+    <?php endif; ?>
     
     <!-- 도구바 -->
     <div class="ptg-quiz-toolbar">
@@ -54,21 +62,8 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
         <button type="button" class="ptg-btn-icon ptg-btn-drawing" aria-label="드로잉" title="드로잉">
             <span class="ptg-icon">✏️</span>
         </button>
-        <button type="button" class="ptg-btn-icon ptg-btn-flashcard" aria-label="암기카드 만들기" title="암기카드 만들기">
-            <span class="ptg-icon">🃏</span>
-        </button>
-        <button type="button" class="ptg-btn-icon ptg-btn-notebook" aria-label="노트에 추가" title="노트에 추가">
-            <span class="ptg-icon">📓</span>
-        </button>
     </div>
     
-    <!-- 타이머 영역 -->
-    <?php if (!$is_unlimited): ?>
-    <div class="ptg-quiz-timer">
-        <span class="ptg-timer-label">남은 시간:</span>
-        <span class="ptg-timer-display" id="ptg-timer-display"><?php echo esc_html($timer_minutes); ?>:00</span>
-    </div>
-    <?php endif; ?>
     
     <!-- 문제 카드 영역 (드로잉 오버레이 포함) -->
     <div class="ptg-quiz-card-wrapper">
@@ -114,8 +109,8 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
         <!-- 해설이 동적으로 로드됨 -->
     </div>
     
-    <!-- 메모 패널 (바텀시트/사이드바) -->
-    <div class="ptg-notes-panel" id="ptg-notes-panel" style="display: none;">
+    <!-- 메모 패널 -->
+    <div class="ptg-notes-panel" id="ptg-notes-panel">
         <div class="ptg-notes-header">
             <h3>메모</h3>
             <button type="button" class="ptg-btn-close-notes">✕</button>
@@ -127,36 +122,6 @@ if (defined('WP_DEBUG') && WP_DEBUG) {
                 placeholder="메모를 입력하세요..."
                 rows="10"></textarea>
         </div>
-        <div class="ptg-notes-footer">
-            <button type="button" class="ptg-btn ptg-btn-primary" id="ptg-btn-save-notes">저장</button>
-            <span class="ptg-notes-status" id="ptg-notes-status"></span>
-        </div>
     </div>
 </div>
-
-<!-- 스크립트 로드 확인 -->
-<script type="text/javascript">
-// alert 차단 (중복 재정의 에러 방지: 단순 대입만 시도)
-(function() {
-    'use strict';
-    if (typeof window !== 'undefined') {
-        try { window.alert = function() { return false; }; } catch (e) {}
-    }
-})();
-
-// 문제 ID가 없으면 경고
-<?php if (!$question_id): ?>
-try {
-    var container = document.getElementById('ptg-quiz-container');
-    if (container) {
-        var card = document.getElementById('ptg-quiz-card');
-        if (card) {
-            card.innerHTML = '<div style="color: red; padding: 20px; text-align: center; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px;"><strong>⚠️ 문제 ID가 지정되지 않았습니다!</strong><br><br>Shortcode 사용법: <code>[ptg_quiz question_id="380"]</code></div>';
-        }
-    }
-} catch (e) {
-    console.error('[PTG Quiz Template] 오류:', e);
-}
-<?php endif; ?>
-</script>
 

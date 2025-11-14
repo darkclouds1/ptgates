@@ -10,16 +10,18 @@
     let totalTimerInterval = null;
     let questionTimerInterval = null;
     let totalSeconds = 0;
+    let remainingSeconds = 0;
     let questionSeconds = 0;
     let questionTimeLimit = null; // 문제당 제한 시간 (초), null이면 제한 없음
+    let totalTimeLimit = null; // 전체 제한 시간 (초), null이면 제한 없음 (카운트업)
     
     const PTGTimer = {
         /**
          * 타이머 시작
          */
-        start() {
-            this.reset();
-            this.startTotalTimer();
+        start(limitSeconds = null) {
+            this.reset(limitSeconds);
+            this.startTotalTimer(limitSeconds);
             this.startQuestionTimer();
         },
         
@@ -34,22 +36,38 @@
         /**
          * 타이머 리셋
          */
-        reset() {
+        reset(limitSeconds = null) {
             totalSeconds = 0;
+            remainingSeconds = 0;
             questionSeconds = 0;
+            totalTimeLimit = (typeof limitSeconds === 'number' && limitSeconds > 0) ? limitSeconds : null;
+            if (totalTimeLimit) {
+                remainingSeconds = totalTimeLimit;
+            }
             this.updateDisplay();
         },
         
         /**
          * 전체 시간 타이머 시작
          */
-        startTotalTimer() {
+        startTotalTimer(limitSeconds = null) {
             this.stopTotalTimer();
             
-            totalTimerInterval = setInterval(() => {
-                totalSeconds++;
-                this.updateDisplay();
-            }, 1000);
+            // 제한시간이 있으면 카운트다운, 없으면 카운트업
+            if (totalTimeLimit) {
+                totalTimerInterval = setInterval(() => {
+                    remainingSeconds = Math.max(remainingSeconds - 1, 0);
+                    this.updateDisplay();
+                    if (remainingSeconds <= 0) {
+                        this.onTotalTimeLimitReached();
+                    }
+                }, 1000);
+            } else {
+                totalTimerInterval = setInterval(() => {
+                    totalSeconds++;
+                    this.updateDisplay();
+                }, 1000);
+            }
         },
         
         /**
@@ -107,7 +125,8 @@
         updateDisplay() {
             const timerEl = document.getElementById('ptgates-timer');
             if (timerEl) {
-                timerEl.textContent = this.formatTime(totalSeconds);
+                const secondsToShow = totalTimeLimit ? remainingSeconds : totalSeconds;
+                timerEl.textContent = this.formatTime(secondsToShow);
             }
         },
         
@@ -132,6 +151,18 @@
                     alert('시간이 초과되었습니다.');
                 }
                 PTGMain.submitAnswer();
+            }
+        },
+
+        /**
+         * 전체 제한 시간 종료 시 처리
+         */
+        onTotalTimeLimitReached() {
+            this.stopTotalTimer();
+            this.stopQuestionTimer();
+            if (typeof PTGMain !== 'undefined' && PTGMain.finishQuiz) {
+                alert('제한 시간이 종료되었습니다.');
+                PTGMain.finishQuiz();
             }
         },
         

@@ -37,6 +37,17 @@ class PTG_API {
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
                 ),
+                'session' => array(
+                    'description' => '교시 (1 또는 2)',
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'full_session' => array(
+                    'description' => '해당 교시 전체 문항 반환 여부',
+                    'type' => 'boolean',
+                    'sanitize_callback' => 'rest_sanitize_boolean',
+                    'default' => false,
+                ),
                 'limit' => array(
                     'description' => '가져올 문제 개수',
                     'type' => 'integer',
@@ -57,6 +68,13 @@ class PTG_API {
             'methods' => 'GET',
             'callback' => array(__CLASS__, 'get_years'),
             'permission_callback' => '__return_true',
+            'args' => array(
+                'nocache' => array(
+                    'description' => '캐시 방지 파라미터',
+                    'type' => 'string',
+                    'default' => '',
+                ),
+            ),
         ));
         
         // 사용 가능한 과목 목록
@@ -68,6 +86,21 @@ class PTG_API {
                 'year' => array(
                     'description' => '연도 필터',
                     'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
+        
+        // 단일 문제 조회 (ID로)
+        register_rest_route(self::NAMESPACE, '/question/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_question_by_id'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'id' => array(
+                    'description' => '문제 ID',
+                    'type' => 'integer',
+                    'required' => true,
                     'sanitize_callback' => 'absint',
                 ),
             ),
@@ -114,6 +147,8 @@ class PTG_API {
         $args = array(
             'year' => $request->get_param('year'),
             'subject' => $request->get_param('subject'),
+            'session' => $request->get_param('session'),
+            'full_session' => $request->get_param('full_session'),
             'limit' => $request->get_param('limit'),
             'offset' => $request->get_param('offset'),
         );
@@ -136,7 +171,20 @@ class PTG_API {
      */
     public static function get_years($request) {
         $years = PTG_DB::get_available_years();
-        return rest_ensure_response($years);
+        
+        // 디버깅: API 응답 확인 (개발 환경에서만)
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('PTGates API get_years response: ' . print_r($years, true));
+        }
+        
+        $response = rest_ensure_response($years);
+        
+        // REST API 응답에 캐시 방지 헤더 추가
+        $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+        $response->header('Pragma', 'no-cache');
+        $response->header('Expires', '0');
+        
+        return $response;
     }
     
     /**
@@ -149,6 +197,52 @@ class PTG_API {
         $year = $request->get_param('year');
         $subjects = PTG_DB::get_available_subjects($year);
         return rest_ensure_response($subjects);
+    }
+    
+    /**
+     * 단일 문제 조회 콜백 (ID로)
+     * 
+     * @param WP_REST_Request $request 요청 객체
+     * @return WP_REST_Response|WP_Error
+     */
+    public static function get_question_by_id($request) {
+        $question_id = $request->get_param('id');
+        
+        // 먼저 해당 ID의 문제 조회
+        $question = PTG_DB::get_question_by_id($question_id);
+        
+        // 문제가 없거나 기출이 아닌 경우, 기출이 아닌 문제 중 랜덤으로 하나 선택
+        if (!$question) {
+            // 문제가 없으면 기출이 아닌 문제 중 랜덤으로 하나 선택
+            $question = PTG_DB::get_random_non_exam_question();
+        } else {
+            // 문제가 있지만 기출이 아닌 경우 확인
+            // 기출이 아닌 문제: exam_session >= 1000 또는 (exam_session IS NULL AND exam_year IS NULL)
+            $session = isset($question['session']) ? intval($question['session']) : null;
+            $year = isset($question['year']) ? intval($question['year']) : null;
+            
+            $is_non_exam = false;
+            if ($session !== null && $session >= 1000) {
+                $is_non_exam = true;
+            } elseif ($session === null && $year === null) {
+                $is_non_exam = true;
+            }
+            
+            if ($is_non_exam) {
+                // 기출이 아닌 문제이므로 랜덤으로 하나 선택
+                $question = PTG_DB::get_random_non_exam_question();
+            }
+        }
+        
+        if (!$question) {
+            return new WP_Error(
+                'no_question_found',
+                '문제를 찾을 수 없습니다.',
+                array('status' => 404)
+            );
+        }
+        
+        return rest_ensure_response($question);
     }
     
     /**

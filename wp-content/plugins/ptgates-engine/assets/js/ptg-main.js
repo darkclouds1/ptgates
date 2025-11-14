@@ -65,16 +65,43 @@
      */
     async function loadYears() {
         try {
-            const years = await apiRequest('years');
+            // 캐시 방지를 위해 타임스탬프 추가
+            const timestamp = new Date().getTime();
+            const years = await apiRequest(`years?nocache=${timestamp}`);
             const select = document.getElementById('ptgates-filter-year');
+            const container = document.getElementById('ptgates-quiz-container');
             
-            if (select && years) {
-                years.forEach(year => {
+            // 디버깅: API 응답 확인
+            console.log('PTGates years API response:', years);
+            
+            if (select && Array.isArray(years) && years.length) {
+                // 숏코드에서 연도 속성 확인
+                const shortcodeYear = container?.dataset.year || '';
+                
+                // 연도 정렬 (숫자 기준 내림차순)
+                const sortedYears = years.map(Number).sort((a, b) => b - a);
+                
+                // 2025년도 필터링 (exam_session >= 1000인 경우 제외)
+                // 서버에서 이미 필터링되지만, 클라이언트 측에서도 추가 안전장치
+                const filteredYears = sortedYears.filter(year => year !== 2025);
+                
+                select.innerHTML = '';
+                filteredYears.forEach(year => {
                     const option = document.createElement('option');
-                    option.value = year;
+                    option.value = String(year);
                     option.textContent = year + '년';
                     select.appendChild(option);
                 });
+                
+                // 숏코드에 연도가 지정된 경우 우선 적용, 없으면 최신 연도 선택
+                if (shortcodeYear && filteredYears.includes(Number(shortcodeYear))) {
+                    select.value = shortcodeYear;
+                    await loadSubjects(shortcodeYear);
+                } else if (filteredYears.length > 0) {
+                    const latestYear = String(filteredYears[0]);
+                    select.value = latestYear;
+                    await loadSubjects(latestYear);
+                }
             }
         } catch (error) {
             console.error('연도 목록 로드 실패:', error);
@@ -89,13 +116,23 @@
             const endpoint = year ? `subjects?year=${year}` : 'subjects';
             const subjects = await apiRequest(endpoint);
             const select = document.getElementById('ptgates-filter-subject');
+            const container = document.getElementById('ptgates-quiz-container');
             
-            if (select && subjects) {
-                // 기존 옵션 유지 (전체 옵션)
-                const firstOption = select.querySelector('option[value=""]');
+            if (select && Array.isArray(subjects)) {
+                // 숏코드에서 과목 속성 확인
+                const shortcodeSubject = container?.dataset.subject || '';
+                
+                // 기본 "과목" 옵션 유지
+                const defaultOption = select.querySelector('option[value=""]');
                 select.innerHTML = '';
-                if (firstOption) {
-                    select.appendChild(firstOption);
+                if (defaultOption) {
+                    defaultOption.textContent = '과목';
+                    select.appendChild(defaultOption);
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '과목';
+                    select.appendChild(option);
                 }
                 
                 subjects.forEach(subject => {
@@ -104,9 +141,33 @@
                     option.textContent = subject;
                     select.appendChild(option);
                 });
+                
+                // 숏코드에 과목이 지정된 경우 우선 적용, 없으면 기본값("과목" = 전체) 유지
+                if (shortcodeSubject && subjects.includes(shortcodeSubject)) {
+                    select.value = shortcodeSubject;
+                } else {
+                    select.value = '';
+                }
             }
         } catch (error) {
             console.error('과목 목록 로드 실패:', error);
+        }
+    }
+    
+    /**
+     * 단일 문제 로드 (ID로)
+     */
+    async function loadQuestionById(questionId) {
+        try {
+            showLoading(true);
+            const question = await apiRequest(`question/${questionId}`);
+            return question ? [question] : [];
+        } catch (error) {
+            console.error('문제 로드 오류:', error);
+            alert('문제를 불러오는 중 오류가 발생했습니다: ' + error.message);
+            return [];
+        } finally {
+            showLoading(false);
         }
     }
     
@@ -119,6 +180,8 @@
         if (filters.year) params.append('year', filters.year);
         if (filters.subject) params.append('subject', filters.subject);
         if (filters.limit) params.append('limit', filters.limit);
+        if (filters.session) params.append('session', filters.session);
+        if (filters.full_session) params.append('full_session', filters.full_session ? '1' : '0');
         
         const queryString = params.toString();
         const endpoint = `questions${queryString ? '?' + queryString : ''}`;
@@ -141,13 +204,27 @@
     async function startQuiz() {
         const year = document.getElementById('ptgates-filter-year')?.value || '';
         const subject = document.getElementById('ptgates-filter-subject')?.value || '';
-        const limit = document.getElementById('ptgates-filter-limit')?.value || '10';
+        const limit = document.getElementById('ptgates-filter-limit')?.value || '5';
+        const isSession1 = limit === 'session1';
+        const isSession2 = limit === 'session2';
         
+        // 세션 전체 풀이 시 연도 선택을 권장
+        if ((isSession1 || isSession2) && !year) {
+            alert('1교시/2교시 전체 풀이를 위해 연도를 선택해 주세요.');
+            return;
+        }
+
         const filters = {
             year: year || null,
-            subject: subject || null,
-            limit: parseInt(limit, 10)
+            subject: subject || null
         };
+
+        if (isSession1 || isSession2) {
+            filters.session = isSession1 ? 1 : 2;
+            filters.full_session = true;
+        } else {
+            filters.limit = parseInt(limit, 10);
+        }
         
         const questions = await loadQuestions(filters);
         
@@ -174,9 +251,19 @@
         // 헤더 위치로 스크롤
         scrollToHeader();
         
-        // 타이머 시작
+        // 타이머 시작 (세션 전체 + 제한시간 설정 시 카운트다운으로)
         if (typeof PTGTimer !== 'undefined') {
-            PTGTimer.start();
+            let totalLimitSeconds = null;
+            if (isSession1 || isSession2) {
+                const timeMode = document.querySelector('input[name="ptgates-time-mode"]:checked')?.value || 'unlimited';
+                if (timeMode === 'limited') {
+                    const minutes = parseInt(document.getElementById('ptgates-time-minutes')?.value || '0', 10);
+                    if (minutes > 0) {
+                        totalLimitSeconds = minutes * 60;
+                    }
+                }
+            }
+            PTGTimer.start(totalLimitSeconds);
         }
     }
     
@@ -475,9 +562,55 @@
             return;
         }
         
-        // 연도 및 과목 목록 로드
+        // 숏코드 속성 확인
+        const container = document.getElementById('ptgates-quiz-container');
+        const shortcodeLimit = container?.dataset.limit || '';
+        const shortcodeId = container?.dataset.id || '';
+        
+        // ID 속성이 있으면 해당 문제를 바로 로드
+        if (shortcodeId) {
+            const questionId = parseInt(shortcodeId, 10);
+            if (questionId > 0) {
+                loadQuestionById(questionId).then(questions => {
+                    if (questions && questions.length > 0) {
+                        // 상태 초기화
+                        QuizState.questions = questions;
+                        QuizState.currentIndex = 0;
+                        QuizState.answers = [];
+                        QuizState.startTime = Date.now();
+                        QuizState.questionStartTime = Date.now();
+                        
+                        // UI 초기화
+                        hideFilterSection();
+                        showProgressSection();
+                        showQuestionSection();
+                        
+                        // 첫 번째 문제 표시
+                        displayQuestion(0);
+                        
+                        // 헤더 위치로 스크롤
+                        scrollToHeader();
+                    } else {
+                        alert('문제를 찾을 수 없습니다.');
+                    }
+                });
+                return; // ID가 있으면 필터 섹션은 표시하지 않음
+            }
+        }
+        
+        // 문제 수 숏코드 속성 적용
+        if (shortcodeLimit) {
+            const limitSelect = document.getElementById('ptgates-filter-limit');
+            if (limitSelect) {
+                const option = limitSelect.querySelector(`option[value="${shortcodeLimit}"]`);
+                if (option) {
+                    limitSelect.value = shortcodeLimit;
+                }
+            }
+        }
+        
+        // 연도 및 과목 목록 로드 (loadYears 내부에서 loadSubjects 호출)
         loadYears();
-        loadSubjects();
         
         // 연도 변경 시 과목 목록 업데이트
         const yearSelect = document.getElementById('ptgates-filter-year');
@@ -492,6 +625,58 @@
         const startBtn = document.getElementById('ptgates-start-btn');
         if (startBtn) {
             startBtn.addEventListener('click', startQuiz);
+        }
+
+        // 문제 수 선택에 세션 옵션이 포함될 때 시간 설정 토글
+        const limitSelect = document.getElementById('ptgates-filter-limit');
+        const sessionTimeRow = document.getElementById('ptgates-session-time-row');
+        const timeMinutesInput = document.getElementById('ptgates-time-minutes');
+        const timeMinutesSuffix = document.getElementById('ptgates-time-minutes-suffix');
+        if (limitSelect) {
+            limitSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
+                const isSession1 = val === 'session1';
+                const isSession2 = val === 'session2';
+                if (sessionTimeRow) {
+                    sessionTimeRow.style.display = (isSession1 || isSession2) ? 'flex' : 'none';
+                }
+                // 기본 시간값 및 라디오 초기화
+                if (isSession1 || isSession2) {
+                    const defaultMinutes = isSession1 ? 90 : 75;
+                    if (timeMinutesInput) {
+                        timeMinutesInput.value = String(defaultMinutes);
+                    }
+                    // 기본은 제한시간 선택
+                    const unlimitedRadio = document.querySelector('input[name="ptgates-time-mode"][value="unlimited"]');
+                    const limitedRadio = document.querySelector('input[name="ptgates-time-mode"][value="limited"]');
+                    if (limitedRadio) limitedRadio.checked = true;
+                    if (timeMinutesInput) timeMinutesInput.style.display = 'inline-block';
+                    if (timeMinutesSuffix) timeMinutesSuffix.style.display = 'inline-block';
+                } else {
+                    // 숨김 및 초기화
+                    const unlimitedRadio = document.querySelector('input[name="ptgates-time-mode"][value="unlimited"]');
+                    if (unlimitedRadio) unlimitedRadio.checked = true;
+                    if (timeMinutesInput) timeMinutesInput.style.display = 'none';
+                    if (timeMinutesSuffix) timeMinutesSuffix.style.display = 'none';
+                }
+            });
+        }
+
+        // 시간 라디오 토글에 따른 분 입력 표시
+        const timeModeRadios = document.querySelectorAll('input[name="ptgates-time-mode"]');
+        if (timeModeRadios && timeModeRadios.length) {
+            timeModeRadios.forEach((radio) => {
+                radio.addEventListener('change', (e) => {
+                    const mode = e.target.value;
+                    if (mode === 'limited') {
+                        if (timeMinutesInput) timeMinutesInput.style.display = 'inline-block';
+                        if (timeMinutesSuffix) timeMinutesSuffix.style.display = 'inline-block';
+                    } else {
+                        if (timeMinutesInput) timeMinutesInput.style.display = 'none';
+                        if (timeMinutesSuffix) timeMinutesSuffix.style.display = 'none';
+                    }
+                });
+            });
         }
         
         // 제출 버튼

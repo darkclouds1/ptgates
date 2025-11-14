@@ -1,7 +1,7 @@
 /**
  * PTGates Quiz - 메인 JavaScript
  * 
- * 문제 풀이 UI, 타이머, 드로잉, 메모 기능
+ * 문제 풀이 UI, 타이머, 드로잉 기능
  */
 
 // 원래 alert 함수 보존(필요 시 원래 alert으로 복구 가능)
@@ -26,39 +26,22 @@ if (typeof window !== 'undefined' && typeof window.alert === 'function' && typeo
         }
     }
 })();
-(function() { // alert guard wrapper (self-contained for compatibility) 
-  // alert 차단 로직 강화/안정화 (단일 가드, 재정의 방지)
-(function() {
-    'use strict';
-    if (typeof window !== 'undefined') {
-        try {
-            const desc = Object.getOwnPropertyDescriptor(window, 'alert');
-            const locked = desc && desc.configurable === false;
-            if (!locked && !window.__ptgAlertPatched) {
-                Object.defineProperty(window, 'alert', {
-                    value: function(message) {
-                        try { console.warn('[ALERT 차단됨 - Quiz] ' + message); } catch(e) {}
-                        return false;
-                    },
-                    writable: false,
-                    configurable: false
-                });
-                window.__ptgAlertPatched = true;
-            }
-        } catch (e) {
-            try { window.alert = function(message) { return false; }; } catch (ee) {}
-            window.__ptgAlertPatched = true;
-        }
-    }
-})();
-})();
-
-// Fallback alert wrapper: 기존 alert 호출 대체
+// 퀴즈용 alert 헬퍼 (가용하면 원래 alert 사용)
 function PTG_quiz_alert(message) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    if (typeof window.__PTG_ORIG_ALERT === 'function') {
+        window.__PTG_ORIG_ALERT(message);
+        return;
+    }
+    if (typeof window.alert === 'function') {
+        window.alert(message);
+        return;
+    }
     try {
-        console.warn('[ALERT 차단됨 - Quiz] ' + message);
+        console.warn('[PTG Quiz] ' + message);
     } catch (e) {}
-    return false;
 }
 
 
@@ -74,6 +57,93 @@ function PTG_quiz_alert(message) {
         nonce: '',
         userId: 0
     };
+
+    // PTGPlatform Polyfill: 플랫폼 전역이 없더라도 독립 동작 보장
+    if (typeof window.PTGPlatform === 'undefined') {
+        (function(){
+            const buildUrl = (endpoint) => {
+                // endpoint 예: 'ptg-quiz/v1/questions/123'
+                if (/^https?:\/\//i.test(endpoint)) return endpoint;
+                const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+                return origin + '/wp-json/' + String(endpoint).replace(/^\/+/, '');
+            };
+            async function api(method, endpoint, data) {
+                const url = buildUrl(endpoint);
+                const headers = {
+                    'Accept': 'application/json',
+                    'X-WP-Nonce': config.nonce || ''
+                };
+                const init = { method, headers, credentials: 'same-origin' };
+                if (data !== undefined) {
+                    headers['Content-Type'] = 'application/json';
+                    init.body = JSON.stringify(data);
+                }
+                const res = await fetch(url, init);
+                const ct = res.headers.get('content-type') || '';
+                const text = await res.text();
+                if (!ct.includes('application/json')) {
+                    throw new Error(`[REST Non-JSON ${res.status}] ${text.slice(0,200)}`);
+                }
+                const json = JSON.parse(text);
+                if (!res.ok) {
+                    const msg = (json && (json.message || json.code)) || `HTTP ${res.status}`;
+                    const err = new Error(msg);
+                    err.status = res.status;
+                    err.data = json;
+                    throw err;
+                }
+                return json;
+            }
+            window.PTGPlatform = {
+                get: (e, q={}) => {
+                    const qp = new URLSearchParams(q).toString();
+                    const ep = qp ? `${e}?${qp}` : e;
+                    return api('GET', ep);
+                },
+                post: (e, b={}) => api('POST', e, b),
+                patch: (e, b={}) => api('PATCH', e, b),
+                showError: (m) => console.error('[PTG Platform Polyfill] 오류:', m),
+                debounce: function(fn, wait){ let t=null; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), wait); }; }
+            };
+        })();
+    }
+    // 항상 안전한 래퍼로 교체(플랫폼 스크립트가 있어도 JSON만 보장하도록)
+    (function(){
+        const buildUrl = (endpoint) => {
+            if (/^https?:\/\//i.test(endpoint)) return endpoint;
+            const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+            // ptg-quiz/v1/... 같은 엔드포인트 문자열을 받도록 고정
+            return origin + '/wp-json/' + String(endpoint).replace(/^\/+/, '');
+        };
+        async function safeApi(method, endpoint, data){
+            const url = buildUrl(endpoint);
+            const headers = {
+                'Accept': 'application/json',
+                'X-WP-Nonce': config.nonce || ''
+            };
+            const init = { method, headers, credentials: 'same-origin' };
+            if (data !== undefined) { headers['Content-Type']='application/json'; init.body = JSON.stringify(data); }
+            const res = await fetch(url, init);
+            const ct = res.headers.get('content-type') || '';
+            const text = await res.text();
+            if (!ct.includes('application/json')) { throw new Error(`[REST Non-JSON ${res.status}] ${text.slice(0,200)}`); }
+            const json = JSON.parse(text);
+            if (!res.ok) { throw new Error((json && (json.message||json.code)) || `HTTP ${res.status}`); }
+            return json;
+        }
+        // 기존 객체 유지하면서 메서드만 래핑
+        try {
+            window.PTGPlatform = Object.assign({}, window.PTGPlatform || {}, {
+                get: (e, q={}) => {
+                    const qp = new URLSearchParams(q).toString();
+                    const ep = qp ? `${e}?${qp}` : e;
+                    return safeApi('GET', ep);
+                },
+                post: (e, b={}) => safeApi('POST', e, b),
+                patch: (e, b={}) => safeApi('PATCH', e, b)
+            });
+        } catch(_) {}
+    })();
     
     // 상태 관리
     const QuizState = {
@@ -86,10 +156,7 @@ function PTG_quiz_alert(message) {
         timerSeconds: 0,
         timerInterval: null,
         drawingEnabled: false,
-        notesPanelOpen: false,
-        isInitialized: false, // 중복 초기화 방지 플래그
-        notesContent: '',
-        notesDebounceTimer: null
+        isInitialized: false // 중복 초기화 방지 플래그
     };
     
     /**
@@ -115,6 +182,86 @@ function PTG_quiz_alert(message) {
             console.error('[PTG Quiz] 문제 ID가 없음');
             showError('문제 ID가 지정되지 않았습니다.');
             return;
+        }
+        
+        // 암기카드와 노트 버튼 강제 제거 (캐시된 버전 대응)
+        const flashcardBtn = document.querySelector('.ptg-btn-flashcard');
+        const notebookBtn = document.querySelector('.ptg-btn-notebook');
+        if (flashcardBtn) {
+            flashcardBtn.remove();
+        }
+        if (notebookBtn) {
+            notebookBtn.remove();
+        }
+        
+        // 메모 패널 항상 표시 및 스타일 강제 적용 함수
+        function forceNotesPanelStyle() {
+            const notesPanel = document.getElementById('ptg-notes-panel');
+            if (!notesPanel) return;
+            
+            // 인라인 스타일로 강제 적용 (CSS보다 우선순위 높음)
+            notesPanel.style.position = 'static';
+            notesPanel.style.top = 'auto';
+            notesPanel.style.left = 'auto';
+            notesPanel.style.right = 'auto';
+            notesPanel.style.bottom = 'auto';
+            notesPanel.style.zIndex = 'auto';
+            notesPanel.style.width = '100%';
+            notesPanel.style.maxWidth = '100%';
+            notesPanel.style.margin = '20px 0 0 0';
+            notesPanel.style.transform = 'none';
+            notesPanel.style.float = 'none';
+            notesPanel.style.clear = 'both';
+            notesPanel.style.display = 'flex';
+        }
+        
+        // 즉시 적용
+        forceNotesPanelStyle();
+        
+        // 전역 함수로 등록
+        window.ptgForceNotesPanelStyle = forceNotesPanelStyle;
+        
+        // MutationObserver로 스타일 변경 감지 및 재적용
+        const notesPanel = document.getElementById('ptg-notes-panel');
+        if (notesPanel && !notesPanel._ptgNotesStyleObserver) {
+            const observer = new MutationObserver(function(mutations) {
+                let shouldForce = false;
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes') {
+                        if (mutation.attributeName === 'style' || mutation.attributeName === 'class') {
+                            shouldForce = true;
+                        }
+                    }
+                });
+                if (shouldForce) {
+                    // 약간의 지연 후 강제 적용 (다른 스크립트가 스타일을 변경한 후)
+                    setTimeout(function() {
+                        forceNotesPanelStyle();
+                    }, 10);
+                }
+            });
+            
+            observer.observe(notesPanel, {
+                attributes: true,
+                attributeFilter: ['style', 'class']
+            });
+            
+            notesPanel._ptgNotesStyleObserver = observer;
+            
+            // 주기적으로 스타일 확인 및 재적용 (다른 CSS가 덮어쓸 경우 대비)
+            const styleCheckInterval = setInterval(function() {
+                if (!notesPanel || !notesPanel.parentNode) {
+                    clearInterval(styleCheckInterval);
+                    return;
+                }
+                const computedStyle = window.getComputedStyle(notesPanel);
+                if (computedStyle.position !== 'static' && computedStyle.position !== '') {
+                    forceNotesPanelStyle();
+                }
+            }, 200); // 200ms마다 확인
+            
+            // 전역에 interval ID 저장 (나중에 정리 가능하도록)
+            notesPanel._ptgNotesStyleInterval = styleCheckInterval;
         }
         
         // 이벤트 리스너 등록
@@ -157,6 +304,12 @@ function PTG_quiz_alert(message) {
             btnNotes.addEventListener('click', toggleNotesPanel);
         }
         
+        // 메모 패널 닫기 버튼
+        const btnCloseNotes = document.querySelector('.ptg-btn-close-notes');
+        if (btnCloseNotes) {
+            btnCloseNotes.addEventListener('click', () => toggleNotesPanel(false));
+        }
+        
         // 드로잉 버튼
         const btnDrawing = document.querySelector('.ptg-btn-drawing');
         if (btnDrawing) {
@@ -175,18 +328,6 @@ function PTG_quiz_alert(message) {
             btnNext.addEventListener('click', loadNextQuestion);
         }
         
-        // 메모 저장
-        const textareaNotes = document.getElementById('ptg-notes-textarea');
-        if (textareaNotes) {
-            textareaNotes.addEventListener('input', debounceSaveNotes);
-        }
-        
-        // 메모 패널 닫기
-        const btnCloseNotes = document.querySelector('.ptg-btn-close-notes');
-        if (btnCloseNotes) {
-            btnCloseNotes.addEventListener('click', () => toggleNotesPanel(false));
-        }
-        
         // 드로잉 패널 닫기
         const btnCloseDrawing = document.querySelector('.ptg-btn-close-drawing');
         if (btnCloseDrawing) {
@@ -199,17 +340,8 @@ function PTG_quiz_alert(message) {
      */
     function setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + S: 저장
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                saveNotes();
-            }
-            
             // Esc: 패널 닫기
             if (e.key === 'Escape') {
-                if (QuizState.notesPanelOpen) {
-                    toggleNotesPanel(false);
-                }
                 if (QuizState.drawingEnabled) {
                     toggleDrawing(false);
                 }
@@ -353,14 +485,6 @@ async function loadQuestion() {
                     btnReview.classList.add('active');
                 }
                 
-                // 메모 로드
-                if (QuizState.userState.notes) {
-                    QuizState.notesContent = QuizState.userState.notes;
-                    const textarea = document.getElementById('ptg-notes-textarea');
-                    if (textarea) {
-                        textarea.value = QuizState.notesContent;
-                    }
-                }
             }
         } catch (error) {
             console.error('사용자 상태 로드 오류:', error);
@@ -781,19 +905,64 @@ async function loadQuestion() {
         const panel = document.getElementById('ptg-notes-panel');
         if (!panel) return;
         
-        const shouldOpen = force !== null ? force : !QuizState.notesPanelOpen;
+        const isCurrentlyVisible = panel.style.display !== 'none';
+        const shouldShow = force !== null ? force : !isCurrentlyVisible;
         
-        if (shouldOpen) {
-            panel.style.display = 'flex';
-            QuizState.notesPanelOpen = true;
+        if (shouldShow) {
+            // 인라인 스타일로 position을 static으로 강제 설정 (팝업 방지)
+            // 인라인 스타일은 CSS보다 우선순위가 높으므로 직접 설정
+            panel.style.cssText = 
+                'position: static; ' +
+                'top: auto; ' +
+                'left: auto; ' +
+                'right: auto; ' +
+                'bottom: auto; ' +
+                'z-index: auto; ' +
+                'width: 100%; ' +
+                'max-width: 100%; ' +
+                'margin: 20px 0 0 0; ' +
+                'transform: none; ' +
+                'float: none; ' +
+                'clear: both; ' +
+                'display: flex;';
             
-            // 드로잉 비활성화
-            if (QuizState.drawingEnabled) {
-                toggleDrawing(false);
+            // MutationObserver로 스타일 변경 감지 및 재적용
+            if (!panel._ptgNotesObserver) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                            // 다른 스크립트가 스타일을 변경했을 때 다시 적용
+                            setTimeout(function() {
+                                if (typeof window.ptgForceNotesPanelStyle === 'function') {
+                                    window.ptgForceNotesPanelStyle();
+                                }
+                            }, 10);
+                        }
+                    });
+                });
+                observer.observe(panel, {
+                    attributes: true,
+                    attributeFilter: ['style', 'class']
+                });
+                panel._ptgNotesObserver = observer;
             }
+            
+            // 전역 함수 호출
+            if (typeof window.ptgForceNotesPanelStyle === 'function') {
+                window.ptgForceNotesPanelStyle();
+            }
+            
+            // 메모 패널로 스크롤
+            setTimeout(() => {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
         } else {
             panel.style.display = 'none';
-            QuizState.notesPanelOpen = false;
+            // Observer 정리
+            if (panel._ptgNotesObserver) {
+                panel._ptgNotesObserver.disconnect();
+                panel._ptgNotesObserver = null;
+            }
         }
     }
     
@@ -812,11 +981,6 @@ async function loadQuestion() {
             
             // 드로잉 캔버스 초기화
             initDrawingCanvas();
-            
-            // 메모 패널 닫기
-            if (QuizState.notesPanelOpen) {
-                toggleNotesPanel(false);
-            }
         } else {
             overlay.style.display = 'none';
             QuizState.drawingEnabled = false;
@@ -1034,8 +1198,9 @@ async function loadQuestion() {
             if (response && response.data) {
                 const explanationEl = document.getElementById('ptg-quiz-explanation');
                 if (explanationEl) {
+                    const subject = response.data.subject || '';
                     explanationEl.innerHTML = `
-                        <h3>해설</h3>
+                        <h3>해설${subject ? ' | (' + subject + ')' : ''}</h3>
                         <div class="ptg-explanation-content">
                             ${response.data.explanation || '해설이 없습니다.'}
                         </div>
@@ -1045,59 +1210,6 @@ async function loadQuestion() {
             }
         } catch (error) {
             console.error('해설 로드 오류:', error);
-        }
-    }
-    
-    /**
-     * 메모 저장 (디바운스)
-     */
-    function debounceSaveNotes() {
-        const textarea = document.getElementById('ptg-notes-textarea');
-        if (!textarea) return;
-        
-        QuizState.notesContent = textarea.value;
-        
-        if (QuizState.notesDebounceTimer) {
-            clearTimeout(QuizState.notesDebounceTimer);
-        }
-        
-        QuizState.notesDebounceTimer = setTimeout(() => {
-            saveNotes();
-        }, 800); // 0.8초 디바운스
-    }
-    
-    /**
-     * 메모 저장
-     */
-    async function saveNotes() {
-        const textarea = document.getElementById('ptg-notes-textarea');
-        const statusEl = document.getElementById('ptg-notes-status');
-        
-        if (!textarea) return;
-        
-        try {
-            // 메모는 user_notes 테이블에 저장
-            // TODO: REST API 엔드포인트 구현 필요
-            if (statusEl) {
-                statusEl.textContent = '저장 중...';
-            }
-            
-            // 임시: 상태 업데이트로 저장
-            await PTGPlatform.patch(`ptg-quiz/v1/questions/${QuizState.questionId}/state`, {
-                last_answer: textarea.value // 임시 필드
-            });
-            
-            if (statusEl) {
-                statusEl.textContent = '저장됨';
-                setTimeout(() => {
-                    statusEl.textContent = '';
-                }, 2000);
-            }
-        } catch (error) {
-            console.error('메모 저장 오류:', error);
-            if (statusEl) {
-                statusEl.textContent = '저장 실패';
-            }
         }
     }
     
@@ -1147,7 +1259,6 @@ async function loadQuestion() {
         loadQuestion,
         toggleBookmark,
         toggleReview,
-        toggleNotesPanel,
         toggleDrawing,
         checkAnswer
     };

@@ -17,7 +17,7 @@
  * - source_company: 문제 출처 (선택, 기본값: null)
  * 
  * 사용법:
- * 1. 웹 브라우저: http://도메인/bk/import_exam/import_question.php
+ * 1. 웹 브라우저: http://ptgates.com/bk/import_exam/import_question.php
  *    - 파일 선택 버튼으로 CSV 파일 업로드
  *    - 시작 버튼 클릭하여 데이터 삽입
  * 
@@ -66,7 +66,7 @@ if ($is_cli) {
     $separator = ',';
     $questions_table = 'ptgates_questions';
     $categories_table = 'ptgates_categories';
-    $required_fields = array('content', 'answer', 'exam_year', 'exam_course', 'subject');
+    $required_fields = array('content', 'answer', 'exam_course', 'subject');
     
     $file = fopen($csv_file_name, 'r');
     if (!$file) {
@@ -98,6 +98,40 @@ if ($is_cli) {
     $import_count = 0;
     $line_number = 1;
     $wpdb->query('START TRANSACTION');
+    
+    // exam_year/exam_session 자동 생성용 변수
+    $current_year = intval(date('Y')); // 현재 연도
+    $has_exam_year = in_array('exam_year', $header);
+    $has_exam_session = in_array('exam_session', $header);
+    
+    // exam_session이 없으면 DB에서 최대값을 가져와서 +1 (파일 전체에 동일한 값 사용)
+    $auto_session_value = null;
+    if (!$has_exam_session) {
+        // DB에서 현재 연도의 최대 exam_session 값 조회
+        $max_session_query = $wpdb->prepare(
+            "SELECT MAX(c.exam_session) as max_session 
+             FROM {$categories_table} c
+             INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+             WHERE q.is_active = 1 
+             AND c.exam_year = %d
+             AND c.exam_session IS NOT NULL",
+            $current_year
+        );
+        $max_session = $wpdb->get_var($max_session_query);
+        
+        if ($max_session && $max_session >= 1000) {
+            $auto_session_value = intval($max_session) + 1;
+        } else {
+            $auto_session_value = 1001; // 기본값
+        }
+        
+        echo "⚠️ exam_session 컬럼이 없습니다. 이 파일 전체에 {$auto_session_value}회를 부여합니다.\n";
+    }
+    
+    if (!$has_exam_year) {
+        echo "⚠️ exam_year 컬럼이 없습니다. 자동으로 {$current_year}년으로 설정합니다.\n";
+    }
+    echo "\n";
     
     try {
         while (($row = fgetcsv($file, 0, $separator)) !== FALSE) {
@@ -135,12 +169,23 @@ if ($is_cli) {
             $difficulty = isset($data['difficulty']) ? intval($data['difficulty']) : 2;
             if ($difficulty < 1 || $difficulty > 3) $difficulty = 2;
             
-            $exam_year = intval($data['exam_year']);
-            if ($exam_year < 1900 || $exam_year > 2100) {
-                throw new Exception("시험 연도가 유효하지 않습니다! (라인: {$line_number}, 연도: {$exam_year})");
+            // exam_year 처리: 없으면 현재 연도로 설정
+            if ($has_exam_year && isset($data['exam_year']) && !empty($data['exam_year'])) {
+                $exam_year = intval($data['exam_year']);
+                if ($exam_year < 1900 || $exam_year > 2100) {
+                    throw new Exception("시험 연도가 유효하지 않습니다! (라인: {$line_number}, 연도: {$exam_year})");
+                }
+            } else {
+                $exam_year = $current_year;
             }
             
-            $exam_session = isset($data['exam_session']) && !empty($data['exam_session']) ? intval($data['exam_session']) : null;
+            // exam_session 처리: 파일 전체에 동일한 값 사용
+            if ($has_exam_session && isset($data['exam_session']) && !empty($data['exam_session'])) {
+                $exam_session = intval($data['exam_session']);
+            } else {
+                // 파일 전체에 동일한 exam_session 값 사용 (이미 파일 시작 시 결정됨)
+                $exam_session = $auto_session_value;
+            }
             $exam_course = trim($data['exam_course']);
             $subject = trim($data['subject']);
             $source_company = isset($data['source_company']) && !empty($data['source_company']) ? trim($data['source_company']) : null;
@@ -235,11 +280,62 @@ if ($is_cli) {
 } else {
     // 웹 환경: WordPress 로드
     // import_exam 폴더가 bk 하위에 있으므로 상위 디렉토리 2단계 올라가기
-    if (!defined('FS_METHOD')) {
-        define('FS_METHOD', 'direct');
-    }
     require_once(dirname(dirname(__DIR__)) . '/wp-load.php');
     global $wpdb;
+    
+    // 관리자 권한 체크 함수
+    function check_admin_permission() {
+        // AJAX 요청 여부 확인 (Content-Type 또는 X-Requested-With 헤더 확인)
+        $is_ajax = (
+            (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+            (isset($_POST['action']) && in_array($_POST['action'], array('import_csv', 'generate_csv_from_txt', 'get_subject_statistics', 'get_category_statistics', 'delete_exam_data')))
+        );
+        
+        // 로그인 여부 확인
+        if (!is_user_logged_in()) {
+            if ($is_ajax) {
+                // AJAX 요청인 경우 JSON으로 응답
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(401);
+                echo json_encode(array(
+                    'success' => false,
+                    'message' => '로그인이 필요합니다.',
+                    'login_required' => true
+                ));
+                exit;
+            } else {
+                // 일반 요청인 경우 로그인 페이지로 리다이렉트
+                $login_url = wp_login_url($_SERVER['REQUEST_URI']);
+                wp_redirect($login_url);
+                exit;
+            }
+        }
+        
+        // 관리자 권한 확인
+        if (!current_user_can('manage_options')) {
+            if ($is_ajax) {
+                // AJAX 요청인 경우 JSON으로 응답
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(403);
+                echo json_encode(array(
+                    'success' => false,
+                    'message' => '이 페이지에 접근할 권한이 없습니다. 관리자 권한이 필요합니다.',
+                    'permission_denied' => true
+                ));
+                exit;
+            } else {
+                // 일반 요청인 경우 403 에러 표시
+                wp_die(
+                    '이 페이지에 접근할 권한이 없습니다.',
+                    '권한 없음',
+                    array('response' => 403)
+                );
+            }
+        }
+    }
+    
+    // 모든 요청에 대해 관리자 권한 체크
+    check_admin_permission();
     
     // 세션 시작 (마지막 업로드 파일 정보 저장용)
     if (!session_id()) {
@@ -272,6 +368,12 @@ if ($is_cli) {
             process_csv_import($wpdb);
         } else if ($_POST['action'] === 'generate_csv_from_txt') {
             generate_csv_from_txt();
+        } else if ($_POST['action'] === 'get_subject_statistics') {
+            get_subject_statistics($wpdb);
+        } else if ($_POST['action'] === 'get_category_statistics') {
+            get_category_statistics($wpdb);
+        } else if ($_POST['action'] === 'delete_exam_data') {
+            delete_exam_data($wpdb);
         } else {
             echo json_encode(array('success' => false, 'message' => '알 수 없는 작업입니다.'));
         }
@@ -279,38 +381,394 @@ if ($is_cli) {
     }
 }
 
+// Excel 파일을 CSV 형식으로 변환하는 함수
+function convert_excel_to_csv($file_path, $file_extension) {
+    // PhpSpreadsheet 사용 시도 (우선)
+    $vendor_autoload_paths = array(
+        dirname(dirname(__DIR__)) . '/vendor/autoload.php',
+        __DIR__ . '/vendor/autoload.php',
+        dirname(__DIR__) . '/vendor/autoload.php',
+    );
+    
+    $phpspreadsheet_loaded = false;
+    foreach ($vendor_autoload_paths as $autoload_path) {
+        if (file_exists($autoload_path)) {
+            require_once $autoload_path;
+            $phpspreadsheet_loaded = true;
+            break;
+        }
+    }
+    
+    if ($phpspreadsheet_loaded && class_exists('PhpOffice\PhpSpreadsheet\IOFactory')) {
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file_path);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            // CSV 형식으로 변환
+            $csv_data = array();
+            foreach ($rows as $row) {
+                $csv_row = array();
+                foreach ($row as $cell) {
+                    // 셀 값 이스케이프
+                    $cell_value = is_null($cell) ? '' : (string)$cell;
+                    $cell_value = str_replace('"', '""', $cell_value);
+                    if (strpos($cell_value, ',') !== false || strpos($cell_value, '"') !== false || strpos($cell_value, "\n") !== false) {
+                        $cell_value = '"' . $cell_value . '"';
+                    }
+                    $csv_row[] = $cell_value;
+                }
+                $csv_data[] = implode(',', $csv_row);
+            }
+            
+            return implode("\n", $csv_data);
+        } catch (Exception $e) {
+            throw new Exception('Excel 파일 읽기 실패: ' . $e->getMessage());
+        }
+    }
+    
+    // PhpSpreadsheet가 없으면 간단한 Excel 파서 사용 (.xlsx만 지원)
+    if ($file_extension === 'xlsx') {
+        return convert_xlsx_to_csv_simple($file_path);
+    } elseif ($file_extension === 'xls') {
+        throw new Exception('.xls 파일은 PhpSpreadsheet 라이브러리가 필요합니다. Composer로 설치해주세요: composer require phpoffice/phpspreadsheet\n또는 Excel에서 .xlsx 형식으로 저장해주세요.');
+    }
+    
+    throw new Exception('지원하지 않는 파일 형식입니다.');
+}
+
+// 간단한 .xlsx 파일 파서 (PhpSpreadsheet 없이)
+function convert_xlsx_to_csv_simple($file_path) {
+    if (!class_exists('ZipArchive')) {
+        throw new Exception('Excel 파일을 처리하려면 PHP ZipArchive 확장이 필요합니다.');
+    }
+    
+    if (!file_exists($file_path)) {
+        throw new Exception('Excel 파일을 찾을 수 없습니다: ' . $file_path);
+    }
+    
+    $zip = new ZipArchive();
+    $zip_result = $zip->open($file_path);
+    if ($zip_result !== TRUE) {
+        $error_msg = 'Excel 파일을 열 수 없습니다. ';
+        switch ($zip_result) {
+            case ZipArchive::ER_OK: $error_msg .= '에러 없음'; break;
+            case ZipArchive::ER_MULTIDISK: $error_msg .= '멀티디스크 ZIP 아카이브는 지원하지 않습니다'; break;
+            case ZipArchive::ER_RENAME: $error_msg .= '임시 파일 이름 변경 실패'; break;
+            case ZipArchive::ER_CLOSE: $error_msg .= 'ZIP 아카이브 닫기 실패'; break;
+            case ZipArchive::ER_SEEK: $error_msg .= '시크 오류'; break;
+            case ZipArchive::ER_READ: $error_msg .= '읽기 오류'; break;
+            case ZipArchive::ER_WRITE: $error_msg .= '쓰기 오류'; break;
+            case ZipArchive::ER_CRC: $error_msg .= 'CRC 오류'; break;
+            case ZipArchive::ER_ZIPCLOSED: $error_msg .= 'ZIP 아카이브가 닫혀있습니다'; break;
+            case ZipArchive::ER_NOENT: $error_msg .= '파일을 찾을 수 없습니다'; break;
+            case ZipArchive::ER_EXISTS: $error_msg .= '파일이 이미 존재합니다'; break;
+            case ZipArchive::ER_OPEN: $error_msg .= '파일을 열 수 없습니다'; break;
+            case ZipArchive::ER_TMPOPEN: $error_msg .= '임시 파일을 만들 수 없습니다'; break;
+            case ZipArchive::ER_ZLIB: $error_msg .= 'Zlib 오류'; break;
+            case ZipArchive::ER_MEMORY: $error_msg .= '메모리 할당 실패'; break;
+            case ZipArchive::ER_CHANGED: $error_msg .= '항목이 변경되었습니다'; break;
+            case ZipArchive::ER_COMPNOTSUPP: $error_msg .= '압축 방법이 지원되지 않습니다'; break;
+            case ZipArchive::ER_EOF: $error_msg .= '예기치 않은 EOF'; break;
+            case ZipArchive::ER_INVAL: $error_msg .= '잘못된 인수'; break;
+            case ZipArchive::ER_NOZIP: $error_msg .= 'ZIP 아카이브가 아닙니다'; break;
+            case ZipArchive::ER_INTERNAL: $error_msg .= '내부 오류'; break;
+            case ZipArchive::ER_INCONS: $error_msg .= 'ZIP 아카이브 불일치'; break;
+            case ZipArchive::ER_REMOVE: $error_msg .= '파일 삭제 실패'; break;
+            case ZipArchive::ER_DELETED: $error_msg .= '항목이 삭제되었습니다'; break;
+            default: $error_msg .= '알 수 없는 오류 (코드: ' . $zip_result . ')'; break;
+        }
+        throw new Exception($error_msg);
+    }
+    
+    // 공유 문자열 읽기
+    $shared_strings = array();
+    $shared_strings_xml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($shared_strings_xml !== false) {
+        libxml_use_internal_errors(true);
+        $xml = @simplexml_load_string($shared_strings_xml);
+        if ($xml !== false) {
+            // 네임스페이스 등록
+            $xml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $si_nodes = $xml->xpath('//main:si');
+            if (empty($si_nodes)) {
+                // 네임스페이스 없이 시도
+                $si_nodes = $xml->xpath('//si');
+            }
+            foreach ($si_nodes as $si) {
+                $text = '';
+                if (isset($si->t)) {
+                    $text = (string)$si->t;
+                } else {
+                    // 여러 텍스트 노드가 있는 경우
+                    $text_nodes = $si->xpath('.//t');
+                    if (empty($text_nodes)) {
+                        $text_nodes = $si->xpath('.//main:t');
+                    }
+                    foreach ($text_nodes as $t) {
+                        $text .= (string)$t;
+                    }
+                }
+                $shared_strings[] = $text;
+            }
+        }
+        libxml_clear_errors();
+    }
+    
+    // 첫 번째 시트 읽기
+    $sheet_xml = $zip->getFromName('xl/worksheets/sheet1.xml');
+    if ($sheet_xml === false) {
+        $zip->close();
+        throw new Exception('Excel 파일에서 시트를 찾을 수 없습니다.');
+    }
+    
+    $zip->close();
+    
+    // 시트 XML 파싱
+    libxml_use_internal_errors(true);
+    $xml = @simplexml_load_string($sheet_xml);
+    if ($xml === false) {
+        $xml_errors = libxml_get_errors();
+        $error_msg = 'Excel 파일의 시트 데이터를 파싱할 수 없습니다.';
+        if (!empty($xml_errors)) {
+            $error_msg .= ' XML 오류: ' . $xml_errors[0]->message;
+        }
+        libxml_clear_errors();
+        throw new Exception($error_msg);
+    }
+    libxml_clear_errors();
+    
+    // 네임스페이스 등록
+    $xml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+    
+    // 셀 데이터 읽기
+    $rows_data = array();
+    $cells = $xml->xpath('//main:c');
+    if (empty($cells)) {
+        // 네임스페이스 없이 시도
+        $cells = $xml->xpath('//c');
+    }
+    
+    if (empty($cells)) {
+        throw new Exception('Excel 파일에서 셀 데이터를 찾을 수 없습니다. 파일이 비어있거나 손상되었을 수 있습니다.');
+    }
+    
+    foreach ($cells as $cell) {
+        $r = (string)$cell['r']; // 셀 주소 (예: A1, B2)
+        if (empty($r)) continue;
+        
+        $t = (string)$cell['t']; // 타입 (s = 공유 문자열)
+        
+        // v 노드 찾기
+        $v = '';
+        if (isset($cell->v)) {
+            $v = trim((string)$cell->v);
+        } else {
+            // 네임스페이스가 있는 경우
+            $v_nodes = $cell->xpath('.//main:v');
+            if (empty($v_nodes)) {
+                $v_nodes = $cell->xpath('.//v');
+            }
+            if (!empty($v_nodes)) {
+                $v = trim((string)$v_nodes[0]);
+            }
+        }
+        
+        // 행과 열 추출 (예: A1 -> row=1, col=0)
+        preg_match('/([A-Z]+)(\d+)/', $r, $matches);
+        if (count($matches) !== 3) continue;
+        
+        $col_letters = $matches[1];
+        $row_num = intval($matches[2]) - 1; // 0부터 시작
+        
+        // 열 번호 계산 (A=0, B=1, ..., Z=25, AA=26, ...)
+        $col_num = 0;
+        for ($i = 0; $i < strlen($col_letters); $i++) {
+            $col_num = $col_num * 26 + (ord($col_letters[$i]) - ord('A') + 1);
+        }
+        $col_num--; // 0부터 시작하도록 조정
+        
+        // 셀 값 결정
+        $cell_value = '';
+        if ($t === 's' && $v !== '' && is_numeric($v)) {
+            // 공유 문자열 인덱스
+            $shared_index = intval($v);
+            if (isset($shared_strings[$shared_index])) {
+                $cell_value = $shared_strings[$shared_index];
+            }
+        } elseif ($v !== '') {
+            // 직접 값 (숫자, 날짜 등)
+            $cell_value = $v;
+        }
+        // $v가 비어있으면 $cell_value도 빈 문자열로 유지 (빈 셀)
+        
+        // 행 데이터에 저장 (빈 셀도 저장)
+        if (!isset($rows_data[$row_num])) {
+            $rows_data[$row_num] = array();
+        }
+        $rows_data[$row_num][$col_num] = $cell_value;
+    }
+    
+    // CSV 형식으로 변환
+    $csv_data = array();
+    if (empty($rows_data)) {
+        throw new Exception('Excel 파일에서 데이터를 읽을 수 없습니다. 파일이 비어있거나 손상되었을 수 있습니다.');
+    }
+    
+    $max_row = max(array_keys($rows_data));
+    $max_col = 0;
+    
+    // 최대 열 번호 찾기
+    foreach ($rows_data as $row_data) {
+        if (!empty($row_data)) {
+            $row_max_col = max(array_keys($row_data));
+            if ($row_max_col > $max_col) {
+                $max_col = $row_max_col;
+            }
+        }
+    }
+    
+    for ($row = 0; $row <= $max_row; $row++) {
+        $csv_row = array();
+        if (isset($rows_data[$row]) && !empty($rows_data[$row])) {
+            for ($col = 0; $col <= $max_col; $col++) {
+                $cell_value = isset($rows_data[$row][$col]) ? $rows_data[$row][$col] : '';
+                // CSV 이스케이프
+                $cell_value = str_replace('"', '""', $cell_value);
+                if (strpos($cell_value, ',') !== false || strpos($cell_value, '"') !== false || strpos($cell_value, "\n") !== false) {
+                    $cell_value = '"' . $cell_value . '"';
+                }
+                $csv_row[] = $cell_value;
+            }
+        } else {
+            // 빈 행도 처리 (모든 열에 빈 값)
+            for ($col = 0; $col <= $max_col; $col++) {
+                $csv_row[] = '';
+            }
+        }
+        $csv_data[] = implode(',', $csv_row);
+    }
+    
+    if (empty($csv_data)) {
+        throw new Exception('Excel 파일에서 데이터를 읽을 수 없습니다. 파일이 비어있거나 손상되었을 수 있습니다.');
+    }
+    
+    return implode("\n", $csv_data);
+}
+
 // CSV 처리 함수
 function process_csv_import($wpdb) {
-    $separator = ',';
-    $questions_table = 'ptgates_questions';
-    $categories_table = 'ptgates_categories';
+    // PHP 에러 출력 방지 (JSON 응답을 위해)
+    error_reporting(E_ALL);
+    ini_set('display_errors', 0);
     
-    $required_fields = array('content', 'answer', 'exam_year', 'exam_course', 'subject');
-    
-    $log = array();
-    $import_count = 0;
-    $error_count = 0;
-    
-    // 파일 업로드 확인
-    if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-        echo json_encode(array(
-            'success' => false,
-            'message' => 'CSV 파일 업로드에 실패했습니다. 파일을 선택해주세요.'
-        ));
-        return;
-    }
+    // 모든 에러를 JSON으로 반환하기 위해 try-catch로 감싸기
+    try {
+        $separator = ',';
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+        
+        $required_fields = array('content', 'answer', 'exam_course', 'subject');
+        
+        $log = array();
+        $import_count = 0;
+        $error_count = 0;
+        
+        // 파일 업로드 확인
+        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(array(
+                'success' => false,
+                'message' => 'CSV 파일 업로드에 실패했습니다. 파일을 선택해주세요.'
+            ));
+            return;
+        }
     
     $uploaded_file = $_FILES['csv_file']['tmp_name'];
     $original_filename = $_FILES['csv_file']['name'];
     
+    // 파일 확장자 확인
+    $file_extension = strtolower(pathinfo($original_filename, PATHINFO_EXTENSION));
+    $is_excel_file = in_array($file_extension, array('xlsx', 'xls'));
+    $is_csv_file = ($file_extension === 'csv');
+    
+    if (!$is_csv_file && !$is_excel_file) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => 'CSV 또는 Excel 파일만 업로드 가능합니다. 파일 확장자를 확인해주세요. (업로드된 파일: .' . $file_extension . ')'
+        ));
+        return;
+    }
+    
+    // Excel 파일인 경우 CSV로 변환
+    $csv_content = null;
+    if ($is_excel_file) {
+        try {
+            $csv_content = convert_excel_to_csv($uploaded_file, $file_extension);
+            $csv_lines = explode("\n", $csv_content);
+            $log[] = "Excel 파일을 CSV로 변환 완료: " . $original_filename;
+            $log[] = "변환된 CSV 라인 수: " . count($csv_lines) . " (헤더 포함)";
+        } catch (Exception $e) {
+            echo json_encode(array(
+                'success' => false,
+                'message' => $e->getMessage()
+            ));
+            return;
+        }
+    }
+    
+    // CSV 파일인 경우 내용 검증
+    if ($is_csv_file) {
+        // 파일 내용 검증 (Excel 파일 시그니처 확인)
+        $file_content_start = file_get_contents($uploaded_file, false, null, 0, 100);
+        if ($file_content_start !== false) {
+            // Excel 파일 시그니처 확인 (ZIP 파일 시그니처: PK)
+            if (strpos($file_content_start, 'PK') === 0 && strpos($file_content_start, '[Content_Types].xml') !== false) {
+                // Excel 파일이지만 .csv 확장자인 경우, Excel로 처리 시도
+                try {
+                    $csv_content = convert_excel_to_csv($uploaded_file, 'xlsx');
+                    $log[] = "Excel 파일(.csv 확장자)을 CSV로 변환 완료: " . $original_filename;
+                    $is_excel_file = true;
+                } catch (Exception $e) {
+                    echo json_encode(array(
+                        'success' => false,
+                        'message' => 'Excel 파일이 감지되었습니다. 파일 확장자를 .xlsx 또는 .xls로 변경하거나, CSV로 변환해주세요.'
+                    ));
+                    return;
+                }
+            }
+            
+            // 바이너리 데이터가 많은지 확인 (제어 문자 비율) - CSV 파일인 경우만
+            $binary_char_count = preg_match_all('/[\x00-\x08\x0E-\x1F]/', $file_content_start);
+            if ($binary_char_count > strlen($file_content_start) * 0.1) {
+                echo json_encode(array(
+                    'success' => false,
+                    'message' => '바이너리 파일이 감지되었습니다. CSV 텍스트 파일 또는 Excel 파일만 업로드 가능합니다.'
+                ));
+                return;
+            }
+        }
+    }
+    
     // 업로드된 파일을 같은 디렉토리에 exam_data.csv로 저장 (다운로드용)
     $saved_file_path = __DIR__ . '/exam_data.csv';
     
-    // 업로드된 파일을 exam_data.csv로 복사
-    copy($uploaded_file, $saved_file_path);
+    // Excel 파일에서 변환된 CSV 내용이 있으면 사용, 없으면 원본 파일 사용
+    if ($csv_content !== null) {
+        // 변환된 CSV 내용을 임시 파일에 저장
+        $temp_csv_file = tempnam(sys_get_temp_dir(), 'excel_csv_');
+        file_put_contents($temp_csv_file, $csv_content);
+        $file_to_process = $temp_csv_file;
+        
+        // 변환된 CSV를 exam_data.csv로 저장
+        file_put_contents($saved_file_path, $csv_content);
+    } else {
+        // 원본 CSV 파일 사용
+        copy($uploaded_file, $saved_file_path);
+        $file_to_process = $uploaded_file;
+    }
     
     // 파일 열기
-    $file = fopen($uploaded_file, 'r');
+    $file = fopen($file_to_process, 'r');
     if (!$file) {
         echo json_encode(array(
             'success' => false,
@@ -319,12 +777,15 @@ function process_csv_import($wpdb) {
         return;
     }
     
-    $log[] = "CSV 파일 열기 성공: " . $_FILES['csv_file']['name'];
+    $log[] = "파일 열기 성공: " . $_FILES['csv_file']['name'];
     
     // 헤더 읽기
     $header = fgetcsv($file, 0, $separator);
     if (!$header) {
         fclose($file);
+        if (isset($temp_csv_file)) {
+            @unlink($temp_csv_file);
+        }
         echo json_encode(array(
             'success' => false,
             'message' => 'CSV 파일 헤더를 읽을 수 없습니다.'
@@ -363,14 +824,47 @@ function process_csv_import($wpdb) {
     $line_number = 1;
     $wpdb->query('START TRANSACTION');
     
-    // 덮어쓰기 모드인 경우 기존 데이터 삭제
+    // exam_year/exam_session 자동 생성용 변수
+    $current_year = intval(date('Y')); // 현재 연도
+    $has_exam_year = in_array('exam_year', $header);
+    $has_exam_session = in_array('exam_session', $header);
+    
+    // exam_session이 없으면 DB에서 최대값을 가져와서 +1 (파일 전체에 동일한 값 사용)
+    $auto_session_value = null;
+    if (!$has_exam_session) {
+        // DB에서 현재 연도의 최대 exam_session 값 조회
+        $max_session_query = $wpdb->prepare(
+            "SELECT MAX(c.exam_session) as max_session 
+             FROM {$categories_table} c
+             INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+             WHERE q.is_active = 1 
+             AND c.exam_year = %d
+             AND c.exam_session IS NOT NULL",
+            $current_year
+        );
+        $max_session = $wpdb->get_var($max_session_query);
+        
+        if ($max_session && $max_session >= 1000) {
+            $auto_session_value = intval($max_session) + 1;
+        } else {
+            $auto_session_value = 1001; // 기본값
+        }
+        
+        $log[] = "⚠️ exam_session 컬럼이 없습니다. 이 파일 전체에 {$auto_session_value}회를 부여합니다.";
+    }
+    
+    if (!$has_exam_year) {
+        $log[] = "⚠️ exam_year 컬럼이 없습니다. 자동으로 {$current_year}년으로 설정합니다.";
+    }
+    
+    // 덮어쓰기 모드인 경우 기존 데이터 삭제 (특정 연도/회차만)
+    // 주의: 덮어쓰기 모드는 현재 파일의 연도/회차에 해당하는 데이터만 삭제합니다.
     if ($overwrite_mode) {
-        // 외래키 제약조건 때문에 categories를 먼저 삭제해야 함
-        $wpdb->query("DELETE FROM {$categories_table}");
-        $deleted_categories = $wpdb->rows_affected;
-        $wpdb->query("DELETE FROM {$questions_table}");
-        $deleted_questions = $wpdb->rows_affected;
-        $log[] = "기존 데이터 삭제 완료: 질문 {$deleted_questions}개, 분류 {$deleted_categories}개";
+        // 현재 파일의 연도와 회차를 먼저 확인해야 함
+        // 하지만 아직 파일을 읽지 않았으므로, 여기서는 삭제하지 않고
+        // 각 행 처리 시 중복 체크 후 업데이트하도록 함
+        // 전체 삭제는 위험하므로 제거함
+        $log[] = "⚠️ 덮어쓰기 모드: 중복되는 문제만 업데이트합니다. (기존 데이터는 삭제하지 않습니다)";
     }
     
     try {
@@ -418,14 +912,23 @@ function process_csv_import($wpdb) {
                 $difficulty = 2;
             }
             
-            $exam_year = intval($data['exam_year']);
-            if ($exam_year < 1900 || $exam_year > 2100) {
-                throw new Exception("시험 연도가 유효하지 않습니다! (라인: {$line_number}, 연도: {$exam_year})");
+            // exam_year 처리: 없으면 현재 연도로 설정
+            if ($has_exam_year && isset($data['exam_year']) && !empty($data['exam_year'])) {
+                $exam_year = intval($data['exam_year']);
+                if ($exam_year < 1900 || $exam_year > 2100) {
+                    throw new Exception("시험 연도가 유효하지 않습니다! (라인: {$line_number}, 연도: {$exam_year})");
+                }
+            } else {
+                $exam_year = $current_year;
             }
             
-            $exam_session = isset($data['exam_session']) && !empty($data['exam_session']) 
-                ? intval($data['exam_session']) 
-                : null;
+            // exam_session 처리: 파일 전체에 동일한 값 사용
+            if ($has_exam_session && isset($data['exam_session']) && !empty($data['exam_session'])) {
+                $exam_session = intval($data['exam_session']);
+            } else {
+                // 파일 전체에 동일한 exam_session 값 사용 (이미 파일 시작 시 결정됨)
+                $exam_session = $auto_session_value;
+            }
             
             $exam_course = trim($data['exam_course']);
             $subject = trim($data['subject']);
@@ -434,7 +937,7 @@ function process_csv_import($wpdb) {
                 : null;
             
             // 중복 체크: content와 시험 정보 조합으로 확인
-            // 같은 연도, 회차, 교시, 과목에서 동일한 문제 본문이 있는지 확인
+            // 덮어쓰기 모드일 때는 exam_session을 무시하여 같은 문제를 찾음
             $duplicate_check = $wpdb->prepare(
                 "SELECT q.question_id 
                  FROM {$questions_table} q
@@ -449,14 +952,19 @@ function process_csv_import($wpdb) {
                 $subject
             );
             
-            // exam_session이 있는 경우에도 포함하여 체크
-            if ($exam_session !== null) {
-                $duplicate_check .= $wpdb->prepare(" AND c.exam_session = %d", $exam_session);
-            } else {
-                $duplicate_check .= " AND c.exam_session IS NULL";
+            // 덮어쓰기 모드가 아닐 때만 exam_session을 포함하여 체크
+            // 덮어쓰기 모드일 때는 exam_session을 무시하여 같은 문제를 찾아 업데이트
+            if (!$overwrite_mode) {
+                // exam_session이 있는 경우에도 포함하여 체크
+                if ($exam_session !== null) {
+                    $duplicate_check .= $wpdb->prepare(" AND c.exam_session = %d", $exam_session);
+                } else {
+                    $duplicate_check .= " AND c.exam_session IS NULL";
+                }
             }
+            // 덮어쓰기 모드일 때는 exam_session 조건을 추가하지 않음
             
-            $duplicate_check .= " LIMIT 1";
+            $duplicate_check .= " ORDER BY c.exam_session DESC, q.question_id DESC LIMIT 1";
             
             $existing_question_id = $wpdb->get_var($duplicate_check);
             
@@ -467,6 +975,15 @@ function process_csv_import($wpdb) {
                     continue;
                 } else {
                     // 덮어쓰기 모드: 기존 데이터 업데이트
+                    // 기존 데이터의 exam_session을 유지 (같은 회차로 유지)
+                    $existing_session = $wpdb->get_var($wpdb->prepare(
+                        "SELECT exam_session FROM {$categories_table} WHERE question_id = %d",
+                        $existing_question_id
+                    ));
+                    
+                    // 기존 exam_session이 있으면 유지, 없으면 새로운 값 사용
+                    $final_exam_session = ($existing_session !== null) ? $existing_session : $exam_session;
+                    
                     $question_data = array(
                         'content'     => $data['content'],
                         'answer'      => $clean_answer,
@@ -483,7 +1000,7 @@ function process_csv_import($wpdb) {
                     
                     $category_data = array(
                         'exam_year'      => $exam_year,
-                        'exam_session'   => $exam_session,
+                        'exam_session'   => $final_exam_session, // 기존 exam_session 유지
                         'exam_course'    => $exam_course,
                         'subject'        => $subject,
                         'source_company' => $source_company,
@@ -589,9 +1106,25 @@ function process_csv_import($wpdb) {
             'message' => $e->getMessage(),
             'original_filename' => isset($original_filename) ? $original_filename : null
         ));
+    } finally {
+        // 파일 닫기 및 임시 파일 정리
+        if (isset($file) && is_resource($file)) {
+            fclose($file);
+        }
+        if (isset($temp_csv_file) && file_exists($temp_csv_file)) {
+            @unlink($temp_csv_file);
+        }
     }
-    
-    fclose($file);
+    } catch (Exception $outer_e) {
+        // 최상위 에러 처리 (Excel 파서 등에서 발생하는 에러)
+        echo json_encode(array(
+            'success' => false,
+            'import_count' => isset($import_count) ? $import_count : 0,
+            'log' => isset($log) ? $log : array(),
+            'message' => $outer_e->getMessage(),
+            'original_filename' => isset($original_filename) ? $original_filename : null
+        ));
+    }
 }
 
 // TXT 파일을 CSV로 변환하는 함수
@@ -773,6 +1306,254 @@ function get_question_statistics($wpdb) {
     );
 }
 
+// 과목별 문항 수 조회 함수
+function get_subject_statistics($wpdb) {
+    $categories_table = 'ptgates_categories';
+    $questions_table = 'ptgates_questions';
+    
+    // 필수 파라미터 확인
+    if (!isset($_POST['exam_year']) || !isset($_POST['exam_course'])) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => '필수 파라미터가 누락되었습니다.'
+        ));
+        return;
+    }
+    
+    $exam_year = intval($_POST['exam_year']);
+    $exam_course = trim($_POST['exam_course']);
+    $exam_session = isset($_POST['exam_session']) && !empty($_POST['exam_session']) 
+        ? intval($_POST['exam_session']) 
+        : null;
+    
+    // 과목별 문항 수 조회
+    $query = $wpdb->prepare(
+        "SELECT 
+            c.subject,
+            COUNT(DISTINCT c.question_id) as question_count
+        FROM {$categories_table} c
+        INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+        WHERE q.is_active = 1
+        AND c.exam_year = %d
+        AND c.exam_course = %s",
+        $exam_year,
+        $exam_course
+    );
+    
+    if ($exam_session !== null) {
+        $query .= $wpdb->prepare(" AND c.exam_session = %d", $exam_session);
+    } else {
+        $query .= " AND c.exam_session IS NULL";
+    }
+    
+    $query .= " GROUP BY c.subject ORDER BY c.subject ASC";
+    
+    $results = $wpdb->get_results($query);
+    
+    // 총 문항 수 계산
+    $total_count = 0;
+    foreach ($results as $result) {
+        $total_count += intval($result->question_count);
+    }
+    
+    echo json_encode(array(
+        'success' => true,
+        'exam_year' => $exam_year,
+        'exam_session' => $exam_session,
+        'exam_course' => $exam_course,
+        'subjects' => $results,
+        'total_count' => $total_count
+    ));
+}
+
+// 대분류별 문항 수 조회 함수 (세부과목의 첫 단어로 대분류 정의)
+function get_category_statistics($wpdb) {
+    $categories_table = 'ptgates_categories';
+    $questions_table = 'ptgates_questions';
+    
+    // 필수 파라미터 확인
+    if (!isset($_POST['exam_year']) || !isset($_POST['exam_course'])) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => '필수 파라미터가 누락되었습니다.'
+        ));
+        return;
+    }
+    
+    $exam_year = intval($_POST['exam_year']);
+    $exam_course = trim($_POST['exam_course']);
+    $exam_session = isset($_POST['exam_session']) && !empty($_POST['exam_session']) 
+        ? intval($_POST['exam_session']) 
+        : null;
+    
+    // 과목별 문항 수 조회 (괄호 포함)
+    $query = $wpdb->prepare(
+        "SELECT 
+            c.subject,
+            COUNT(DISTINCT c.question_id) as question_count
+        FROM {$categories_table} c
+        INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+        WHERE q.is_active = 1
+        AND c.exam_year = %d
+        AND c.exam_course = %s",
+        $exam_year,
+        $exam_course
+    );
+    
+    if ($exam_session !== null) {
+        $query .= $wpdb->prepare(" AND c.exam_session = %d", $exam_session);
+    } else {
+        $query .= " AND c.exam_session IS NULL";
+    }
+    
+    $query .= " GROUP BY c.subject ORDER BY c.subject ASC";
+    
+    $results = $wpdb->get_results($query);
+    
+    // 대분류별로 그룹화 (세부과목의 첫 단어 추출)
+    $category_groups = array();
+    $total_count = 0;
+    
+    foreach ($results as $result) {
+        $subject = $result->subject;
+        $count = intval($result->question_count);
+        
+        // 세부과목의 첫 단어를 추출하여 대분류로 사용
+        // 예: "해부학(골격계)" → "해부학"
+        // 예: "물리치료학(운동치료)" → "물리치료학"
+        // 예: "해부학 근육계" → "해부학"
+        // 예: "물리적 인자치료" → "물리적 인자치료" (한 단어로 취급)
+        $subject_trimmed = trim($subject);
+        
+        // "물리적"으로 시작하는 경우 다음 단어까지 포함
+        if (preg_match('/^물리적\s+/', $subject_trimmed)) {
+            // "물리적" + 다음 단어를 추출
+            if (preg_match('/^물리적\s+([^\s\(\)]+)/', $subject_trimmed, $matches)) {
+                $main_category = '물리적 ' . $matches[1];
+            } else {
+                // 다음 단어가 없으면 "물리적"만 사용
+                $main_category = '물리적';
+            }
+        } else {
+            // 공백으로 분리하여 첫 번째 단어 추출
+            $words = preg_split('/[\s\(\)]+/', $subject_trimmed, 2);
+            $main_category = !empty($words[0]) ? trim($words[0]) : $subject_trimmed;
+        }
+        
+        // 대분류가 비어있으면 원본 과목명 사용
+        if (empty($main_category)) {
+            $main_category = $subject_trimmed;
+        }
+        
+        if (!isset($category_groups[$main_category])) {
+            $category_groups[$main_category] = 0;
+        }
+        
+        $category_groups[$main_category] += $count;
+        $total_count += $count;
+    }
+    
+    // 배열로 변환 (정렬)
+    $category_list = array();
+    ksort($category_groups);
+    foreach ($category_groups as $category => $count) {
+        $category_list[] = array(
+            'category' => $category,
+            'question_count' => $count
+        );
+    }
+    
+    echo json_encode(array(
+        'success' => true,
+        'exam_year' => $exam_year,
+        'exam_session' => $exam_session,
+        'exam_course' => $exam_course,
+        'categories' => $category_list,
+        'total_count' => $total_count
+    ));
+}
+
+// 특정 연도/회차/교시의 데이터 삭제 함수
+function delete_exam_data($wpdb) {
+    $questions_table = 'ptgates_questions';
+    $categories_table = 'ptgates_categories';
+    
+    // 필수 파라미터 확인
+    if (!isset($_POST['exam_year']) || !isset($_POST['exam_course'])) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => '필수 파라미터가 누락되었습니다.'
+        ));
+        return;
+    }
+    
+    $exam_year = intval($_POST['exam_year']);
+    $exam_course = trim($_POST['exam_course']);
+    $exam_session = isset($_POST['exam_session']) && !empty($_POST['exam_session']) 
+        ? intval($_POST['exam_session']) 
+        : null;
+    
+    // 삭제할 문제 ID 목록 조회
+    $query = $wpdb->prepare(
+        "SELECT DISTINCT q.question_id 
+         FROM {$questions_table} q
+         INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+         WHERE q.is_active = 1
+         AND c.exam_year = %d
+         AND c.exam_course = %s",
+        $exam_year,
+        $exam_course
+    );
+    
+    if ($exam_session !== null) {
+        $query .= $wpdb->prepare(" AND c.exam_session = %d", $exam_session);
+    } else {
+        $query .= " AND c.exam_session IS NULL";
+    }
+    
+    $question_ids = $wpdb->get_col($query);
+    
+    if (empty($question_ids)) {
+        echo json_encode(array(
+            'success' => false,
+            'message' => '삭제할 데이터가 없습니다.'
+        ));
+        return;
+    }
+    
+    $deleted_count = count($question_ids);
+    
+    // 트랜잭션 시작
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        // categories 테이블에서 삭제 (외래키 제약조건 때문에 먼저 삭제)
+        $question_ids_int = array_map('intval', $question_ids);
+        $question_ids_str = implode(',', $question_ids_int);
+        
+        // SQL 인젝션 방지: question_ids는 이미 intval로 정수 변환됨
+        $wpdb->query("DELETE FROM {$categories_table} WHERE question_id IN ({$question_ids_str})");
+        
+        // questions 테이블에서 삭제
+        $wpdb->query("DELETE FROM {$questions_table} WHERE question_id IN ({$question_ids_str})");
+        
+        $wpdb->query('COMMIT');
+        
+        echo json_encode(array(
+            'success' => true,
+            'message' => "성공적으로 {$deleted_count}개의 문제를 삭제했습니다.",
+            'deleted_count' => $deleted_count
+        ));
+        
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        echo json_encode(array(
+            'success' => false,
+            'message' => '데이터 삭제 중 오류가 발생했습니다: ' . $e->getMessage()
+        ));
+    }
+}
+
 // 웹 인터페이스 표시 (GET 요청)
 if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
 ?>
@@ -809,6 +1590,7 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             color: #333;
             margin-bottom: 10px;
             font-size: 28px;
+            display: inline-block;
         }
         
         .subtitle {
@@ -1018,11 +1800,247 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
         .required-fields ul li {
             flex: 0 1 auto;
         }
+        
+        /* 팝업 모달 스타일 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: #005a87;
+            font-size: 20px;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        
+        .modal-close:hover {
+            background: #f0f0f0;
+        }
+        
+        .modal-body {
+            margin-bottom: 20px;
+        }
+        
+        .subject-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .subject-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .subject-item:last-child {
+            border-bottom: none;
+        }
+        
+        .subject-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .subject-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .subject-count {
+            font-weight: bold;
+            color: #0073aa;
+            font-size: 16px;
+        }
+        
+        .modal-footer {
+            padding-top: 15px;
+            border-top: 2px solid #e0e0e0;
+            text-align: right;
+        }
+        
+        .modal-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #005a87;
+        }
+        
+        .clickable-count {
+            cursor: pointer;
+            color: #0073aa;
+            text-decoration: underline;
+            transition: color 0.3s;
+        }
+        
+        .clickable-count:hover {
+            color: #005a87;
+        }
+        
+        .clickable-course {
+            cursor: pointer;
+            color: #005a87;
+            text-decoration: underline;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+        
+        .clickable-course:hover {
+            color: #0073aa;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .delete-row-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .delete-row-btn:hover {
+            background: #c82333;
+        }
+        
+        .delete-row-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* 접기/펼치기 아코디언 스타일 */
+        .collapsible-section {
+            margin-bottom: 30px;
+        }
+        
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            padding: 15px;
+            background: #fff9e6;
+            border: 2px dashed #ffc107;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.3s;
+        }
+        
+        .collapsible-header:hover {
+            background: #fff3cd;
+        }
+        
+        .collapsible-header h3 {
+            margin: 0;
+            color: #856404;
+            font-size: 16px;
+        }
+        
+        .collapsible-toggle {
+            font-size: 18px;
+            color: #856404;
+            transition: transform 0.3s;
+        }
+        
+        .collapsible-section.expanded .collapsible-toggle {
+            transform: rotate(180deg);
+        }
+        
+        .collapsible-content {
+            display: none;
+            padding: 20px;
+            background: #fff9e6;
+            border: 2px dashed #ffc107;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .collapsible-section.expanded .collapsible-content {
+            display: block;
+        }
+        
+        /* HOME 버튼 스타일 */
+        .home-btn {
+            display: inline-block;
+            margin-left: 15px;
+            padding: 6px 12px;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+            vertical-align: middle;
+        }
+        
+        .home-btn:hover {
+            background: #005a87;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📚 ptgates 문제은행 DB 일괄 삽입</h1>
+        <div style="margin-bottom: 10px;">
+            <h1 style="margin-bottom: 0; display: inline-block;">📚 ptgates 문제은행 DB 일괄 삽입</h1>
+            <a href="<?php echo home_url(); ?>" class="home-btn">HOME (ptgates.com)</a>
+        </div>
         <p class="subtitle">CSV 파일을 업로드하여 문제 데이터를 데이터베이스에 삽입합니다. (위치: /bk/import_exam/)</p>
         
         <?php
@@ -1046,6 +2064,7 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                             <th style="padding: 4px 8px; text-align: left; border: 1px solid #ddd; line-height: 1.2;">교시</th>
                             <th style="padding: 4px 8px; text-align: right; border: 1px solid #ddd; line-height: 1.2;">문항 수</th>
                             <th style="padding: 4px 8px; text-align: left; border: 1px solid #ddd; line-height: 1.2;">최근 업데이트</th>
+                            <th style="padding: 4px 8px; text-align: center; border: 1px solid #ddd; line-height: 1.2;">삭제</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1082,13 +2101,33 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                                 <?php echo $session !== null ? htmlspecialchars($session) : '-'; ?>
                             </td>
                             <td style="padding: 2px 8px; border: 1px solid #ddd; line-height: 1.2;">
-                                <?php echo htmlspecialchars($course); ?>
+                                <span class="clickable-course" 
+                                      data-year="<?php echo htmlspecialchars($year); ?>"
+                                      data-session="<?php echo $session !== null ? htmlspecialchars($session) : ''; ?>"
+                                      data-course="<?php echo htmlspecialchars($course); ?>">
+                                    <?php echo htmlspecialchars($course); ?>
+                                </span>
                             </td>
                             <td style="padding: 2px 8px; border: 1px solid #ddd; text-align: right; font-weight: bold; line-height: 1.2;">
-                                <?php echo number_format($count); ?>개
+                                <span class="clickable-count" 
+                                      data-year="<?php echo htmlspecialchars($year); ?>"
+                                      data-session="<?php echo $session !== null ? htmlspecialchars($session) : ''; ?>"
+                                      data-course="<?php echo htmlspecialchars($course); ?>">
+                                    <?php echo number_format($count); ?>개
+                                </span>
                             </td>
                             <td style="padding: 2px 8px; border: 1px solid #ddd; line-height: 1.2; font-size: 12px; color: #666;">
                                 <?php echo $formatted_date ? htmlspecialchars($formatted_date) : '-'; ?>
+                            </td>
+                            <td style="padding: 2px 8px; border: 1px solid #ddd; text-align: center; line-height: 1.2;">
+                                <button class="delete-row-btn" 
+                                        data-year="<?php echo htmlspecialchars($year); ?>"
+                                        data-session="<?php echo $session !== null ? htmlspecialchars($session) : ''; ?>"
+                                        data-course="<?php echo htmlspecialchars($course); ?>"
+                                        data-count="<?php echo htmlspecialchars($count); ?>"
+                                        title="이 행의 데이터 삭제">
+                                    🗑️
+                                </button>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -1130,8 +2169,8 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 
                 // 컬럼 설명 매핑
                 $column_descriptions = array(
-                    'exam_year' => '시험 연도 (필수)',
-                    'exam_session' => '시험 회차',
+                    'exam_year' => '시험 연도 (없으면 현재 연도 자동 설정)',
+                    'exam_session' => '시험 회차 (없으면 1001회부터 자동 부여)',
                     'exam_course' => '교시 구분 (필수)',
                     'question_number' => '문제 번호',
                     'content' => '문제 본문 (필수)',
@@ -1142,7 +2181,7 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 );
                 
                 // 필수 필드
-                $required_fields = array('content', 'answer', 'exam_year', 'exam_course', 'subject');
+                $required_fields = array('content', 'answer', 'exam_course', 'subject');
                 
                 foreach ($display_columns as $col) {
                     $col_lower = strtolower($col);
@@ -1159,53 +2198,61 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             </ul>
         </div>
         
-        <!-- TXT 파일에서 CSV 생성 섹션 -->
-        <div class="upload-section" style="background: #fff9e6; border-color: #ffc107; margin-bottom: 30px;">
-            <h3 style="margin-top: 0; margin-bottom: 15px; color: #856404;">📄 TXT 파일에서 CSV 생성</h3>
-            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                TXT 파일을 업로드하면 exam_data.csv 파일이 자동으로 생성됩니다.
-            </p>
-            
-            <div style="margin-bottom: 15px;">
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">연도 (선택사항)</label>
-                        <input type="number" id="examYearInput" placeholder="예: 2024" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+        <!-- TXT 파일에서 CSV 생성 섹션 (접기/펼치기) -->
+        <div class="collapsible-section" id="txtToCsvSection">
+            <div class="collapsible-header" id="txtToCsvHeader">
+                <h3>📄 TXT 파일에서 CSV 생성</h3>
+                <span class="collapsible-toggle">▼</span>
+            </div>
+            <div class="collapsible-content">
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    TXT 파일을 업로드하면 exam_data.csv 파일이 자동으로 생성됩니다.
+                </p>
+                
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center;">
+                        <div style="flex: 1; min-width: 150px;">
+                            <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">연도 (선택사항)</label>
+                            <input type="number" id="examYearInput" placeholder="예: 2024" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">회차 (선택사항)</label>
+                            <input type="number" id="examSessionInput" placeholder="예: 52" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
+                        </div>
                     </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="display: block; margin-bottom: 5px; color: #666; font-size: 14px;">회차 (선택사항)</label>
-                        <input type="number" id="examSessionInput" placeholder="예: 52" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" />
-                    </div>
+                    <p style="margin-top: 8px; color: #856404; font-size: 12px;">
+                        * 파일명에 "2024년도 제52회" 형식이 포함되어 있으면 자동으로 추출됩니다. 없으면 직접 입력해주세요.
+                    </p>
                 </div>
-                <p style="margin-top: 8px; color: #856404; font-size: 12px;">
-                    * 파일명에 "2024년도 제52회" 형식이 포함되어 있으면 자동으로 추출됩니다. 없으면 직접 입력해주세요.
-                </p>
-            </div>
-            
-            <div class="file-input-wrapper">
-                <input type="file" id="txtFile" accept=".txt" />
-                <label for="txtFile" class="file-label" style="background: #ffc107; color: #000;">📄 TXT 파일 선택</label>
-            </div>
-            <div class="file-name" id="txtFileName">파일을 선택해주세요</div>
-            
-            <div style="margin-top: 15px;">
-                <button class="btn btn-primary" id="generateCsvBtn" disabled style="background: #ffc107; color: #000;">🔄 CSV 생성</button>
-                <button class="btn btn-secondary" id="clearTxtBtn">초기화</button>
-            </div>
-            
-            <div style="margin-top: 15px; padding: 12px; background: #e7f3ff; border-left: 4px solid #0073aa; border-radius: 4px;">
-                <p style="margin: 0; color: #005a87; font-size: 14px; font-weight: 500;">
-                    💡 생성된 CSV 파일을 열어서 데이터 검증 후 다음 단계 업로드 진행하세요.
-                </p>
+                
+                <div class="file-input-wrapper">
+                    <input type="file" id="txtFile" accept=".txt" />
+                    <label for="txtFile" class="file-label" style="background: #ffc107; color: #000;">📄 TXT 파일 선택</label>
+                </div>
+                <div class="file-name" id="txtFileName">파일을 선택해주세요</div>
+                
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-primary" id="generateCsvBtn" disabled style="background: #ffc107; color: #000;">🔄 CSV 생성</button>
+                    <button class="btn btn-secondary" id="clearTxtBtn">초기화</button>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #e7f3ff; border-left: 4px solid #0073aa; border-radius: 4px;">
+                    <p style="margin: 0; color: #005a87; font-size: 14px; font-weight: 500;">
+                        💡 생성된 CSV 파일을 열어서 데이터 검증 후 다음 단계 업로드 진행하세요.
+                    </p>
+                </div>
             </div>
         </div>
         
-        <!-- CSV 파일 업로드 섹션 -->
+        <!-- CSV/Excel 파일 업로드 섹션 -->
         <div class="upload-section">
-            <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">📁 CSV 파일 업로드</h3>
+            <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">📁 CSV/Excel 파일 업로드</h3>
+            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                CSV 파일 또는 Excel 파일(.xlsx, .xls)을 업로드할 수 있습니다. Excel 파일은 자동으로 CSV로 변환됩니다.
+            </p>
             <div class="file-input-wrapper">
-                <input type="file" id="csvFile" accept=".csv" />
-                <label for="csvFile" class="file-label">📁 CSV 파일 선택</label>
+                <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" />
+                <label for="csvFile" class="file-label">📁 CSV/Excel 파일 선택</label>
             </div>
             <div class="file-name" id="fileName">파일을 선택해주세요</div>
             
@@ -1270,6 +2317,22 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
         </div>
     </div>
     
+    <!-- 과목별 문항 수 팝업 모달 -->
+    <div class="modal-overlay" id="subjectModal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div class="modal-header">
+                <h3 id="modalTitle">과목별 문항 수</h3>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading">로딩 중...</div>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-total" id="modalTotal">총 0개</div>
+            </div>
+        </div>
+    </div>
+    
     <script>
         const csvFileInput = document.getElementById('csvFile');
         const fileNameDisplay = document.getElementById('fileName');
@@ -1288,27 +2351,98 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
         const examYearInput = document.getElementById('examYearInput');
         const examSessionInput = document.getElementById('examSessionInput');
         
+        // TXT to CSV 섹션 접기/펼치기
+        const txtToCsvSection = document.getElementById('txtToCsvSection');
+        const txtToCsvHeader = document.getElementById('txtToCsvHeader');
+        
+        if (txtToCsvHeader) {
+            txtToCsvHeader.addEventListener('click', function() {
+                txtToCsvSection.classList.toggle('expanded');
+            });
+        }
+        
         let isProcessing = false;
         
         // 파일 선택 이벤트
         csvFileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
+                // 파일 확장자 확인
+                const fileName = file.name.toLowerCase();
+                const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+                const isCsv = fileName.endsWith('.csv');
+                
+                if (!isCsv && !isExcel) {
+                    alert('❌ CSV 또는 Excel 파일만 업로드 가능합니다.\n\n지원 형식: .csv, .xlsx, .xls');
+                    csvFileInput.value = '';
+                    fileNameDisplay.textContent = '파일을 선택해주세요';
+                    startBtn.disabled = true;
+                    return;
+                }
+                
                 fileNameDisplay.textContent = `선택된 파일: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
                 startBtn.disabled = false;
+                
+                // Excel 파일인 경우 서버에서 처리하므로 컬럼 목록 업데이트 생략
+                if (isExcel) {
+                    // Excel 파일은 서버에서 변환 후 처리되므로 여기서는 파일명만 표시
+                    updateColumnsList([]); // 빈 배열로 초기화
+                    return;
+                }
                 
                 // CSV 파일 헤더 읽어서 컬럼 목록 업데이트
                 const reader = new FileReader();
                 reader.onload = function(event) {
-                    const text = event.target.result;
-                    const lines = text.split('\n');
-                    if (lines.length > 0) {
-                        // 첫 번째 줄에서 헤더 추출
-                        const header = lines[0].split(',').map(col => col.trim().replace(/^[\xEF\xBB\xBF"]+|["\r]+$/g, ''));
-                        updateColumnsList(header);
+                    try {
+                        const text = event.target.result;
+                        
+                        // 바이너리 데이터 감지 (Excel 파일 등)
+                        if (text.includes('PK') && text.includes('[Content_Types].xml')) {
+                            // Excel 파일이지만 .csv 확장자인 경우, 서버에서 처리하도록 허용
+                            updateColumnsList([]);
+                            return;
+                        }
+                        
+                        // 텍스트가 너무 짧거나 비정상적인 경우
+                        if (text.length < 10) {
+                            throw new Error('파일 내용이 비어있거나 손상되었습니다.');
+                        }
+                        
+                        // 제어 문자나 바이너리 데이터가 많은 경우 감지
+                        const binaryCharCount = (text.match(/[\x00-\x08\x0E-\x1F]/g) || []).length;
+                        if (binaryCharCount > text.length * 0.1) {
+                            // Excel 파일일 수 있으므로 서버에서 처리하도록 허용
+                            updateColumnsList([]);
+                            return;
+                        }
+                        
+                        const lines = text.split('\n');
+                        if (lines.length > 0) {
+                            // 첫 번째 줄에서 헤더 추출
+                            const header = lines[0].split(',').map(col => col.trim().replace(/^[\xEF\xBB\xBF"]+|["\r]+$/g, ''));
+                            
+                            // 헤더가 비어있거나 이상한 경우
+                            if (header.length === 0 || header.every(col => !col || col.length === 0)) {
+                                throw new Error('CSV 헤더를 읽을 수 없습니다. 파일 형식을 확인해주세요.');
+                            }
+                            
+                            updateColumnsList(header);
+                        } else {
+                            throw new Error('CSV 파일이 비어있습니다.');
+                        }
+                    } catch (error) {
+                        console.error('파일 읽기 오류:', error);
+                        // Excel 파일일 수 있으므로 서버에서 처리하도록 허용
+                        updateColumnsList([]);
                     }
                 };
-                reader.readAsText(file);
+                
+                reader.onerror = function() {
+                    // Excel 파일일 수 있으므로 서버에서 처리하도록 허용
+                    updateColumnsList([]);
+                };
+                
+                reader.readAsText(file, 'UTF-8');
             } else {
                 fileNameDisplay.textContent = '파일을 선택해주세요';
                 startBtn.disabled = true;
@@ -1321,8 +2455,8 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             if (!columnsList) return;
             
             const columnDescriptions = {
-                'exam_year': '시험 연도 (필수)',
-                'exam_session': '시험 회차',
+                'exam_year': '시험 연도 (없으면 현재 연도 자동 설정)',
+                'exam_session': '시험 회차 (없으면 1001회부터 자동 부여)',
                 'exam_course': '교시 구분 (필수)',
                 'question_number': '문제 번호',
                 'content': '문제 본문 (필수)',
@@ -1332,7 +2466,7 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 'source_company': '문제 출처'
             };
             
-            const requiredFields = ['content', 'answer', 'exam_year', 'exam_course', 'subject'];
+            const requiredFields = ['content', 'answer', 'exam_course', 'subject'];
             
             columnsList.innerHTML = '';
             columns.forEach(col => {
@@ -1369,6 +2503,32 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             logContainer.scrollTop = logContainer.scrollHeight;
         }
         
+        // 마지막 파일 정보 업데이트 함수 (페이지 새로고침 없이)
+        function updateLastFileInfo(filename) {
+            const lastFileSection = document.getElementById('lastFileSection');
+            if (!lastFileSection) return;
+            
+            const now = new Date();
+            const uploadTime = now.toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            lastFileSection.innerHTML = `
+                <div class="status success" style="display: block;">
+                    <strong>📁 마지막 업로드 파일:</strong> ${escapeHtml(filename)}
+                    <span style="color: #666; font-size: 12px;">(${uploadTime})</span>
+                    <br><br>
+                    <button class="download-btn" onclick="downloadFile()">📥 파일 다운로드</button>
+                    <span style="margin-left: 10px; color: #666; font-size: 14px;">"exam_data.csv"</span>
+                </div>
+            `;
+        }
+        
         // 시작 버튼 클릭
         startBtn.addEventListener('click', function() {
             if (isProcessing) return;
@@ -1379,8 +2539,12 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 return;
             }
             
-            if (!file.name.toLowerCase().endsWith('.csv')) {
-                alert('CSV 파일만 업로드 가능합니다.');
+            const fileName = file.name.toLowerCase();
+            const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+            const isCsv = fileName.endsWith('.csv');
+            
+            if (!isCsv && !isExcel) {
+                alert('CSV 또는 Excel 파일만 업로드 가능합니다.\n\n지원 형식: .csv, .xlsx, .xls');
                 return;
             }
             
@@ -1444,22 +2608,21 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                         statusDiv.innerHTML = `✅ 성공적으로 ${response.import_count}개의 문제를 삽입했습니다!`;
                         statusDiv.style.display = 'block';
                         
-                        // 파일 정보가 있으면 페이지 새로고침하여 마지막 파일 정보 표시
+                        // 파일 정보가 있으면 마지막 파일 정보 업데이트 (페이지 새로고침 없이)
                         if (response.original_filename) {
-                            setTimeout(function() {
-                                window.location.reload();
-                            }, 1500);
+                            updateLastFileInfo(response.original_filename);
                         }
                     } else {
                         statusDiv.className = 'status error';
-                        statusDiv.textContent = `❌ 오류: ${response.message || '데이터 삽입에 실패했습니다.'}`;
+                        let errorMessage = response.message || '데이터 삽입에 실패했습니다.';
+                        // \n을 <br>로 변환하여 줄바꿈 표시
+                        errorMessage = errorMessage.replace(/\n/g, '<br>');
+                        statusDiv.innerHTML = `❌ 오류: ${escapeHtml(errorMessage)}`;
                         statusDiv.style.display = 'block';
                         
-                        // 실패해도 파일이 있으면 페이지 새로고침하여 다운로드 버튼 표시
+                        // 실패해도 파일이 있으면 마지막 파일 정보 업데이트 (페이지 새로고침 없이)
                         if (response.original_filename) {
-                            setTimeout(function() {
-                                window.location.reload();
-                            }, 1500);
+                            updateLastFileInfo(response.original_filename);
                         }
                     }
                     
@@ -1741,6 +2904,250 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             generateCsvBtn.disabled = true;
             isProcessing = false;
             generateCsvBtn.textContent = '🔄 CSV 생성';
+        });
+        
+        // 과목별 문항 수 팝업 모달 관련
+        const subjectModal = document.getElementById('subjectModal');
+        const modalClose = document.getElementById('modalClose');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const modalTotal = document.getElementById('modalTotal');
+        const clickableCounts = document.querySelectorAll('.clickable-count');
+        
+        // 모달 닫기
+        function closeModal() {
+            subjectModal.classList.remove('active');
+        }
+        
+        modalClose.addEventListener('click', closeModal);
+        subjectModal.addEventListener('click', function(e) {
+            if (e.target === subjectModal) {
+                closeModal();
+            }
+        });
+        
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && subjectModal.classList.contains('active')) {
+                closeModal();
+            }
+        });
+        
+        // 문항 수 클릭 이벤트
+        clickableCounts.forEach(function(countElement) {
+            countElement.addEventListener('click', function() {
+                const year = this.getAttribute('data-year');
+                const session = this.getAttribute('data-session');
+                const course = this.getAttribute('data-course');
+                
+                // 모달 제목 설정
+                let titleText = `${year}년`;
+                if (session) {
+                    titleText += ` 제${session}회`;
+                }
+                titleText += ` ${course} 과목별 문항 수`;
+                modalTitle.textContent = titleText;
+                
+                // 모달 열기
+                subjectModal.classList.add('active');
+                modalBody.innerHTML = '<div class="loading">로딩 중...</div>';
+                modalTotal.textContent = '총 0개';
+                
+                // AJAX 요청
+                const formData = new FormData();
+                formData.append('action', 'get_subject_statistics');
+                formData.append('exam_year', year);
+                formData.append('exam_course', course);
+                if (session) {
+                    formData.append('exam_session', session);
+                }
+                
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', window.location.href);
+                
+                xhr.addEventListener('load', function() {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.success) {
+                            // 과목 목록 표시
+                            if (response.subjects && response.subjects.length > 0) {
+                                let html = '<ul class="subject-list">';
+                                response.subjects.forEach(function(subject) {
+                                    html += '<li class="subject-item">';
+                                    html += '<span class="subject-name">' + escapeHtml(subject.subject) + '</span>';
+                                    html += '<span class="subject-count">' + number_format(subject.question_count) + '개</span>';
+                                    html += '</li>';
+                                });
+                                html += '</ul>';
+                                modalBody.innerHTML = html;
+                            } else {
+                                modalBody.innerHTML = '<div class="loading">과목 데이터가 없습니다.</div>';
+                            }
+                            
+                            // 총 문항 수 표시
+                            modalTotal.textContent = '총 ' + number_format(response.total_count) + '개';
+                        } else {
+                            modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">오류: ' + escapeHtml(response.message || '데이터를 불러올 수 없습니다.') + '</div>';
+                        }
+                    } catch (e) {
+                        modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">응답 처리 중 오류가 발생했습니다: ' + escapeHtml(e.message) + '</div>';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">네트워크 오류가 발생했습니다.</div>';
+                });
+                
+                xhr.send(formData);
+            });
+        });
+        
+        // 숫자 포맷팅 함수 (천 단위 구분)
+        function number_format(num) {
+            return parseInt(num).toLocaleString('ko-KR');
+        }
+        
+        // 교시 클릭 이벤트 (대분류별 문항 수)
+        const clickableCourses = document.querySelectorAll('.clickable-course');
+        
+        clickableCourses.forEach(function(courseElement) {
+            courseElement.addEventListener('click', function() {
+                const year = this.getAttribute('data-year');
+                const session = this.getAttribute('data-session');
+                const course = this.getAttribute('data-course');
+                
+                // 모달 제목 설정
+                let titleText = `${year}년`;
+                if (session) {
+                    titleText += ` 제${session}회`;
+                }
+                titleText += ` ${course} 대분류별 문항 수`;
+                modalTitle.textContent = titleText;
+                
+                // 모달 열기
+                subjectModal.classList.add('active');
+                modalBody.innerHTML = '<div class="loading">로딩 중...</div>';
+                modalTotal.textContent = '총 0개';
+                
+                // AJAX 요청
+                const formData = new FormData();
+                formData.append('action', 'get_category_statistics');
+                formData.append('exam_year', year);
+                formData.append('exam_course', course);
+                if (session) {
+                    formData.append('exam_session', session);
+                }
+                
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', window.location.href);
+                
+                xhr.addEventListener('load', function() {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.success) {
+                            // 대분류 목록 표시
+                            if (response.categories && response.categories.length > 0) {
+                                let html = '<ul class="subject-list">';
+                                response.categories.forEach(function(category) {
+                                    html += '<li class="subject-item">';
+                                    html += '<span class="subject-name">' + escapeHtml(category.category) + '</span>';
+                                    html += '<span class="subject-count">' + number_format(category.question_count) + '개</span>';
+                                    html += '</li>';
+                                });
+                                html += '</ul>';
+                                modalBody.innerHTML = html;
+                            } else {
+                                modalBody.innerHTML = '<div class="loading">대분류 데이터가 없습니다.</div>';
+                            }
+                            
+                            // 총 문항 수 표시
+                            modalTotal.textContent = '총 ' + number_format(response.total_count) + '개';
+                        } else {
+                            modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">오류: ' + escapeHtml(response.message || '데이터를 불러올 수 없습니다.') + '</div>';
+                        }
+                    } catch (e) {
+                        modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">응답 처리 중 오류가 발생했습니다: ' + escapeHtml(e.message) + '</div>';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    modalBody.innerHTML = '<div class="loading" style="color: #dc3545;">네트워크 오류가 발생했습니다.</div>';
+                });
+                
+                xhr.send(formData);
+            });
+        });
+        
+        // 삭제 버튼 클릭 이벤트
+        const deleteRowBtns = document.querySelectorAll('.delete-row-btn');
+        
+        deleteRowBtns.forEach(function(deleteBtn) {
+            deleteBtn.addEventListener('click', function() {
+                const year = this.getAttribute('data-year');
+                const session = this.getAttribute('data-session');
+                const course = this.getAttribute('data-course');
+                const count = this.getAttribute('data-count');
+                
+                // 삭제 확인
+                let confirmMessage = `${year}년`;
+                if (session) {
+                    confirmMessage += ` 제${session}회`;
+                }
+                confirmMessage += ` ${course}의 ${count}개 문제를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`;
+                
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+                
+                // 버튼 비활성화
+                this.disabled = true;
+                this.textContent = '삭제 중...';
+                
+                // AJAX 요청
+                const formData = new FormData();
+                formData.append('action', 'delete_exam_data');
+                formData.append('exam_year', year);
+                formData.append('exam_course', course);
+                if (session) {
+                    formData.append('exam_session', session);
+                }
+                
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', window.location.href);
+                
+                xhr.addEventListener('load', function() {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.success) {
+                            alert('✅ ' + response.message);
+                            // 페이지 새로고침하여 목록 업데이트
+                            window.location.reload();
+                        } else {
+                            alert('❌ 삭제 실패: ' + response.message);
+                            // 버튼 복원
+                            deleteBtn.disabled = false;
+                            deleteBtn.textContent = '🗑️';
+                        }
+                    } catch (e) {
+                        alert('❌ 응답 처리 중 오류가 발생했습니다: ' + e.message);
+                        // 버튼 복원
+                        deleteBtn.disabled = false;
+                        deleteBtn.textContent = '🗑️';
+                    }
+                });
+                
+                xhr.addEventListener('error', function() {
+                    alert('❌ 네트워크 오류가 발생했습니다.');
+                    // 버튼 복원
+                    deleteBtn.disabled = false;
+                    deleteBtn.textContent = '🗑️';
+                });
+                
+                xhr.send(formData);
+            });
         });
     </script>
 </body>

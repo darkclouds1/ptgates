@@ -14,7 +14,8 @@ if (!defined('ABSPATH')) {
 <div id="ptgates-quiz-container" class="ptgates-quiz-wrapper" 
      data-year="<?php echo esc_attr($atts['year']); ?>"
      data-subject="<?php echo esc_attr($atts['subject']); ?>"
-     data-limit="<?php echo esc_attr($atts['limit']); ?>">
+     data-limit="<?php echo esc_attr($atts['limit']); ?>"
+     data-id="<?php echo esc_attr($atts['id']); ?>">
     
     <!-- 플러그인 헤더 -->
     <div id="ptgates-header" class="ptgates-header">
@@ -26,27 +27,38 @@ if (!defined('ABSPATH')) {
     <!-- 필터 섹션 -->
     <div class="ptgates-filter-section">
         <div class="ptgates-filter-row">
-            <label for="ptgates-filter-year">연도:</label>
-            <select id="ptgates-filter-year" class="ptgates-filter-input">
-                <option value="">전체</option>
+            <select id="ptgates-filter-year" class="ptgates-filter-input" aria-label="연도"></select>
+        </div>
+        
+        <div class="ptgates-filter-row">
+            <select id="ptgates-filter-subject" class="ptgates-filter-input" aria-label="과목">
+                <option value="">과목</option>
             </select>
         </div>
         
         <div class="ptgates-filter-row">
-            <label for="ptgates-filter-subject">과목:</label>
-            <select id="ptgates-filter-subject" class="ptgates-filter-input">
-                <option value="">전체</option>
-            </select>
-        </div>
-        
-        <div class="ptgates-filter-row">
-            <label for="ptgates-filter-limit">문제 수:</label>
-            <select id="ptgates-filter-limit" class="ptgates-filter-input">
-                <option value="5">5문제</option>
-                <option value="10" selected>10문제</option>
+            <select id="ptgates-filter-limit" class="ptgates-filter-input" aria-label="문제 수">
+                <option value="5" selected>5문제</option>
+                <option value="10">10문제</option>
                 <option value="20">20문제</option>
                 <option value="50">50문제</option>
+                <option value="session1">1교시 전체</option>
+                <option value="session2">2교시 전체</option>
             </select>
+        </div>
+
+        <!-- 세션 전체 풀이 시 시간 설정 -->
+        <div class="ptgates-filter-row" id="ptgates-session-time-row" style="display: none;">
+            <div class="ptgates-time-options">
+                <label style="margin-right:12px;">
+                    <input type="radio" name="ptgates-time-mode" value="unlimited" /> 무제한
+                </label>
+                <label style="margin-right:8px;">
+                    <input type="radio" name="ptgates-time-mode" value="limited" /> 제한시간
+                </label>
+                <input type="number" id="ptgates-time-minutes" min="1" step="1" value="90" class="ptgates-filter-input" style="width: 100px; display: none;" />
+                <span id="ptgates-time-minutes-suffix" style="display: none; margin-left:4px;">분</span>
+            </div>
         </div>
         
         <button id="ptgates-start-btn" class="ptgates-btn ptgates-btn-primary">시작</button>

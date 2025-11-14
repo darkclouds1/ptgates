@@ -41,8 +41,20 @@ class Repo {
         if (!empty($where)) {
             $where_parts = array();
             foreach ($where as $column => $value) {
-                $where_parts[] = $wpdb->prepare('%s = %s', $column, $value);
-                $where_values[] = $value;
+                $column_escaped = '`' . esc_sql($column) . '`';
+
+                if (is_null($value)) {
+                    $where_parts[] = "{$column_escaped} IS NULL";
+                    continue;
+                }
+
+                if (is_numeric($value)) {
+                    $where_parts[] = "{$column_escaped} = %d";
+                    $where_values[] = $value;
+                } else {
+                    $where_parts[] = "{$column_escaped} = %s";
+                    $where_values[] = $value;
+                }
             }
             $where_clause = 'WHERE ' . implode(' AND ', $where_parts);
         }
@@ -75,7 +87,7 @@ class Repo {
         
         // $wpdb->prepare 사용
         if (!empty($where_values)) {
-            $sql = $wpdb->prepare($sql, $where_values);
+            $sql = $wpdb->prepare($sql, ...$where_values);
         }
         
         return $wpdb->get_results($sql, ARRAY_A);

@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: PTGates Learning Engine
+ * Plugin Name: PTGates Learning
  * Plugin URI: https://ptgates.com
- * Description: 물리치료사 국가고시 문제 학습 시스템 (REST API 기반). 숏코드: [ptgates_quiz] 또는 [ptgates_quiz year="2024" subject="해부학" limit="20"]
- * Version: 1.0.20
+ * Description: 물리치료사 기출문제학습 (REST API 기반). 숏코드: [ptgates_quiz] 또는 [ptgates_quiz year="2024" subject="해부학" limit="20"]
+ * Version: 1.0.21
  * Author: PTGates
  * Author URI: https://ptgates.com
  * License: GPL v2 or later
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('PTGATES_ENGINE_VERSION', '1.0.20');
+define('PTGATES_ENGINE_VERSION', '1.0.21');
 define('PTGATES_ENGINE_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PTGATES_ENGINE_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -138,7 +138,8 @@ class PTGates_Engine {
         $atts = shortcode_atts(array(
             'year' => '',
             'subject' => '',
-            'limit' => '10'
+            'limit' => '5',
+            'id' => ''
         ), $atts, 'ptgates_quiz');
         
         ob_start();

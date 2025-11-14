@@ -85,11 +85,15 @@ $table_prefix = 'wp_';
  *
  * @link https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/
  */
-define( 'WP_DEBUG', false );
+define( 'WP_DEBUG', true );
+define( 'WP_DEBUG_LOG', true );
+define( 'WP_DEBUG_DISPLAY', true );
 
 /* Add any custom values between this line and the "stop editing" line. */
 
-
+// 개발 중 캐시 비활성화
+define( 'LITESPEED_DISABLE_ALL', true ); // LiteSpeed Cache 완전 비활성화
+define( 'WP_CACHE', false ); // WordPress 캐시 비활성화
 
 /* That's all, stop editing! Happy publishing. */
 
@@ -103,3 +107,20 @@ require_once ABSPATH . 'wp-settings.php';
 
 // Disable direct file access
 define( 'FS_METHOD', 'direct' );
+
+// 개발 중: LiteSpeed Cache 플러그인 강제 비활성화 (wp-settings.php 로드 후)
+add_filter( 'option_active_plugins', function( $plugins ) {
+    if ( is_array( $plugins ) ) {
+        $plugins = array_filter( $plugins, function( $plugin ) {
+            return stripos( $plugin, 'litespeed' ) === false;
+        } );
+    }
+    return $plugins;
+}, 1 );
+
+// LiteSpeed Cache 관리자 메뉴 제거
+add_action( 'admin_menu', function() {
+    remove_menu_page( 'litespeed' );
+    remove_menu_page( 'litespeed-settings' );
+    remove_menu_page( 'litespeed-toolbox' );
+}, 999 );
