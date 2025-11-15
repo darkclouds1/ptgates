@@ -91,12 +91,15 @@ class PTG_Platform {
         // 스타일 및 스크립트 등록 (높은 우선순위로 실행)
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'), 5);
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-        
+
         // REST API 네임스페이스 등록 (공통 유틸리티)
         add_action('rest_api_init', array($this, 'register_rest_routes'));
 
         // 핵심 테이블이 없으면 자동으로 마이그레이션 실행
         add_action('init', array($this, 'ensure_database_schema'), 0);
+        
+        // 관리자 페이지에서 마이그레이션 수동 실행 (디버깅용)
+        add_action('admin_init', array($this, 'maybe_run_migration_manually'));
         
         // 디버깅: 플러그인 초기화 확인
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -209,6 +212,34 @@ class PTG_Platform {
     }
 
     /**
+     * 관리자 페이지에서 마이그레이션 수동 실행 (디버깅용)
+     * URL 파라미터: ?ptg_run_migration=1
+     */
+    public function maybe_run_migration_manually() {
+        // 관리자 권한 확인
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // URL 파라미터 확인
+        if (!isset($_GET['ptg_run_migration']) || $_GET['ptg_run_migration'] !== '1') {
+            return;
+        }
+        
+        // nonce 확인 (보안)
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'ptg_run_migration')) {
+            wp_die('보안 검증 실패', '오류', array('response' => 403));
+        }
+        
+        // 마이그레이션 실행
+        \PTG\Platform\Migration::run_migrations();
+        
+        // 리다이렉트 (파라미터 제거)
+        wp_redirect(remove_query_arg(array('ptg_run_migration', '_wpnonce')));
+        exit;
+    }
+    
+    /**
      * 필수 데이터베이스 테이블이 없으면 마이그레이션을 다시 실행합니다.
      */
     public function ensure_database_schema() {
@@ -230,26 +261,23 @@ class PTG_Platform {
         }
 
         if ($missing) {
+            // 마이그레이션 실행
             \PTG\Platform\Migration::run_migrations();
 
-            // 재확인 후 여전히 states 테이블이 없으면 최소 스키마로 즉시 생성 (FK 없이)
-            $states_table = $wpdb->prefix . 'ptgates_user_states';
-            $existing_states = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
-            if ($existing_states !== $states_table) {
-                $charset_collate = $wpdb->get_charset_collate();
-                $sql = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
-                    `user_id` bigint(20) unsigned NOT NULL,
-                    `question_id` bigint(20) unsigned NOT NULL,
-                    `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
-                    `needs_review` tinyint(1) NOT NULL DEFAULT 0,
-                    `last_result` varchar(10) DEFAULT NULL,
-                    `last_answer` varchar(255) DEFAULT NULL,
-                    `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                    PRIMARY KEY (`user_id`,`question_id`),
-                    KEY `idx_flags` (`bookmarked`,`needs_review`)
-                ) {$charset_collate};";
-                require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-                dbDelta($sql);
+            // 재확인 및 결과 로깅
+            foreach ($required_tables as $table_name) {
+                $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
+                if ($existing === $table_name) {
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('[PTG Platform] ✓ 테이블 생성 성공: ' . $table_name);
+                    }
+                } else {
+                    error_log('[PTG Platform] ⚠️ 필수 테이블이 생성되지 않음: ' . $table_name);
+                    if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                        error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                        error_log('[PTG Platform] 마지막 쿼리: ' . $wpdb->last_query);
+                    }
+                }
             }
         }
     }

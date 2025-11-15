@@ -20,6 +20,11 @@ class Migration {
     public static function run_migrations() {
         global $wpdb;
         
+        // 디버깅: 마이그레이션 시작 로그
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[PTG Platform] 마이그레이션 시작');
+        }
+        
         $charset_collate = $wpdb->get_charset_collate();
         
         // 1. 교시 세션 테이블
@@ -40,17 +45,16 @@ class Migration {
         // 6. 복습 스케줄 테이블
         self::create_review_schedule_table($charset_collate);
         
-        // 7. 암기카드 세트 테이블
-        self::create_flashcard_sets_table($charset_collate);
-        
-        // 8. 암기카드 테이블
-        self::create_flashcards_table($charset_collate);
-        
-        // 9. 하이라이트 테이블
+        // 7. 하이라이트 테이블
         self::create_highlights_table($charset_collate);
         
-        // 10. 모의고사 프리셋 테이블
+        // 8. 모의고사 프리셋 테이블
         self::create_exam_presets_table($charset_collate);
+        
+        // 디버깅: 마이그레이션 완료 로그
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[PTG Platform] 마이그레이션 완료');
+        }
     }
     
     /**
@@ -173,13 +177,15 @@ class Migration {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'ptgates_user_drawings';
-        // 레거시 문제 테이블은 prefix 없이 고정
-        $questions_table = 'ptgates_questions';
         
+        // 외래키 제약 조건 없이 테이블 생성 (외래키는 나중에 추가 가능)
+        // 외래키 제약 조건이 테이블 생성 실패의 원인이 될 수 있으므로 제거
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `drawing_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             `user_id` bigint(20) unsigned NOT NULL,
             `question_id` bigint(20) unsigned NOT NULL,
+            `is_answered` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '답안 제출 여부 (0: 미제출, 1: 제출)',
+            `device_type` enum('pc','tablet','mobile') NOT NULL DEFAULT 'pc' COMMENT '기기 타입 (pc: 데스크톱/노트북, tablet: 태블릿, mobile: 스마트폰)',
             `format` enum('json','svg') NOT NULL DEFAULT 'json',
             `data` longtext NOT NULL,
             `width` int(10) unsigned DEFAULT NULL,
@@ -188,12 +194,143 @@ class Migration {
             `created_at` datetime NOT NULL DEFAULT current_timestamp(),
             `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
             PRIMARY KEY (`drawing_id`),
+            UNIQUE KEY `uq_user_question_answered_device` (`user_id`,`question_id`,`is_answered`,`device_type`),
             KEY `idx_user_question` (`user_id`,`question_id`),
-            CONSTRAINT `fk_drawings_question` FOREIGN KEY (`question_id`) REFERENCES `{$questions_table}` (`question_id`) ON DELETE CASCADE
+            KEY `idx_user_question_answered` (`user_id`,`question_id`,`is_answered`),
+            KEY `idx_user_question_device` (`user_id`,`question_id`,`device_type`),
+            KEY `idx_question_id` (`question_id`)
         ) {$charset_collate};";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
+        
+        // dbDelta 실행
+        $result = dbDelta($sql);
+        
+        // 기존 테이블에 is_answered 컬럼 추가 (마이그레이션)
+        $column_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW COLUMNS FROM `{$table_name}` LIKE %s",
+            'is_answered'
+        ));
+        
+        if (empty($column_exists)) {
+            $alter_sql = "ALTER TABLE `{$table_name}` 
+                ADD COLUMN `is_answered` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '답안 제출 여부 (0: 미제출, 1: 제출)' AFTER `question_id`,
+                ADD KEY `idx_user_question_answered` (`user_id`,`question_id`,`is_answered`)";
+            
+            $wpdb->query($alter_sql);
+            
+            // 디버깅: 컬럼 추가 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    error_log('[PTG Platform] is_answered 컬럼 추가 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] is_answered 컬럼 추가 성공');
+                }
+            }
+        }
+        
+        // 기존 테이블에 device_type 컬럼 추가 (마이그레이션)
+        $device_type_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW COLUMNS FROM `{$table_name}` LIKE %s",
+            'device_type'
+        ));
+        
+        if (empty($device_type_exists)) {
+            // device_type 컬럼 추가 (기본값: 'pc')
+            $alter_sql = "ALTER TABLE `{$table_name}` 
+                ADD COLUMN `device_type` enum('pc','tablet','mobile') NOT NULL DEFAULT 'pc' COMMENT '기기 타입 (pc: 데스크톱/노트북, tablet: 태블릿, mobile: 스마트폰)' AFTER `is_answered`,
+                ADD KEY `idx_user_question_device` (`user_id`,`question_id`,`device_type`)";
+            
+            $wpdb->query($alter_sql);
+            
+            // 디버깅: 컬럼 추가 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    error_log('[PTG Platform] device_type 컬럼 추가 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] device_type 컬럼 추가 성공');
+                }
+            }
+        }
+        
+        // 기존 UNIQUE KEY 제거 (device_type이 추가되기 전)
+        $old_unique_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW INDEX FROM `{$table_name}` WHERE Key_name = %s",
+            'uq_user_question_answered'
+        ));
+        
+        if (!empty($old_unique_exists)) {
+            // 기존 UNIQUE KEY 제거
+            $drop_sql = "ALTER TABLE `{$table_name}` DROP INDEX `uq_user_question_answered`";
+            $wpdb->query($drop_sql);
+            
+            // 디버깅: 기존 UNIQUE KEY 제거 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    error_log('[PTG Platform] 기존 UNIQUE KEY 제거 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] 기존 UNIQUE KEY 제거 성공');
+                }
+            }
+        }
+        
+        // 새로운 UNIQUE KEY 추가 (device_type 포함)
+        $new_unique_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW INDEX FROM `{$table_name}` WHERE Key_name = %s",
+            'uq_user_question_answered_device'
+        ));
+        
+        if (empty($new_unique_exists)) {
+            // 기존에 중복된 레코드가 있을 수 있으므로 먼저 정리
+            // (user_id, question_id, is_answered) 조합에서 각 device_type별로 최신 1개만 남기고 나머지 삭제
+            // device_type이 없는 경우 기본값 'pc'로 설정
+            $cleanup_sql = "UPDATE `{$table_name}` SET `device_type` = 'pc' WHERE `device_type` IS NULL OR `device_type` = ''";
+            $wpdb->query($cleanup_sql);
+            
+            // 중복 레코드 정리 (device_type 포함)
+            $cleanup_sql = "DELETE d1 FROM `{$table_name}` d1
+                INNER JOIN (
+                    SELECT MAX(`drawing_id`) as `max_id`, `user_id`, `question_id`, `is_answered`, `device_type`
+                    FROM `{$table_name}`
+                    GROUP BY `user_id`, `question_id`, `is_answered`, `device_type`
+                    HAVING COUNT(*) > 1
+                ) d2 ON d1.`user_id` = d2.`user_id` 
+                    AND d1.`question_id` = d2.`question_id`
+                    AND d1.`is_answered` = d2.`is_answered`
+                    AND d1.`device_type` = d2.`device_type`
+                    AND d1.`drawing_id` < d2.`max_id`";
+            
+            $wpdb->query($cleanup_sql);
+            
+            // 새로운 UNIQUE 제약 조건 추가 (device_type 포함)
+            $unique_sql = "ALTER TABLE `{$table_name}` 
+                ADD UNIQUE KEY `uq_user_question_answered_device` (`user_id`,`question_id`,`is_answered`,`device_type`)";
+            
+            $wpdb->query($unique_sql);
+            
+            // 디버깅: 새로운 UNIQUE 제약 조건 추가 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    error_log('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 성공');
+                }
+            }
+        }
+        
+        // 디버깅: 테이블 생성 결과 확인
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
+            if ($existing === $table_name) {
+                error_log('[PTG Platform] 드로잉 테이블 생성 성공: ' . $table_name);
+            } else {
+                error_log('[PTG Platform] ⚠️ 드로잉 테이블 생성 실패: ' . $table_name);
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                    error_log('[PTG Platform] SQL 쿼리: ' . $wpdb->last_query);
+                }
+            }
+        }
     }
     
     /**
@@ -223,58 +360,6 @@ class Migration {
             KEY `idx_question` (`question_id`),
             CONSTRAINT `fk_rs_question` FOREIGN KEY (`question_id`) REFERENCES `{$questions_table}` (`question_id`) ON DELETE CASCADE,
             CONSTRAINT `fk_rs_origin_result` FOREIGN KEY (`origin_result_id`) REFERENCES `{$results_table}` (`result_id`) ON DELETE SET NULL
-        ) {$charset_collate};";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
-    
-    /**
-     * 암기카드 세트 테이블 생성
-     */
-    private static function create_flashcard_sets_table($charset_collate) {
-        global $wpdb;
-        
-        $table_name = $wpdb->prefix . 'ptgates_flashcard_sets';
-        
-        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
-            `set_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            `user_id` bigint(20) unsigned NOT NULL,
-            `name` varchar(100) NOT NULL,
-            `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-            PRIMARY KEY (`set_id`),
-            KEY `idx_user_name` (`user_id`,`name`)
-        ) {$charset_collate};";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
-    
-    /**
-     * 암기카드 테이블 생성
-     */
-    private static function create_flashcards_table($charset_collate) {
-        global $wpdb;
-        
-        $table_name = $wpdb->prefix . 'ptgates_flashcards';
-        $sets_table = $wpdb->prefix . 'ptgates_flashcard_sets';
-        
-        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
-            `card_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            `user_id` bigint(20) unsigned NOT NULL,
-            `set_id` bigint(20) unsigned DEFAULT NULL,
-            `ref_type` enum('question','theory') NOT NULL,
-            `ref_id` bigint(20) unsigned NOT NULL,
-            `front_text` longtext NOT NULL,
-            `back_text` longtext NOT NULL,
-            `ease` tinyint(3) unsigned DEFAULT 2,
-            `reviews` int(10) unsigned DEFAULT 0,
-            `last_reviewed_at` datetime DEFAULT NULL,
-            `next_due_date` date DEFAULT NULL,
-            `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-            PRIMARY KEY (`card_id`),
-            KEY `idx_user_set_due` (`user_id`,`set_id`,`next_due_date`),
-            CONSTRAINT `fk_flashcards_set` FOREIGN KEY (`set_id`) REFERENCES `{$sets_table}` (`set_id`) ON DELETE SET NULL
         ) {$charset_collate};";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');

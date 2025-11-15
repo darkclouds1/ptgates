@@ -33,8 +33,6 @@ $platform_tables = array(
     'ptgates_user_notes',
     'ptgates_user_drawings',
     'ptgates_review_schedule',
-    'ptgates_flashcard_sets',
-    'ptgates_flashcards',
     'ptgates_highlights',
     'ptgates_exam_presets',
 );

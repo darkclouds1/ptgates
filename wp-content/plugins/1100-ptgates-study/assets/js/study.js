@@ -86,7 +86,7 @@
 
         categoryMap = {};
 
-        let html = '<h2>학습할 과목을 선택하세요</h2><div class="ptg-course-categories">';
+        let html = '<h2>🗝️학습할 과목을 선택하세요</h2><div class="ptg-course-categories">';
         courses.forEach(function(category) {
             categoryMap[category.id] = category;
             const categoryTitle = category.title || category.label || '';

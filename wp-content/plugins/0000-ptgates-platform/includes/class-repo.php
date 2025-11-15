@@ -41,6 +41,7 @@ class Repo {
         if (!empty($where)) {
             $where_parts = array();
             foreach ($where as $column => $value) {
+                // 컬럼명은 백틱으로 이스케이프 (SQL 인젝션 방지)
                 $column_escaped = '`' . esc_sql($column) . '`';
 
                 if (is_null($value)) {
@@ -48,10 +49,13 @@ class Repo {
                     continue;
                 }
 
-                if (is_numeric($value)) {
+                // 숫자 값은 %d, 문자열 값은 %s 플레이스홀더 사용
+                if (is_numeric($value) && !is_float($value)) {
+                    // 정수인 경우 %d 사용
                     $where_parts[] = "{$column_escaped} = %d";
-                    $where_values[] = $value;
+                    $where_values[] = (int)$value;
                 } else {
+                    // 문자열이나 실수인 경우 %s 사용
                     $where_parts[] = "{$column_escaped} = %s";
                     $where_values[] = $value;
                 }
@@ -66,7 +70,9 @@ class Repo {
         
         $order_clause = '';
         if ($orderby) {
-            $order_clause = sprintf('ORDER BY %s %s', $orderby, $order);
+            // 컬럼명 이스케이프 (SQL 인젝션 방지)
+            $orderby_escaped = '`' . esc_sql($orderby) . '`';
+            $order_clause = sprintf('ORDER BY %s %s', $orderby_escaped, $order);
         }
         
         $limit_clause = '';
@@ -77,20 +83,42 @@ class Repo {
             }
         }
         
-        $sql = sprintf(
-            "SELECT * FROM `%s` %s %s %s",
-            $table_name,
-            $where_clause,
-            $order_clause,
-            $limit_clause
-        );
+        // 테이블명은 esc_sql로 이스케이프 (sprintf 사용 시 % 문제 방지)
+        $table_name_escaped = esc_sql($table_name);
         
-        // $wpdb->prepare 사용
+        // sprintf를 사용하지 않고 직접 문자열 연결 (WHERE 절에 플레이스홀더 사용)
+        $sql = "SELECT * FROM `{$table_name_escaped}`";
+        if (!empty($where_clause)) {
+            $sql .= ' ' . $where_clause;
+        }
+        if (!empty($order_clause)) {
+            $sql .= ' ' . $order_clause;
+        }
+        if (!empty($limit_clause)) {
+            $sql .= ' ' . $limit_clause;
+        }
+        
+        // $wpdb->prepare 사용 (가변 인수이므로 스프레드 연산자 사용)
         if (!empty($where_values)) {
             $sql = $wpdb->prepare($sql, ...$where_values);
         }
         
-        return $wpdb->get_results($sql, ARRAY_A);
+        // 디버깅: 실제 실행될 SQL 로그 (prepare 후)
+        if (defined('WP_DEBUG') && WP_DEBUG && false) { // 필요시 true로 변경
+            error_log('[PTG Repo] SQL (prepare 후): ' . $sql);
+        }
+        
+        $results = $wpdb->get_results($sql, ARRAY_A);
+        
+        // 디버깅: 결과 로그
+        if (defined('WP_DEBUG') && WP_DEBUG && false) { // 필요시 true로 변경
+            error_log('[PTG Repo] SQL 결과 수: ' . (is_array($results) ? count($results) : 0));
+            if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                error_log('[PTG Repo] SQL 오류: ' . $wpdb->last_error);
+            }
+        }
+        
+        return $results;
     }
     
     /**
@@ -173,22 +201,30 @@ class Repo {
         if (!empty($where)) {
             $where_parts = array();
             foreach ($where as $col => $val) {
-                $where_parts[] = $wpdb->prepare('%s = %s', $col, $val);
-                $where_values[] = $val;
+                $column_escaped = '`' . esc_sql($col) . '`';
+                if (is_null($val)) {
+                    $where_parts[] = "{$column_escaped} IS NULL";
+                } elseif (is_numeric($val)) {
+                    $where_parts[] = "{$column_escaped} = %d";
+                    $where_values[] = $val;
+                } else {
+                    $where_parts[] = "{$column_escaped} = %s";
+                    $where_values[] = $val;
+                }
             }
             $where_clause = 'WHERE ' . implode(' AND ', $where_parts);
+        } else {
+            $where_clause = '';
         }
         
-        $sql = sprintf(
-            "SELECT %s(%s) as aggregated FROM `%s` %s",
-            strtoupper($function),
-            $column === '*' ? '*' : $column,
-            $table_name,
-            $where_clause
-        );
+        $table_name_escaped = esc_sql($table_name);
+        $sql = "SELECT " . strtoupper($function) . "(" . ($column === '*' ? '*' : esc_sql($column)) . ") as aggregated FROM `{$table_name_escaped}`";
+        if (!empty($where_clause)) {
+            $sql .= ' ' . $where_clause;
+        }
         
         if (!empty($where_values)) {
-            $sql = $wpdb->prepare($sql, $where_values);
+            $sql = $wpdb->prepare($sql, ...$where_values);
         }
         
         $result = $wpdb->get_var($sql);

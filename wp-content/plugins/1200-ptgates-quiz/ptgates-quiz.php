@@ -95,12 +95,24 @@ final class PTG_Quiz_Plugin {
      * 숏코드를 렌더링합니다.
      */
     public function render_shortcode( $atts ) {
+        // 디버깅: 숏코드가 호출되었는지 확인
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[PTG Quiz] Shortcode called with atts: ' . print_r( $atts, true ) );
+        }
+        
         $atts = shortcode_atts(
             [
                 'id'          => null,
                 'question_id' => null,
                 'timer'       => 90,
                 'unlimited'   => '0',
+                'year'        => null,
+                'subject'     => null,
+                'limit'       => null,
+                'session'     => null,
+                'full_session' => '0',
+                'bookmarked'  => null,
+                'needs_review' => null,
             ],
             $atts,
             'ptg_quiz'
@@ -108,10 +120,15 @@ final class PTG_Quiz_Plugin {
 
         // "id" 또는 "question_id" 어디로 호출해도 대응
         $question_id = $atts['question_id'] ?: $atts['id'];
+        
+        // 필터 조건 확인 (연속 퀴즈용)
+        $has_filters = ! empty( $atts['year'] ) || ! empty( $atts['subject'] ) || ! empty( $atts['limit'] ) || ! empty( $atts['session'] );
 
-        if ( ! $question_id ) {
-            return '<div class="ptg-quiz-container"><p>⚠️ 문제 ID가 지정되지 않았습니다. <code>[ptg_quiz id="380"]</code>과 같이 호출해 주세요.</p></div>';
-        }
+        // 1200-ptgates-quiz는 기본적으로 기출문제 제외하고 5문제 연속 퀴즈
+        // question_id가 없어도 기본값으로 동작하므로 에러 메시지 제거
+        // (JavaScript에서 기본값 처리)
+        
+        // 에러 메시지 출력하지 않음 - 항상 정상적으로 렌더링
 
         $plugin_url     = plugin_dir_url( __FILE__ );
         $platform_url   = plugins_url( '0000-ptgates-platform/assets/js/platform.js' );
@@ -145,6 +162,13 @@ final class PTG_Quiz_Plugin {
                 'question_id' => absint( $question_id ),
                 'timer'       => absint( $atts['timer'] ),
                 'unlimited'   => $atts['unlimited'],
+                'year'        => $atts['year'] ? absint( $atts['year'] ) : null,
+                'subject'     => $atts['subject'] ? sanitize_text_field( $atts['subject'] ) : null,
+                'limit'       => $atts['limit'] ? absint( $atts['limit'] ) : null,
+                'session'     => $atts['session'] ? absint( $atts['session'] ) : null,
+                'full_session' => $atts['full_session'] === '1' || $atts['full_session'] === 'true',
+                'bookmarked'  => $atts['bookmarked'] === '1' || $atts['bookmarked'] === 'true',
+                'needs_review' => $atts['needs_review'] === '1' || $atts['needs_review'] === 'true',
             ];
 
             // JS 로더 출력
