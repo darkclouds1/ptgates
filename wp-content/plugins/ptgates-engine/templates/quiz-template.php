@@ -82,7 +82,7 @@ if (!defined('ABSPATH')) {
     <!-- 문제 표시 영역 -->
     <div id="ptgates-question-section" class="ptgates-question-section" style="display: none;">
         <div class="ptgates-question-header">
-            <h3 id="ptgates-question-text" class="ptgates-question-text"></h3>
+            <h3 id="ptgates-question-text" class="ptgates-question-text" style="font-size: 16px !important;"></h3>
         </div>
         
         <div id="ptgates-options-container" class="ptgates-options-container">

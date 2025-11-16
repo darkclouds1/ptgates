@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PTGates Quiz
  * Description: PTGates 퀴즈 풀이 기능 플러그인.
- * Version: 1.0.13
+ * Version: 1.0.14
  * Author: PTGates
  * Requires Plugins: 0000-ptgates-platform
  */
@@ -57,9 +57,15 @@ final class PTG_Quiz_Plugin {
      * REST API를 초기화합니다.
      */
     public function init_rest_api() {
-        $rest_api_file = plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+		$rest_api_file     = plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+		$subjects_api_file = plugin_dir_path( __FILE__ ) . 'includes/class-subjects.php';
 
-        if ( file_exists( $rest_api_file ) && is_readable( $rest_api_file ) ) {
+		// 교시/과목/세부과목 정적 정의 클래스 로드
+		if ( file_exists( $subjects_api_file ) && is_readable( $subjects_api_file ) ) {
+			require_once $subjects_api_file;
+		}
+
+		if ( file_exists( $rest_api_file ) && is_readable( $rest_api_file ) ) {
             require_once $rest_api_file;
             if ( class_exists( '\PTG\Quiz\API' ) ) {
                 \PTG\Quiz\API::register_routes();
@@ -86,7 +92,7 @@ final class PTG_Quiz_Plugin {
                 'ptg-quiz-style',
                 plugin_dir_url( __FILE__ ) . 'assets/css/quiz.css',
                 [ 'ptg-platform-style' ],
-                '1.0.13' // 버전 업데이트로 캐시 무효화
+                '1.0.14' // 버전 업데이트로 캐시 무효화
             );
         }
     }
@@ -141,7 +147,7 @@ final class PTG_Quiz_Plugin {
         $timezone       = wp_timezone_string();
 
         $loader_script = sprintf(
-            '<script id="ptg-quiz-script-loader">(function(d){var cfg=d.defaultView||window;cfg.ptgQuiz=cfg.ptgQuiz||{};cfg.ptgQuiz.restUrl=%1$s;cfg.ptgQuiz.nonce=%2$s;cfg.ptgPlatform=cfg.ptgPlatform||{};if(!cfg.ptgPlatform.restUrl){cfg.ptgPlatform.restUrl=%6$s;}cfg.ptgPlatform.nonce=%2$s;cfg.ptgPlatform.userId=%7$d;cfg.ptgPlatform.timezone=%8$s;var queue=[{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},{check:function(){return typeof cfg.PTGQuizUI!=="undefined";},url:%4$s},{check:function(){return typeof cfg.PTGQuiz!=="undefined";},url:%5$s}];function load(i){if(i>=queue.length){return;}var item=queue[i];if(item.check()){load(i+1);return;}var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');if(existing){existing.addEventListener("load",function(){load(i+1);});return;}var s=d.createElement("script");s.src=item.url+(item.url.indexOf("?")===-1?"?ver=1.0.13":"");s.async=false;s.setAttribute("data-ptg-src",item.url);s.onload=function(){load(i+1);};s.onerror=function(){console.error("[PTG Quiz] 스크립트를 불러오지 못했습니다:",item.url);load(i+1);};(d.head||d.body||d.documentElement).appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}})(document);</script>',
+            '<script id="ptg-quiz-script-loader">(function(d){var cfg=d.defaultView||window;cfg.ptgQuiz=cfg.ptgQuiz||{};cfg.ptgQuiz.restUrl=%1$s;cfg.ptgQuiz.nonce=%2$s;cfg.ptgPlatform=cfg.ptgPlatform||{};if(!cfg.ptgPlatform.restUrl){cfg.ptgPlatform.restUrl=%6$s;}cfg.ptgPlatform.nonce=%2$s;cfg.ptgPlatform.userId=%7$d;cfg.ptgPlatform.timezone=%8$s;var queue=[{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},{check:function(){return typeof cfg.PTGQuizUI!=="undefined";},url:%4$s},{check:function(){return typeof cfg.PTGQuiz!=="undefined";},url:%5$s}];function load(i){if(i>=queue.length){return;}var item=queue[i];if(item.check()){load(i+1);return;}var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');if(existing){existing.addEventListener("load",function(){load(i+1);});return;}var s=d.createElement("script");s.src=item.url+(item.url.indexOf("?")===-1?"?ver=1.0.14":"");s.async=false;s.setAttribute("data-ptg-src",item.url);s.onload=function(){load(i+1);};s.onerror=function(){console.error("[PTG Quiz] 스크립트를 불러오지 못했습니다:",item.url);load(i+1);};(d.head||d.body||d.documentElement).appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}})(document);</script>',
             wp_json_encode( $rest_url ),
             wp_json_encode( $nonce ),
             wp_json_encode( $platform_url ),

@@ -27,6 +27,32 @@ class REST_Controller {
      * Register all routes.
      */
     public function register_routes() {
+		\t// 추가: 교시/과목/세부과목 조회 라우트 (현재 서버에서 class-api.php가 로드되지 않는 경우 대비)
+		\tregister_rest_route( $this->namespace, '/sessions', [
+		\t\t'methods'             => WP_REST_Server::READABLE,
+		\t\t'callback'            => [ $this, 'get_sessions' ],
+		\t\t'permission_callback' => '__return_true',
+		\t] );
+
+		\tregister_rest_route( $this->namespace, '/subjects', [
+		\t\t'methods'             => WP_REST_Server::READABLE,
+		\t\t'callback'            => [ $this, 'get_subjects' ],
+		\t\t'permission_callback' => '__return_true',
+		\t\t'args'                => [
+		\t\t\t'session' => [ 'type' => 'integer', 'required' => false, 'sanitize_callback' => 'absint' ],
+		\t\t],
+		\t] );
+
+		\tregister_rest_route( $this->namespace, '/subsubjects', [
+		\t\t'methods'             => WP_REST_Server::READABLE,
+		\t\t'callback'            => [ $this, 'get_subsubjects' ],
+		\t\t'permission_callback' => '__return_true',
+		\t\t'args'                => [
+		\t\t\t'session' => [ 'type' => 'integer', 'required' => true, 'sanitize_callback' => 'absint' ],
+		\t\t\t'subject' => [ 'type' => 'string',  'required' => true, 'sanitize_callback' => 'sanitize_text_field' ],
+		\t\t],
+		\t] );
+
         register_rest_route( $this->namespace, '/questions/(?P<id>\d+)', [
 			'methods'             => WP_REST_Server::READABLE,
 			'callback'            => [ $this, 'get_question' ],
@@ -58,6 +84,94 @@ class REST_Controller {
 			'permission_callback' => [ $this, 'check_write_permission' ],
 		] );
     }
+
+	/**
+	 * 교시 목록 (ptGates_subject)
+	 */
+	public function get_sessions( WP_REST_Request $request ) {
+		global $wpdb;
+		$table = 'ptGates_subject';
+		$sql = "SELECT DISTINCT `course_no` FROM `{$table}` ORDER BY `course_no` ASC";
+		$rows = $wpdb->get_col( $sql );
+		if ( empty( $rows ) ) {
+			return new WP_REST_Response( [ 1, 2 ], 200 );
+		}
+		$sessions = array_map( 'intval', $rows );
+		return new WP_REST_Response( $sessions, 200 );
+	}
+
+	/**
+	 * 과목 목록 (ptGates_subject.category) - 선택 교시 기준
+	 */
+	public function get_subjects( WP_REST_Request $request ) {
+		global $wpdb;
+		$session = absint( $request->get_param( 'session' ) );
+		$table   = 'ptGates_subject';
+
+		if ( $session ) {
+			$sql  = "SELECT DISTINCT `category` FROM `{$table}` WHERE `course_no` = %d AND `category` IS NOT NULL AND `category` != '' ORDER BY `category` ASC";
+			$rows = $wpdb->get_col( $wpdb->prepare( $sql, $session ) );
+		} else {
+			$sql  = "SELECT DISTINCT `category` FROM `{$table}` WHERE `category` IS NOT NULL AND `category` != '' ORDER BY `category` ASC";
+			$rows = $wpdb->get_col( $sql );
+		}
+
+		if ( empty( $rows ) ) {
+			// 기본값 (요청 편의)
+			if ( $session === 1 ) {
+				return new WP_REST_Response( [ '물리치료 기초', '물리치료 진단평가' ], 200 );
+			}
+			if ( $session === 2 ) {
+				return new WP_REST_Response( [ '물리치료 중재', '의료관계법규' ], 200 );
+			}
+			return new WP_REST_Response( [], 200 );
+		}
+
+		return new WP_REST_Response( array_values( array_unique( array_map( 'strval', $rows ) ) ), 200 );
+	}
+
+	/**
+	 * 세부과목 목록 (ptGates_subject.subcategory) - 교시+과목 기준
+	 */
+	public function get_subsubjects( WP_REST_Request $request ) {
+		global $wpdb;
+		$session = absint( $request->get_param( 'session' ) );
+		$subject = sanitize_text_field( $request->get_param( 'subject' ) );
+		$table   = 'ptGates_subject';
+
+		if ( ! $session || ! $subject ) {
+			return new WP_REST_Response( [], 200 );
+		}
+
+		$sql  = $wpdb->prepare(
+			"SELECT DISTINCT `subcategory` FROM `{$table}`
+             WHERE `course_no` = %d AND `category` = %s
+               AND `subcategory` IS NOT NULL AND `subcategory` != ''
+             ORDER BY `subcategory` ASC",
+			$session,
+			$subject
+		);
+		$rows = $wpdb->get_col( $sql );
+
+		if ( empty( $rows ) ) {
+			// 기본값 (요청 편의)
+			if ( $session === 1 && $subject === '물리치료 기초' ) {
+				return new WP_REST_Response( [ '해부생리', '운동학', '물리적 인자치료', '공중보건학' ], 200 );
+			}
+			if ( $session === 1 && $subject === '물리치료 진단평가' ) {
+				return new WP_REST_Response( [ '근골격계 물리치료 진단평가', '신경계 물리치료 진단평가', '진단평가 원리', '심폐혈관계 검사 및 평가', '기타 계통 검사', '임상의사결정' ], 200 );
+			}
+			if ( $session === 2 && $subject === '물리치료 중재' ) {
+				return new WP_REST_Response( [ '근골격계 중재', '신경계 중재', '심폐혈관계 중재', '림프, 피부계 중재', '물리치료 문제해결' ], 200 );
+			}
+			if ( $session === 2 && $subject === '의료관계법규' ) {
+				return new WP_REST_Response( [ '의료법', '의료기사법', '노인복지법', '장애인복지법', '국민건강보험법' ], 200 );
+			}
+			return new WP_REST_Response( [], 200 );
+		}
+
+		return new WP_REST_Response( array_values( array_unique( array_map( 'strval', $rows ) ) ), 200 );
+	}
 
     /**
      * Check permissions for reading data (logged in).

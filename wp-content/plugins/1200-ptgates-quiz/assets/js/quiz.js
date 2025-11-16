@@ -4,6 +4,12 @@
  * 문제 풀이 UI, 타이머, 드로잉 기능
  */
 
+// 서버 REST(subjects/sessions/subsubjects)가 준비될 때까지
+// 클라이언트 매핑만으로 즉시 채우기 위한 토글
+// 서버 준비 후 true로 전환하면 기존 REST 호출 경로를 사용합니다.
+// (전역 스코프에 선언하여 모든 함수에서 접근 가능)
+var USE_SERVER_SUBJECTS = true;
+
 // 원래 alert 함수 보존(필요 시 원래 alert으로 복구 가능)
 if (typeof window !== 'undefined' && typeof window.alert === 'function' && typeof window.__PTG_ORIG_ALERT === 'undefined') {
   window.__PTG_ORIG_ALERT = window.alert;
@@ -26,20 +32,87 @@ if (typeof window !== 'undefined' && typeof window.alert === 'function' && typeo
         }
     }
 })();
-// 퀴즈용 alert 헬퍼 (가용하면 원래 alert 사용)
+// 퀴즈용 alert 헬퍼 - 브라우저 alert 대신 커스텀 모달 사용
 function PTG_quiz_alert(message) {
-    if (typeof window === 'undefined') {
+    if (typeof document === 'undefined') {
         return;
     }
-    if (typeof window.__PTG_ORIG_ALERT === 'function') {
-        window.__PTG_ORIG_ALERT(message);
-        return;
+
+    let modal = document.getElementById('ptg-quiz-alert-modal');
+    let overlay, box, textEl, btn;
+
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'ptg-quiz-alert-modal';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.right = '0';
+        modal.style.bottom = '0';
+        modal.style.display = 'none';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.zIndex = '99999';
+
+        overlay = document.createElement('div');
+        overlay.style.position = 'absolute';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.bottom = '0';
+        overlay.style.background = 'rgba(0,0,0,0.4)';
+
+        box = document.createElement('div');
+        box.style.position = 'relative';
+        box.style.background = '#ffffff';
+        box.style.borderRadius = '8px';
+        box.style.padding = '20px 24px';
+        box.style.maxWidth = '360px';
+        box.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+        box.style.fontSize = '14px';
+        box.style.lineHeight = '1.5';
+        box.style.textAlign = 'center';
+
+        textEl = document.createElement('div');
+        textEl.id = 'ptg-quiz-alert-text';
+        textEl.style.marginBottom = '16px';
+
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = '확인';
+        btn.style.minWidth = '80px';
+        btn.style.padding = '8px 16px';
+        btn.style.borderRadius = '4px';
+        btn.style.border = 'none';
+        btn.style.background = '#4a90e2';
+        btn.style.color = '#ffffff';
+        btn.style.fontWeight = '600';
+        btn.style.cursor = 'pointer';
+
+        box.appendChild(textEl);
+        box.appendChild(btn);
+        modal.appendChild(overlay);
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+
+        const close = () => {
+            modal.style.display = 'none';
+        };
+        overlay.addEventListener('click', close);
+        btn.addEventListener('click', close);
+        document.addEventListener('keydown', function(e) {
+            if (modal.style.display === 'flex' && e.key === 'Escape') {
+                close();
+            }
+        });
+    } else {
+        textEl = document.getElementById('ptg-quiz-alert-text');
     }
-    if (typeof window.alert === 'function') {
-        window.alert(message);
-        return;
+
+    if (textEl) {
+        textEl.textContent = String(message || '');
     }
-    // 로그 제거 (에러가 아니므로)
+    modal.style.display = 'flex';
 }
 
 
@@ -224,7 +297,12 @@ function PTG_quiz_alert(message) {
         timerInterval: null,
         drawingEnabled: false,
         isInitialized: false, // 중복 초기화 방지 플래그
+        initializing: false, // 초기화 진행 중 재진입 방지
         deviceType: detectDeviceType(), // 기기 타입 (pc, tablet, mobile)
+        // 앱 상태머신
+        appState: 'idle', // 'idle' | 'running' | 'finished' | 'terminated'
+        requestSeq: 0, // 요청 시퀀스 증가값
+        lastAppliedSeq: 0, // 마지막으로 적용된 시퀀스
         // 드로잉 상태
         drawingTool: 'pen', // 'pen' 또는 'eraser'
         drawingHistory: [], // Undo/Redo를 위한 히스토리
@@ -237,11 +315,94 @@ function PTG_quiz_alert(message) {
         penWidth: 10, // 펜 두께 (기본값: 10px)
         penAlpha: 0.2, // 펜 불투명도 (기본값: 0.2 = 20%, 0~1 범위, 높을수록 진함)
         drawingSaveTimeout: null, // 드로잉 자동 저장 디바운스 타이머
+        giveUpInProgress: false, // 포기하기 중복 실행 방지
+        eventsBound: false, // 이벤트 중복 바인딩 방지
+        terminated: false, // 포기/종료 이후 추가 동작 차단 (호환용)
         savingDrawing: false, // 드로잉 저장 중 플래그
         // 퀴즈 결과 추적
         answers: [], // 답안 제출 결과 배열 { questionId, isCorrect, userAnswer, correctAnswer }
         startTime: null // 퀴즈 시작 시간 (타임스탬프)
     };
+
+    /**
+     * 상태 전환 및 UI 반영
+     */
+    function setState(nextState) {
+        const prev = QuizState.appState;
+        QuizState.appState = nextState;
+        // 호환 플래그 동기화
+        QuizState.terminated = (nextState === 'terminated' || nextState === 'finished');
+        applyUIForState();
+        // 타이머 제어
+        if (nextState === 'running') {
+            startTimer();
+        } else {
+            if (QuizState.timerInterval) {
+                clearInterval(QuizState.timerInterval);
+                QuizState.timerInterval = null;
+            }
+        }
+        // 콘솔 로깅 (디버깅)
+        try { console.log('[PTG Quiz] state:', prev, '→', nextState); } catch(e){}
+    }
+
+    /**
+     * 현재 상태에 맞게 UI 토글
+     */
+    function applyUIForState() {
+        const filterSection = document.getElementById('ptg-quiz-filter-section');
+        const progress = document.getElementById('ptgates-progress-section');
+        const toolbar = document.querySelector('.ptg-quiz-toolbar');
+        const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
+        const actions = document.querySelector('.ptg-quiz-actions');
+        const resultSection = document.getElementById('ptg-quiz-result-section');
+
+        const show = (el, display='block') => { if (el) el.style.display = display; };
+        const hide = (el) => { if (el) el.style.display = 'none'; };
+
+        switch (QuizState.appState) {
+            case 'idle':
+                show(filterSection, 'flex');
+                hide(progress);
+                hide(toolbar);
+                hide(cardWrapper);
+                hide(actions);
+                hide(resultSection);
+                break;
+            case 'running':
+                hide(filterSection);
+                show(progress, 'block');
+                show(toolbar, 'flex');
+                show(cardWrapper, 'block');
+                show(actions, 'flex');
+                hide(resultSection);
+                break;
+            case 'finished':
+            case 'terminated':
+                hide(filterSection);
+                hide(progress);
+                hide(toolbar);
+                hide(cardWrapper);
+                hide(actions);
+                // 안전: 카드 내용 제거 및 버튼 비활성화
+                try {
+                    const card = document.getElementById('ptg-quiz-card');
+                    if (card) { card.innerHTML = ''; }
+                    const btnCheck = document.getElementById('ptg-btn-check-answer');
+                    const btnNext = document.getElementById('ptg-btn-next-question');
+                    const btnGiveup = document.getElementById('ptgates-giveup-btn');
+                    if (btnCheck) { btnCheck.disabled = true; btnCheck.style.display = 'none'; }
+                    if (btnNext)  { btnNext.disabled  = true; btnNext.style.display  = 'none'; }
+                    if (btnGiveup){ btnGiveup.disabled = true; btnGiveup.style.pointerEvents = 'none'; }
+                } catch(e){}
+                show(resultSection, 'block');
+                // 결과로 스크롤
+                if (resultSection && typeof resultSection.scrollIntoView === 'function') {
+                    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                break;
+        }
+    }
     
     /**
      * localStorage에서 펜 설정 불러오기
@@ -334,14 +495,14 @@ function PTG_quiz_alert(message) {
      * 초기화
      */
     function init() {
-        // 초기화 시작 로그
-        console.log('[PTG Quiz] 초기화 시작');
-        // 저장된 펜 설정 불러오기
-        loadPenSettings();
-        // 중복 초기화 방지
-        if (QuizState.isInitialized) {
+        // 중복 초기화/동시 초기화 방지
+        if (QuizState.isInitialized || QuizState.initializing) {
             return;
         }
+        QuizState.initializing = true;
+        try { console.log('[PTG Quiz] 초기화 시작'); } catch(e){}
+        // 저장된 펜 설정 불러오기
+        loadPenSettings();
         
         const container = document.getElementById('ptg-quiz-container');
         if (!container) {
@@ -439,6 +600,20 @@ function PTG_quiz_alert(message) {
         // 실전 모의 학습Tip 버튼 이벤트
         setupTipModal();
         
+        // 필터 UI 설정
+        setupFilterUI();
+        
+        // 초기 상태 적용
+        setState('idle');
+        
+        // 필터 조건이 있으면 필터 UI 숨기고 바로 시작
+        if (hasFilters || questionId) {
+            setState('running');
+        } else {
+            // 필터 섹션이 표시되면 퀴즈는 시작하지 않음 (조회 클릭 시 시작)
+            return; // 필터 섹션이 표시되면 여기서 종료
+        }
+        
         // 1200-ptgates-quiz는 기본적으로 기출문제 제외하고 5문제 연속 퀴즈
         // questionId가 없으면 항상 기본값으로 처리
         if (hasFilters || useDefaultFilters || questionId === 0) {
@@ -489,6 +664,11 @@ function PTG_quiz_alert(message) {
                     // 타이머 표시 즉시 업데이트 (문제 수 × 50초)
                     updateTimerDisplay();
                     
+                    // 진행 상태 섹션 표시
+                    showProgressSection();
+                    // 퀴즈 UI 표시
+                    showQuizUI();
+                    
                     // 첫 번째 문제 로드
                     await loadQuestion();
                     
@@ -519,6 +699,11 @@ function PTG_quiz_alert(message) {
             // 타이머 표시 즉시 업데이트
             updateTimerDisplay();
             
+            // 진행 상태 섹션 표시
+            showProgressSection();
+            // 퀴즈 UI 표시
+            showQuizUI();
+            
             // 문제 로드
             loadQuestion();
             
@@ -545,6 +730,10 @@ function PTG_quiz_alert(message) {
                     // 퀴즈 결과 초기화
                     QuizState.answers = [];
                     QuizState.startTime = null;
+                    // 진행 상태 섹션 표시
+                    showProgressSection();
+                    // 퀴즈 UI 표시
+                    showQuizUI();
                     
                     // 타이머 표시 즉시 업데이트 (문제 수 × 50초)
                     updateTimerDisplay();
@@ -566,6 +755,7 @@ function PTG_quiz_alert(message) {
         
         // 초기화 완료 플래그 설정
         QuizState.isInitialized = true;
+        QuizState.initializing = false;
         
         // 페이지 로드 시 헤더로 스크롤 (약간의 지연을 두어 DOM이 완전히 렌더링된 후 실행)
         setTimeout(() => {
@@ -574,11 +764,343 @@ function PTG_quiz_alert(message) {
     }
     
     /**
+     * 필터 UI 설정
+     */
+    function setupFilterUI() {
+		// 교시 목록 로드
+		const sessionSelect = document.getElementById('ptg-quiz-filter-session');
+		if (sessionSelect) {
+			loadSessions();
+		}
+		// 교시 선택 시 과목 목록 로드
+		const subjectSelect = document.getElementById('ptg-quiz-filter-subject');
+		const subSubjectSelect = document.getElementById('ptg-quiz-filter-subsubject');
+        if (sessionSelect) {
+            sessionSelect.addEventListener('change', async function() {
+                const session = this.value || '';
+                await loadSubjectsForSession(session);
+            });
+        }
+		
+		// 과목 선택 시 세부과목 목록 채우기
+		if (subjectSelect) {
+			subjectSelect.addEventListener('change', function() {
+				const session = (document.getElementById('ptg-quiz-filter-session') || {}).value || '';
+				const subject = this.value || '';
+				populateSubSubjects(session, subject);
+			});
+		}
+        
+        // 조회 버튼 클릭 시 퀴즈 시작
+        const startBtn = document.getElementById('ptg-quiz-start-btn');
+        if (startBtn) {
+            startBtn.addEventListener('click', startQuizFromFilter);
+        }
+    }
+    
+    /**
+	 * 교시 목록 로드 (ptg-quiz/v1/sessions)
+	 */
+	async function loadSessions() {
+		const sessionSelect = document.getElementById('ptg-quiz-filter-session');
+		if (!sessionSelect) return;
+		try {
+			let sessions = [];
+			if (USE_SERVER_SUBJECTS) {
+				const response = await PTGPlatform.get('ptg-quiz/v1/sessions');
+				sessions = (response && response.success && Array.isArray(response.data)) ? response.data : [];
+			}
+			// 기본 옵션
+			sessionSelect.innerHTML = '<option value="">교시</option>';
+			// Fallback: 로그인 실패/호출 실패 시 1,2 제공
+			if (!sessions || sessions.length === 0) {
+				sessions = [1, 2];
+			}
+			sessions.forEach(no => {
+				const opt = document.createElement('option');
+				opt.value = String(no);
+				opt.textContent = `${no}교시`;
+				sessionSelect.appendChild(opt);
+			});
+			// 디폴트(전체) 상태에서 과목/세부과목은 "전체" 기준으로 채움
+			await loadSubjectsForSession('');
+		} catch (e) {
+			console.error('[PTG Quiz] 교시 목록 로드 오류:', e);
+			// 치명적 오류 시에도 기본 옵션 제공
+			try {
+				sessionSelect.innerHTML = '<option value="">교시</option><option value="1">1교시</option><option value="2">2교시</option>';
+				// 오류 시에도 디폴트(전체) 기준 과목/세부과목 채우기
+				await loadSubjectsForSession('');
+			} catch(_) {}
+		}
+	}
+	
+	/**
+     * 교시별 과목 목록 로드
+     */
+    async function loadSubjectsForSession(session) {
+        const subjectSelect = document.getElementById('ptg-quiz-filter-subject');
+		const subSubjectSelect = document.getElementById('ptg-quiz-filter-subsubject');
+        if (!subjectSelect) return;
+        
+		// 기본 초기화
+		subjectSelect.innerHTML = '<option value="">과목</option>';
+		if (subSubjectSelect) {
+			subSubjectSelect.innerHTML = '<option value="">세부과목</option>';
+		}
+		
+        try {
+			let subjects = [];
+			if (USE_SERVER_SUBJECTS) {
+				const endpoint = session ? `ptg-quiz/v1/subjects?session=${session}` : 'ptg-quiz/v1/subjects';
+				const response = await PTGPlatform.get(endpoint);
+				subjects = (response && response.success && Array.isArray(response.data)) ? response.data : [];
+			}
+
+			// Fallback (클라이언트 매핑)
+			if ((!subjects || subjects.length === 0) && session) {
+				const fallback = {
+					'1': ['물리치료 기초', '물리치료 진단평가'],
+					'2': ['물리치료 중재', '의료관계법규']
+				};
+				subjects = fallback[String(session)] || [];
+			}
+
+			// 과목 목록 추가 (있을 때만)
+			if (subjects && subjects.length) {
+				// 중복 제거
+				const uniqueSubjects = Array.from(new Set(subjects));
+				uniqueSubjects.forEach(subject => {
+					const option = document.createElement('option');
+					option.value = subject;
+					option.textContent = subject;
+					subjectSelect.appendChild(option);
+				});
+				// 교시 선택만으로는 세부과목은 "해당 교시 전체" 기준으로 채움
+				const sess = session || '';
+				await populateSubSubjects(sess, '');
+			}
+        } catch (error) {
+            console.error('[PTG Quiz] 과목 목록 로드 오류:', error);
+			// Fallback (오류 시에도 기본 과목 채우기)
+			if (session) {
+				try {
+					const fallback = {
+						'1': ['물리치료 기초', '물리치료 진단평가'],
+						'2': ['물리치료 중재', '의료관계법규']
+					};
+					const subjects = fallback[String(session)] || [];
+					if (subjects.length) {
+						subjects.forEach(subject => {
+							const option = document.createElement('option');
+							option.value = subject;
+							option.textContent = subject;
+							subjectSelect.appendChild(option);
+						});
+						// 자동 선택 및 세부과목 로드 트리거
+						if (!subjectSelect.value) {
+							subjectSelect.value = String(subjects[0]);
+							try {
+								subjectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+							} catch(_) {}
+						}
+					}
+				} catch(_) {}
+			}
+        }
+    }
+	
+	/**
+	 * 세부과목 목록 채우기 (DB 기반 REST 호출)
+	 */
+	async function populateSubSubjects(session, subject) {
+		const select = document.getElementById('ptg-quiz-filter-subsubject');
+		if (!select) return;
+		
+		select.innerHTML = '<option value="">세부과목</option>';
+		try {
+			let list = [];
+			
+			// 1) 특정 과목이 선택된 경우 → 해당 과목의 세부과목만
+			if (USE_SERVER_SUBJECTS && session && subject) {
+				const endpoint = `ptg-quiz/v1/subsubjects?session=${encodeURIComponent(session)}&subject=${encodeURIComponent(subject)}`;
+				const response = await PTGPlatform.get(endpoint);
+				list = (response && response.success && Array.isArray(response.data)) ? response.data : [];
+			}
+
+			// Fallback (클라이언트 매핑)
+			const mapping = {
+				'1': {
+					'물리치료 기초': ['해부생리학', '운동학', '물리적 인자치료', '공중보건학'],
+					'물리치료 진단평가': ['근골격계 물리치료 진단평가', '신경계 물리치료 진단평가', '진단평가 원리', '심폐혈관계 검사 및 평가', '기타 계통 검사', '임상의사결정']
+				},
+				'2': {
+					'물리치료 중재': ['근골격계 중재', '신경계 중재', '심폐혈관계 중재', '림프, 피부계 중재', '물리치료 문제해결'],
+					'의료관계법규': ['의료법', '의료기사법', '노인복지법', '장애인복지법', '국민건강보험법']
+				}
+			};
+			
+			// 서버에서 못 받았거나, 집계 모드일 때는 정적 매핑으로 계산
+			if (!list || list.length === 0) {
+				const sessKey = session ? String(session) : null;
+				
+				if (subject) {
+					// 특정 과목의 세부과목
+					if (sessKey) {
+						list = ((mapping[sessKey] || {})[subject]) || [];
+					} else {
+						// 교시가 전체인 경우 → 모든 교시에서 해당 과목의 세부과목을 합쳐서 표시
+						let all = [];
+						Object.keys(mapping).forEach(sk => {
+							const subMap = mapping[sk] || {};
+							if (subMap[subject]) {
+								all = all.concat(subMap[subject]);
+							}
+						});
+						list = Array.from(new Set(all));
+					}
+				} else if (sessKey) {
+					// 특정 교시 전체 세부과목
+					const subMap = mapping[sessKey] || {};
+					let all = [];
+					Object.keys(subMap).forEach(subj => {
+						all = all.concat(subMap[subj]);
+					});
+					// 중복 제거
+					list = Array.from(new Set(all));
+				} else {
+					// 교시도 선택 안 한 경우: 전체 교시의 전체 세부과목
+					let all = [];
+					Object.keys(mapping).forEach(sk => {
+						const subMap = mapping[sk];
+						Object.keys(subMap).forEach(subj => {
+							all = all.concat(subMap[subj]);
+						});
+					});
+					list = Array.from(new Set(all));
+				}
+			}
+
+			if (list && list.length) {
+				// 최종 중복 제거
+				const uniqueList = Array.from(new Set(list));
+				uniqueList.forEach(name => {
+					const opt = document.createElement('option');
+					opt.value = name;
+					opt.textContent = name;
+					select.appendChild(opt);
+				});
+			}
+		} catch (e) {
+			console.error('[PTG Quiz] 세부과목 목록 로드 오류:', e);
+		}
+	}
+    
+    /**
+     * 필터에서 조회 버튼 클릭 시 퀴즈 시작
+     */
+    async function startQuizFromFilter() {
+        const sessionSelect = document.getElementById('ptg-quiz-filter-session');
+        const subjectSelect = document.getElementById('ptg-quiz-filter-subject');
+		const subSubjectSelect = document.getElementById('ptg-quiz-filter-subsubject');
+        const limitSelect = document.getElementById('ptg-quiz-filter-limit');
+        
+        if (!sessionSelect || !subjectSelect || !limitSelect) {
+            PTG_quiz_alert('필터 요소를 찾을 수 없습니다.');
+            return;
+        }
+        
+        const session = sessionSelect.value ? parseInt(sessionSelect.value) : null;
+        const subject = subjectSelect.value || null;
+		const subsubject = subSubjectSelect ? (subSubjectSelect.value || null) : null;
+        const limit = parseInt(limitSelect.value) || 5;
+        
+        try {
+            const filters = {};
+            if (session) filters.session = session;
+            if (subject) filters.subject = subject;
+			// 세부과목이 선택된 경우에만 전달 (빈 값은 전체와 동일)
+			if (subsubject) filters.subsubject = subsubject;
+            filters.limit = limit;
+
+            // 실행 상태로 전환
+            setState('running');
+            
+            const questionIds = await loadQuestionsList(filters);
+            
+            if (!questionIds || questionIds.length === 0) {
+                PTG_quiz_alert('선택한 조건에 맞는 문제를 찾을 수 없습니다.');
+                setState('idle');
+                return;
+            }
+            
+            // 문제 목록 저장
+            QuizState.questions = questionIds;
+            QuizState.currentIndex = 0;
+            QuizState.questionId = questionIds[0];
+            QuizState.answers = [];
+            QuizState.startTime = null;
+            
+            // 타이머 설정: 문제 수 × 50초
+            QuizState.timerSeconds = questionIds.length * 50;
+            
+            // 필터 섹션 숨기기
+            hideFilterSection();
+            // 퀴즈 UI 표시
+            showQuizUI();
+            
+            // 타이머 표시 업데이트
+            updateTimerDisplay();
+            
+            // 진행 상태 섹션 표시
+            showProgressSection();
+            
+            // 첫 번째 문제 로드
+            await loadQuestion();
+            
+            // 타이머 시작
+            const container = document.getElementById('ptg-quiz-container');
+            if (container && container.dataset.unlimited !== '1') {
+                startTimer();
+            }
+            
+            // 헤더로 스크롤
+            scrollToHeader();
+        } catch (error) {
+            console.error('[PTG Quiz] 퀴즈 시작 오류:', error);
+            PTG_quiz_alert('문제를 불러오는 중 오류가 발생했습니다.');
+        }
+    }
+    
+    /**
+     * 필터 섹션 표시/숨김
+     */
+    function showFilterSection() {
+        const filterSection = document.getElementById('ptg-quiz-filter-section');
+        if (filterSection) {
+            filterSection.style.display = 'flex';
+        }
+    }
+    
+    function hideFilterSection() {
+        const filterSection = document.getElementById('ptg-quiz-filter-section');
+        if (filterSection) {
+            filterSection.style.display = 'none';
+        }
+    }
+    
+    /**
      * 이벤트 리스너 설정
      */
     function setupEventListeners() {
         const container = document.getElementById('ptg-quiz-container');
         if (!container) return;
+        
+        // 이벤트 중복 바인딩 방지
+        if (QuizState.eventsBound) {
+            return;
+        }
+        QuizState.eventsBound = true;
         
         // 툴바 전체에 이벤트 위임으로 클릭 이벤트 추가 (모든 버튼 클릭 시 헤더로 스크롤)
         const toolbar = document.querySelector('.ptg-quiz-toolbar');
@@ -635,6 +1157,61 @@ function PTG_quiz_alert(message) {
         const btnNext = document.getElementById('ptg-btn-next-question');
         if (btnNext) {
             btnNext.addEventListener('click', loadNextQuestion);
+        }
+        
+        // 포기하기 버튼 (progress-section)
+        const btnGiveup = document.getElementById('ptgates-giveup-btn');
+        if (btnGiveup) {
+			// 외부/중복으로 붙은 모든 기존 클릭 리스너 제거(클론 교체)
+			const btnGiveupCloned = btnGiveup.cloneNode(true);
+			btnGiveup.parentNode.replaceChild(btnGiveupCloned, btnGiveup);
+			
+			btnGiveupCloned.addEventListener('click', function(e) {
+                if (e && typeof e.preventDefault === 'function') e.preventDefault();
+                if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+                // 중복 실행 방지
+                if (QuizState.giveUpInProgress) return;
+                
+                let proceed = true;
+                if (typeof window.confirm === 'function') {
+                    proceed = window.confirm('퀴즈를 포기하시겠습니까? 현재까지의 결과가 저장됩니다.');
+                }
+                if (!proceed) {
+                    return;
+                }
+                
+                // 확인 후에만 버튼 비활성화
+				btnGiveupCloned.disabled = true;
+				btnGiveupCloned.style.pointerEvents = 'none';
+                
+                giveUpQuiz();
+            });
+        }
+        
+        // 시간관리 tip 버튼
+        const timeTipBtn = document.getElementById('ptgates-time-tip-btn');
+        const timeTipModal = document.getElementById('ptgates-time-tip-modal');
+        const timeTipClose = document.getElementById('ptgates-time-tip-close');
+        
+        if (timeTipBtn && timeTipModal) {
+            timeTipBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                timeTipModal.style.display = 'block';
+            });
+        }
+        
+        if (timeTipClose && timeTipModal) {
+            timeTipClose.addEventListener('click', function() {
+                timeTipModal.style.display = 'none';
+            });
+            
+            // 오버레이 클릭 시 닫기
+            const overlay = timeTipModal.querySelector('.ptgates-modal-overlay');
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    timeTipModal.style.display = 'none';
+                });
+            }
         }
         
         // 드로잉 툴바 버튼 이벤트 (닫기 버튼 포함)
@@ -930,6 +1507,11 @@ function PTG_quiz_alert(message) {
      * 문제 로드
      */
 async function loadQuestion() {
+        // 종료되었거나 실행 상태가 아니면 로드하지 않음
+        if (QuizState.terminated || QuizState.appState !== 'running') {
+            return;
+        }
+        const seq = ++QuizState.requestSeq;
         // questionId가 0이면 기본값으로 문제 목록 로드 시도
         if (QuizState.questionId === 0) {
             // 기본값으로 5문제 로드
@@ -1003,8 +1585,17 @@ async function loadQuestion() {
                     throw new Error(msg);
                 }
                 
+                if (QuizState.terminated || QuizState.appState !== 'running' || seq < QuizState.requestSeq) return;
                 QuizState.questionData = data.data;
                 renderQuestion(data.data);
+                
+                // progress-section 표시 (단일 문제인 경우)
+                if (QuizState.questions.length === 0) {
+                    showProgressSection();
+                    updateProgress(1, 1);
+                }
+                
+                if (QuizState.terminated || QuizState.appState !== 'running' || seq < QuizState.requestSeq) return;
                 await loadUserState();
                 
                 // 문제 로드 완료 후 헤더로 스크롤
@@ -1030,10 +1621,12 @@ async function loadQuestion() {
                 throw new Error(errorMsg);
             }
             
+            if (QuizState.terminated || QuizState.appState !== 'running' || seq < QuizState.requestSeq) return;
             QuizState.questionData = response.data;
             renderQuestion(response.data);
             
             // 사용자 상태 로드
+            if (QuizState.terminated || QuizState.appState !== 'running' || seq < QuizState.requestSeq) return;
             await loadUserState();
             
             // 문제 로드 완료 후 헤더로 스크롤
@@ -1074,6 +1667,11 @@ async function loadQuestion() {
                     <p style="color: gray; font-size: 12px;">문제 ID: ${QuizState.questionId}</p>
                 </div>
             `;
+        }
+        // 로딩 타임아웃 정리
+        if (QuizState.loadingTimeout) {
+            clearTimeout(QuizState.loadingTimeout);
+            QuizState.loadingTimeout = null;
         }
     }
     }
@@ -1122,6 +1720,10 @@ async function loadQuestion() {
      * 문제 렌더링 (공통 퀴즈 UI 컴포넌트 사용)
      */
     function renderQuestion(question) {
+        // 종료 상태에서 렌더 차단
+        if (QuizState.terminated) {
+            return;
+        }
         // API에서 이미 파싱된 데이터 사용 (question_text, options)
         const questionText = question.question_text || question.content || '';
         const options = question.options || [];
@@ -1249,13 +1851,17 @@ async function loadQuestion() {
         // 버튼 상태 초기화: 답안 제출 버튼 표시, 다음 문제 버튼 숨김
         const btnCheck = document.getElementById('ptg-btn-check-answer');
         if (btnCheck) {
+            if (QuizState.terminated) { btnCheck.style.display = 'none'; btnCheck.disabled = true; } else {
             btnCheck.style.display = 'inline-block';
             btnCheck.disabled = false;
+            }
         }
         
         const btnNext = document.getElementById('ptg-btn-next-question');
         if (btnNext) {
+            if (QuizState.terminated) { btnNext.style.display = 'none'; btnNext.disabled = true; } else {
             btnNext.style.display = 'none';
+            }
         }
         
         // 문제 상태 초기화
@@ -1267,6 +1873,28 @@ async function loadQuestion() {
         if (explanationEl) {
             explanationEl.style.display = 'none';
             explanationEl.innerHTML = '<!-- 해설이 동적으로 로드됨 -->';
+        }
+        
+        // 진행률 업데이트 및 progress-section 표시
+        if (QuizState.terminated) {
+            hideProgressSection();
+            return;
+        }
+        if (questionNumber && totalQuestions) {
+            updateProgress(questionNumber, totalQuestions);
+            // progress-section 표시 (문제가 로드된 후)
+            showProgressSection();
+        } else if (QuizState.questions.length > 0) {
+            // 연속 퀴즈인 경우
+            const current = QuizState.currentIndex + 1;
+            const total = QuizState.questions.length;
+            updateProgress(current, total);
+            showProgressSection();
+        } else {
+            // 단일 문제인 경우에도 progress-section 표시
+            showProgressSection();
+            // 단일 문제이므로 1/1로 표시
+            updateProgress(1, 1);
         }
     }
     
@@ -1516,19 +2144,28 @@ async function loadQuestion() {
      * 타이머 표시 업데이트
      */
     function updateTimerDisplay() {
+        // 기존 타이머 표시 (호환성 유지)
         const display = document.getElementById('ptg-timer-display');
-        if (!display) return;
+        if (display) {
+            const minutes = Math.floor(QuizState.timerSeconds / 60);
+            const seconds = QuizState.timerSeconds % 60;
+            display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
         
-        const minutes = Math.floor(QuizState.timerSeconds / 60);
-        const seconds = QuizState.timerSeconds % 60;
-        
-        display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        // progress-section의 타이머 업데이트
+        const progressTimer = document.getElementById('ptgates-timer');
+        if (progressTimer) {
+            const minutes = Math.floor(QuizState.timerSeconds / 60);
+            const seconds = QuizState.timerSeconds % 60;
+            progressTimer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
     }
     
     /**
      * 타이머 만료
      */
     function timerExpired() {
+        if (QuizState.terminated) return;
         showError('시간이 종료되었습니다.');
         // 자동 제출 또는 알림
     }
@@ -2542,6 +3179,9 @@ async function loadQuestion() {
      * 정답 확인
      */
     async function checkAnswer() {
+        if (QuizState.terminated) {
+            return;
+        }
         // 공통 컴포넌트에서 답안 가져오기
         let userAnswer = '';
         if (typeof PTGQuizUI !== 'undefined') {
@@ -2552,16 +3192,29 @@ async function loadQuestion() {
         } else {
             userAnswer = QuizState.userAnswer;
         }
-        
+        // DOM 기반 보강 체크 (라디오 직접 확인)
         if (!userAnswer) {
-            const missing = '답을 선택해주세요.';
-            if (typeof window.__PTG_ORIG_ALERT === 'function') {
-                window.__PTG_ORIG_ALERT(missing);
-            } else if (typeof window.alert === 'function') {
-                window.alert(missing);
-            } else {
-                showError(missing);
+            try {
+                const checked = document.querySelector('#ptg-quiz-choices input[type="radio"]:checked');
+                if (checked && checked.value) {
+                    userAnswer = checked.value;
+                }
+            } catch (e) {
+                // ignore
             }
+        }
+        // 문자열 정리 및 최종 미선택 판별
+        let normalizedUserAnswer = userAnswer;
+        if (typeof normalizedUserAnswer === 'string') {
+            normalizedUserAnswer = normalizedUserAnswer.trim();
+        }
+        if (
+            !normalizedUserAnswer ||
+            normalizedUserAnswer === 'null' ||
+            normalizedUserAnswer === 'undefined'
+        ) {
+            const missing = '답안 문항을 선택하세요.';
+            PTG_quiz_alert(missing);
             return;
         }
         
@@ -2572,7 +3225,7 @@ async function loadQuestion() {
         
         try {
             // 사용자 답안에서 원형 숫자를 일반 숫자로 변환
-            const normalizedAnswer = circleToNumber(userAnswer);
+            const normalizedAnswer = circleToNumber(normalizedUserAnswer);
             
             const response = await PTGPlatform.post(`ptg-quiz/v1/questions/${QuizState.questionId}/attempt`, {
                 answer: normalizedAnswer,
@@ -2607,12 +3260,7 @@ async function loadQuestion() {
                 }
                 // 보조 하이라이트 및 비활성화(보장)
                 try { applyAnswerHighlight(response.data.correct_answer, userAnswer); } catch(e) {}
-                // 정답 알림(Alert) - 기출 문제 학습 UX 강화
-                if (response.data.is_correct) {
-                    if (typeof PTG_quiz_alert === 'function') {
-                        PTG_quiz_alert('정답입니다!');
-                    }
-                }
+				// 정답/오답 알림은 표시하지 않음 (미선택 제출 시에만 alert 허용)
                 
                 showResult(response.data.is_correct, response.data.correct_answer);
                 
@@ -2741,27 +3389,13 @@ async function loadQuestion() {
             btnNext.style.display = 'inline-block';
         }
 
-        // 피드백 메시지: 기출문제학습 스타일의 간단한 피드백 박스 추가
-        let feedbackBox = document.getElementById('ptg-quiz-feedback');
-        if (!feedbackBox && document.getElementById('ptg-quiz-card')) {
-            feedbackBox = document.createElement('div');
-            feedbackBox.id = 'ptg-quiz-feedback';
-            feedbackBox.style.margin = '12px 0';
-            feedbackBox.style.padding = '12px';
-            feedbackBox.style.borderRadius = '6px';
-            feedbackBox.style.border = '1px solid #d6e4f0';
-            feedbackBox.style.background = isCorrect ? '#e8f5e8' : '#f8d7da';
-        }
-        if (feedbackBox) {
-            const correctLabel = '정답입니다!';
-            const notFoundLabel = `오답입니다. 정답은 "${correctNum}" 입니다.`;
-            feedbackBox.textContent = isCorrect ? correctLabel : notFoundLabel;
-            // insert after explanation area if exists, else after card
-            const cardEl = document.getElementById('ptg-quiz-card');
-            if (cardEl && feedbackBox.parentNode !== cardEl.parentNode) {
-                cardEl.parentNode.insertBefore(feedbackBox, cardEl.nextSibling);
-            }
-        }
+		// 정/오답 텍스트 피드백 박스는 표시하지 않음 (색상 하이라이트만 유지)
+		try {
+			const existingFeedback = document.getElementById('ptg-quiz-feedback');
+			if (existingFeedback && existingFeedback.parentNode) {
+				existingFeedback.parentNode.removeChild(existingFeedback);
+			}
+		} catch(e) {}
     }
     
     /**
@@ -2809,9 +3443,12 @@ async function loadQuestion() {
      */
     async function loadQuestionsList(filters = {}) {
         try {
+            // 요청 시퀀스 증가 및 캡처
+            const seq = ++QuizState.requestSeq;
             const params = new URLSearchParams();
             if (filters.year) params.append('year', filters.year);
             if (filters.subject) params.append('subject', filters.subject);
+            if (filters.subsubject) params.append('subsubject', filters.subsubject);
             if (filters.limit) params.append('limit', filters.limit);
             if (filters.session) params.append('session', filters.session);
             if (filters.full_session) params.append('full_session', 'true');
@@ -2820,6 +3457,11 @@ async function loadQuestion() {
             
             const endpoint = `ptg-quiz/v1/questions?${params.toString()}`;
             const response = await PTGPlatform.get(endpoint);
+
+            // 만약 응답이 오래되어 현재 시퀀스보다 작으면 무시
+            if (seq < QuizState.requestSeq) {
+                return []; // 무시
+            }
             
             if (!response || !response.success || !Array.isArray(response.data)) {
                 throw new Error(response?.message || '문제 목록을 불러올 수 없습니다.');
@@ -2836,17 +3478,20 @@ async function loadQuestion() {
      * 다음 문제 로드
      */
     function loadNextQuestion() {
+        // 종료 상태에서는 더 이상 진행하지 않음
+        if (QuizState.terminated) {
+            return;
+        }
         // 드로잉 모드가 활성화되어 있으면 다음 문제로 넘어가지 않음
         const overlay = document.getElementById('ptg-drawing-overlay');
         const isOverlayVisible = overlay && 
             (window.getComputedStyle(overlay).display !== 'none' && overlay.style.display !== 'none');
         
         if (QuizState.drawingEnabled || isOverlayVisible) {
-            if (typeof window.__PTG_ORIG_ALERT === 'function') {
-                window.__PTG_ORIG_ALERT('드로잉 모드를 해제하세요');
-            } else {
-                alert('드로잉 모드를 해제하세요');
-            }
+                // 종료 상태에서는 알림 표시하지 않음
+                if (!QuizState.terminated) {
+                    PTG_quiz_alert('드로잉 모드를 해제하세요');
+                }
             return;
         }
         
@@ -2894,10 +3539,149 @@ async function loadQuestion() {
     }
     
     /**
+     * 진행률 업데이트
+     */
+    function updateProgress(current, total) {
+        const counter = document.getElementById('ptgates-question-counter');
+        const fill = document.getElementById('ptgates-progress-fill');
+        
+        if (counter) {
+            counter.textContent = `${current} / ${total}`;
+        }
+        
+        if (fill) {
+            const percentage = (current / total) * 100;
+            fill.style.width = percentage + '%';
+        }
+    }
+    
+    /**
+     * 진행 상태 섹션 표시/숨김
+     */
+    function showProgressSection() {
+        if (QuizState.terminated) return;
+        const progress = document.getElementById('ptgates-progress-section');
+        if (progress) {
+            progress.style.display = 'block';
+            // 강제로 표시 (다른 스타일이 덮어쓸 수 있음)
+            progress.style.setProperty('display', 'block', 'important');
+        }
+    }
+
+    /**
+     * 퀴즈 UI 표시 (툴바/카드/버튼)
+     */
+    function showQuizUI() {
+        const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
+        const actions = document.querySelector('.ptg-quiz-actions');
+        const toolbar = document.querySelector('.ptg-quiz-toolbar');
+        if (toolbar) toolbar.style.display = 'flex';
+        if (cardWrapper) cardWrapper.style.display = 'block';
+        if (actions) actions.style.display = 'flex';
+    }
+    
+    function hideProgressSection() {
+        const progress = document.getElementById('ptgates-progress-section');
+        if (progress) {
+            progress.style.display = 'none';
+        }
+    }
+    
+    /**
+     * 퀴즈 포기
+     */
+    async function giveUpQuiz() {
+        // 중복 실행 방지 플래그 세팅
+        if (QuizState.giveUpInProgress) {
+            return;
+        }
+        QuizState.giveUpInProgress = true;
+        // 상태 전환: terminated
+        setState('terminated');
+        
+        // 즉시 UI 상호작용 차단 및 숨김
+        try {
+            // 타이머 즉시 정지
+            if (QuizState.timerInterval) {
+                clearInterval(QuizState.timerInterval);
+                QuizState.timerInterval = null;
+            }
+
+            const btnCheck = document.getElementById('ptg-btn-check-answer');
+            const btnNext = document.getElementById('ptg-btn-next-question');
+            const toolbar = document.querySelector('.ptg-quiz-toolbar');
+            const actions = document.querySelector('.ptg-quiz-actions');
+            const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
+            if (btnCheck) { btnCheck.disabled = true; btnCheck.onclick = null; btnCheck.style.display = 'none'; }
+            if (btnNext)  { btnNext.disabled  = true; btnNext.onclick  = null; btnNext.style.display  = 'none'; try { btnNext.remove(); } catch(e) {} }
+            if (toolbar)  { toolbar.style.display = 'none'; }
+            if (actions)  { actions.style.display = 'none'; }
+            if (cardWrapper) { cardWrapper.style.pointerEvents = 'none'; cardWrapper.style.display = 'none'; }
+			// 진행 상태 바는 유지하여 사용자가 종료 상태를 인지할 수 있게 함
+        } catch (e) {
+            // ignore
+        }
+        
+        // 현재 문제까지 답안 제출한 경우, 그 문제의 답안도 저장
+        const currentQuestionId = QuizState.questionId;
+        if (currentQuestionId && !QuizState.isAnswered) {
+            // 현재 문제에 대한 답안이 있으면 저장
+            let userAnswer = '';
+            if (typeof PTGQuizUI !== 'undefined') {
+                userAnswer = PTGQuizUI.getSelectedAnswer({
+                    answerName: 'ptg-answer',
+                    textAnswerId: 'ptg-user-answer'
+                });
+            } else {
+                userAnswer = QuizState.userAnswer;
+            }
+            
+            // 답안이 있으면 저장
+            if (userAnswer) {
+                try {
+                    const normalizedAnswer = circleToNumber(userAnswer);
+                    const response = await PTGPlatform.post(`ptg-quiz/v1/questions/${currentQuestionId}/attempt`, {
+                        answer: normalizedAnswer,
+                        elapsed: QuizState.timerSeconds
+                    });
+                    
+                    if (response && response.data) {
+                        QuizState.answers.push({
+                            questionId: currentQuestionId,
+                            isCorrect: response.data.is_correct,
+                            userAnswer: userAnswer,
+                            correctAnswer: response.data.correct_answer
+                        });
+                    }
+                } catch (error) {
+                    console.error('포기 시 답안 저장 오류:', error);
+                    // 오류가 발생해도 계속 진행
+                }
+            }
+        }
+        
+        // 퀴즈 완료 처리 (terminated 상태 유지)
+        try {
+            finishQuiz();
+        } finally {
+            // 만약 어떤 이유로 종료 상태가 아니라면 버튼을 복구
+            if (QuizState.appState !== 'terminated' && QuizState.appState !== 'finished') {
+                QuizState.giveUpInProgress = false;
+                const btnGiveup = document.getElementById('ptgates-giveup-btn');
+                if (btnGiveup) {
+                    btnGiveup.disabled = false;
+                    btnGiveup.style.pointerEvents = '';
+                    try { btnGiveup.removeAttribute('disabled'); } catch(e) {}
+                }
+            }
+        }
+    }
+    
+    /**
      * 퀴즈 완료 처리
      */
     function finishQuiz() {
-        // 타이머 정지
+        // 타이머 정지 (안전)
         if (QuizState.timerInterval) {
             clearInterval(QuizState.timerInterval);
             QuizState.timerInterval = null;
@@ -2929,16 +3713,12 @@ async function loadQuestion() {
             totalTime: totalTime
         });
         
-        // 문제 영역 숨기기
-        const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
-        const actions = document.querySelector('.ptg-quiz-actions');
-        const toolbar = document.querySelector('.ptg-quiz-toolbar');
-        if (cardWrapper) cardWrapper.style.display = 'none';
-        if (actions) actions.style.display = 'none';
-        if (toolbar) toolbar.style.display = 'none';
-        
-        // 헤더 위치로 스크롤
-        scrollToHeader();
+        // 상태 전환: terminated 상태면 유지, 아니면 finished로 전환
+        if (QuizState.appState !== 'terminated') {
+            setState('finished');
+        } else {
+            applyUIForState();
+        }
     }
     
     /**

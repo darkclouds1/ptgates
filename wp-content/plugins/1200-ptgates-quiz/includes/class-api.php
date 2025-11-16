@@ -11,10 +11,19 @@ use PTG\Platform\Permissions;
 use PTG\Platform\Rest;
 use PTG\Platform\Repo;
 use PTG\Platform\LegacyRepo;
+use PTG\Quiz\Subjects;
 
 // 직접 접근 방지
 if (!defined('ABSPATH')) {
     exit;
+}
+
+// 정적 과목 정의 클래스가 아직 로드되지 않았다면 현재 디렉터리에서 로드
+if (!class_exists('\PTG\Quiz\Subjects')) {
+    $subjects_file = __DIR__ . '/class-subjects.php';
+    if (file_exists($subjects_file) && is_readable($subjects_file)) {
+        require_once $subjects_file;
+    }
 }
 
 class API {
@@ -40,6 +49,11 @@ class API {
                     'sanitize_callback' => 'absint',
                 ),
                 'subject' => array(
+                    'required' => false,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'subsubject' => array(
                     'required' => false,
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
@@ -241,6 +255,46 @@ class API {
                 ),
             ),
         ));
+        
+        // 교시별 과목 목록 조회
+        register_rest_route(self::NAMESPACE, '/subjects', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_subjects'),
+            'permission_callback' => '__return_true', // 공개 API
+            'args' => array(
+                'session' => array(
+                    'required' => false,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
+        
+        // 교시 목록 조회 (ptGates_subject 기반)
+        register_rest_route(self::NAMESPACE, '/sessions', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_sessions'),
+            'permission_callback' => '__return_true', // 공개 API
+        ));
+        
+        // 세부과목 목록 조회 (ptGates_subject 기반)
+        register_rest_route(self::NAMESPACE, '/subsubjects', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_subsubjects'),
+            'permission_callback' => '__return_true', // 공개 API
+            'args' => array(
+                'session' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'subject' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ));
     }
     
     /**
@@ -258,6 +312,7 @@ class API {
         
         $year = $request->get_param('year');
         $subject = $request->get_param('subject');
+        $subsubject = $request->get_param('subsubject');
         $limit = absint($request->get_param('limit')) ?: 5; // 기본값 5문제
         $session = $request->get_param('session');
         $full_session = $request->get_param('full_session') === true || $request->get_param('full_session') === 'true';
@@ -306,11 +361,49 @@ class API {
             $where[] = $wpdb->prepare("c.exam_year = %d", absint($year));
         }
         
-        // 과목 필터
-        if (!empty($subject)) {
+        // 과목/세부과목 필터
+        // - subsubject가 있으면 이를 포함하는 상위 과목군을 Subjects::MAP에서 역으로 찾아서 OR 조건으로 필터링
+        // - subsubject가 없고 subject가 있으면 subject로 LIKE 필터링
+        if (!empty($subsubject)) {
+            // 세부과목이 지정되면 해당 세부과목만 정확히 매칭 (DB의 subject 컬럼이 세부과목명을 가질 수 있음)
+            $sub_name = trim(sanitize_text_field($subsubject));
+            // 정확히 일치하거나, 일부 접두/접미 텍스트가 붙은 형태까지 포괄
+            $like = '%' . $wpdb->esc_like($sub_name) . '%';
+            $where[] = $wpdb->prepare("(c.subject = %s OR c.subject LIKE %s)", $sub_name, $like);
+        } elseif (!empty($subject)) {
             $subject_filter = trim(sanitize_text_field($subject));
-            // LIKE 검색으로 과목명 시작하는 모든 과목 포함
-            $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+            
+            // 세부과목 미선택 시: Subjects 맵을 사용해 상위 과목의 모든 세부과목을 OR로 포함
+            $subs_to_include = array();
+            if (!empty($session)) {
+                // 지정된 교시에서 해당 과목의 세부과목
+                $subs_to_include = Subjects::get_subsubjects((int) $session, $subject_filter);
+            } else {
+                // 교시 미지정 시: 모든 교시를 훑어서 해당 과목의 세부과목을 합침
+                $all_sessions = Subjects::get_sessions();
+                foreach ($all_sessions as $sess) {
+                    $subs = Subjects::get_subsubjects((int) $sess, $subject_filter);
+                    if (!empty($subs)) {
+                        $subs_to_include = array_merge($subs_to_include, $subs);
+                    }
+                }
+                $subs_to_include = array_values(array_unique($subs_to_include));
+            }
+            
+            if (!empty($subs_to_include)) {
+                // 세부과목 목록을 정확/유사 매칭 OR 조건으로 생성
+                $or_parts = array();
+                $or_params = array();
+                foreach ($subs_to_include as $sub_name) {
+                    $or_parts[] = "(c.subject = %s OR c.subject LIKE %s)";
+                    $or_params[] = $sub_name;
+                    $or_params[] = '%' . $wpdb->esc_like($sub_name) . '%';
+                }
+                $where[] = $wpdb->prepare("(" . implode(" OR ", $or_parts) . ")", ...$or_params);
+            } else {
+                // 맵에서 과목을 찾지 못한 경우, 과거 동작을 유지: 상위 과목명으로 prefix LIKE
+                $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+            }
         }
         
         // 교시 필터
@@ -1155,6 +1248,51 @@ class API {
             'answer' => $question['answer'],
             'subject' => $subject ? $subject : null
         ));
+    }
+    
+    /**
+     * 교시별 과목 목록 조회
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public static function get_subjects($request) {
+        $session = (int) $request->get_param('session');
+
+        if ($session > 0) {
+            $subjects = Subjects::get_subjects_for_session($session);
+        } else {
+            // 교시가 지정되지 않으면 모든 교시의 과목을 합쳐서 반환
+            $subjects = [];
+            foreach (Subjects::get_sessions() as $sess) {
+                $subjects = array_merge($subjects, Subjects::get_subjects_for_session($sess));
+            }
+            $subjects = array_values(array_unique($subjects));
+        }
+
+        return Rest::success($subjects);
+    }
+    
+    /**
+     * 교시 목록 반환 (ptGates_subject의 course_no DISTINCT)
+     */
+    public static function get_sessions($request) {
+        // 정적 설정 기반 교시 목록 반환
+        return Rest::success(Subjects::get_sessions());
+    }
+    
+    /**
+     * 세부과목 목록 반환 (ptGates_subject의 subcategory DISTINCT)
+     */
+    public static function get_subsubjects($request) {
+        $session = absint($request->get_param('session'));
+        $subject = sanitize_text_field($request->get_param('subject'));
+        if (!$session || empty($subject)) {
+            return Rest::success(array());
+        }
+
+        $subs = Subjects::get_subsubjects($session, $subject);
+        return Rest::success($subs);
     }
 }
 

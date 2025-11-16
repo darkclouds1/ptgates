@@ -254,8 +254,17 @@ class Study_API {
         $subjects_param = $request->get_param('subjects');
         $limit = (int) $request->get_param('limit');
         if ($limit <= 0) {
-            $limit = 50;
+			$limit = 50; // 기본값(프론트에서 세부과목 조회 시에는 명시적으로 10을 전달)
         }
+
+		// 페이지네이션을 위한 offset (세부과목 단일 조회에서 사용)
+		$offset = (int) $request->get_param('offset');
+		if ($offset < 0) {
+			$offset = 0;
+		}
+
+		// 랜덤 섞기 플래그 (세부과목 단일 조회에서 사용)
+		$random = (bool) $request->get_param('random');
 
         if (!empty($subjects_param)) {
             if (is_array($subjects_param)) {
@@ -270,13 +279,16 @@ class Study_API {
                 return new \WP_Error('invalid_subjects', '선택된 과목 정보가 올바르지 않습니다.', ['status' => 400]);
             }
 
+            // 집계 모드: 각 세부과목의 문제를 모두 모은 후 question_id ASC 정렬,
+            // 그 다음 limit/offset으로 잘라서 반환 (페이지네이션).
             $questions_map = [];
 
             foreach ($subject_names as $subject_name) {
                 $args = [
-                    'subject' => $subject_name,
-                    'limit' => $limit,
-                    'offset' => 0,
+                    'subject'          => $subject_name,
+                    'limit'            => 1000, // 세부과목당 충분히 큰 값
+                    'offset'           => 0,
+                    'exam_session_min' => 1000,
                 ];
 
                 $results = LegacyRepo::get_questions_with_categories($args);
@@ -294,67 +306,98 @@ class Study_API {
                 return $a['question_id'] <=> $b['question_id'];
             });
 
+            $total_count = count($questions);
+
+            // 페이지네이션 적용 (10문제씩 등)
+            $paged_questions = array_slice($questions, $offset, $limit);
+
             $formatted_lessons = array_map(function($q) {
                 return [
-                    'id' => $q['question_id'],
-                    'title' => '문제 #' . $q['question_id'],
-                    'content' => $q['content'],
-                    'answer' => $q['answer'],
+                    'id'          => $q['question_id'],
+                    'title'       => '문제 #' . $q['question_id'],
+                    'content'     => $q['content'],
+                    'answer'      => $q['answer'],
                     'explanation' => $q['explanation'],
-                    'category' => [
-                        'year' => $q['exam_year'],
+                    'category'    => [
+                        'year'    => $q['exam_year'],
                         'subject' => $q['subject'],
                     ],
                 ];
-            }, $questions);
+            }, $paged_questions);
 
-            $definitions = self::get_subject_categories();
+            $definitions    = self::get_subject_categories();
             $category_label = $definitions[$course_id]['label'] ?? $course_id;
 
             $response_data = [
-                'id' => $course_id,
-                'title' => $category_label,
+                'id'        => $course_id,
+                'title'     => $category_label,
                 'aggregate' => true,
-                'subjects' => $subject_names,
-                'lessons' => $formatted_lessons,
+                'subjects'  => $subject_names,
+                'lessons'   => $formatted_lessons,
+                'limit'     => $limit,
+                'offset'    => $offset,
+                'total'     => $total_count,
             ];
 
             return new \WP_REST_Response($response_data, 200);
         }
 
-        $subject = urldecode($course_id);
-        
-        $args = [
-            'subject' => $subject,
-            'limit' => $limit,
-            'offset' => 0
-        ];
+		$subject = urldecode($course_id);
 
-        $questions = LegacyRepo::get_questions_with_categories($args);
+		// 세부과목 단일 조회
+		$args = [
+			'subject'          => $subject,
+			'limit'            => $random ? 1000 : $limit, // 랜덤일 때는 넉넉히 가져온 후 자르기
+			'offset'           => $random ? 0 : $offset,
+			// 전역 정책: 회차 1000 이상만
+			'exam_session_min' => 1000,
+		];
+
+		$questions = LegacyRepo::get_questions_with_categories($args);
+		$total_count = LegacyRepo::count_questions_with_categories([
+			'subject'          => $subject,
+			'exam_session_min' => 1000,
+		]);
 
         if (empty($questions)) {
             return new \WP_Error('no_questions', '해당 과목에 대한 문제가 없습니다.', ['status' => 404]);
         }
-        
-        $formatted_lessons = array_map(function($q) {
-            return [
-                'id' => $q['question_id'],
-                'title' => '문제 #' . $q['question_id'],
-                'content' => $q['content'],
-                'answer' => $q['answer'],
-                'explanation' => $q['explanation'],
-                'category' => [
-                    'year' => $q['exam_year'],
-                    'subject' => $q['subject'],
-                ]
-            ];
-        }, $questions);
 
-        $response_data = [
-            'id' => urlencode($subject),
-            'title' => $subject,
-            'lessons' => $formatted_lessons
-        ];
+		// 정렬/랜덤 처리
+		if ($random) {
+			// 랜덤 섞기 후 limit 만큼 잘라서 반환
+			shuffle($questions);
+			$questions = array_slice($questions, 0, $limit);
+		} else {
+			// question_id 오름차순 정렬 (학습용 순서)
+			usort($questions, function($a, $b) {
+				return $a['question_id'] <=> $b['question_id'];
+			});
+		}
+
+		$formatted_lessons = array_map(function($q) {
+			return [
+				'id'          => $q['question_id'],
+				'title'       => '문제 #' . $q['question_id'],
+				'content'     => $q['content'],
+				'answer'      => $q['answer'],
+				'explanation' => $q['explanation'],
+				'category'    => [
+					'year'    => $q['exam_year'],
+					'subject' => $q['subject'],
+				]
+			];
+		}, $questions);
+
+		$response_data = [
+			'id'      => urlencode($subject),
+			'title'   => $subject,
+			'lessons' => $formatted_lessons,
+			'limit'   => $limit,
+			'offset'  => $random ? 0 : $offset,
+			'total'   => $total_count,
+			'random'  => $random,
+		];
 
         return new \WP_REST_Response($response_data, 200);
     }

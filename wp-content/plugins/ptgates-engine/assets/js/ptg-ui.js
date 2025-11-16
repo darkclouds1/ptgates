@@ -18,6 +18,8 @@
                 const questionNumber = current || 1;
                 const questionContent = question.question_text || '';
                 questionText.textContent = `${questionNumber}. ${questionContent}`;
+                // 폰트 크기를 16px로 강제 설정
+                questionText.style.fontSize = '16px';
             }
             
             // 옵션 표시
@@ -466,4 +468,42 @@
     
     // 전역 객체에 노출
     window.PTGUI = PTGUI;
+    
+    // 페이지 로드 시 폰트 크기 강제 설정
+    function enforceQuestionTextFontSize() {
+        const questionText = document.getElementById('ptgates-question-text');
+        if (questionText) {
+            questionText.style.fontSize = '16px';
+        }
+    }
+    
+    // DOM 로드 완료 시 실행
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enforceQuestionTextFontSize);
+    } else {
+        enforceQuestionTextFontSize();
+    }
+    
+    // MutationObserver로 동적으로 추가되는 요소도 감지
+    const observer = new MutationObserver(function(mutations) {
+        const questionText = document.getElementById('ptgates-question-text');
+        if (questionText) {
+            questionText.style.fontSize = '16px';
+        }
+    });
+    
+    // DOM 변경 감지 시작
+    if (document.body) {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        });
+    }
 })();

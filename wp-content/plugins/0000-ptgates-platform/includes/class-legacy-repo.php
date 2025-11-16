@@ -55,11 +55,17 @@ class LegacyRepo {
             $where[] = "c.subject = %s";
             $where_values[] = sanitize_text_field($args['subject']);
         }
-        
+
         // exam_course 필터
         if (!empty($args['exam_course'])) {
             $where[] = "c.exam_course = %s";
             $where_values[] = sanitize_text_field($args['exam_course']);
+        }
+
+        // exam_session 최소값 필터 (예: 1000 이상만)
+        if (!empty($args['exam_session_min'])) {
+            $where[] = "c.exam_session >= %d";
+            $where_values[] = absint($args['exam_session_min']);
         }
         
         $where_clause = implode(' AND ', $where);
@@ -97,6 +103,61 @@ class LegacyRepo {
         
         $query = $wpdb->prepare($sql, $where_values);
         return $wpdb->get_results($query, ARRAY_A);
+    }
+
+    /**
+     * 문제 정보 개수 조회 (categories와 JOIN, 필터 조건 동일)
+     *
+     * @param array $args get_questions_with_categories 와 동일한 필터 인자
+     * @return int 총 개수
+     */
+    public static function count_questions_with_categories($args = array()) {
+        global $wpdb;
+
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+
+        $where = array("q.is_active = 1");
+        $where_values = array();
+
+        if (!empty($args['question_id'])) {
+            $where[] = "q.question_id = %d";
+            $where_values[] = absint($args['question_id']);
+        }
+
+        if (!empty($args['year'])) {
+            $where[] = "c.exam_year = %d";
+            $where_values[] = absint($args['year']);
+        }
+
+        if (!empty($args['subject'])) {
+            $where[] = "c.subject = %s";
+            $where_values[] = sanitize_text_field($args['subject']);
+        }
+
+        if (!empty($args['exam_course'])) { 
+            $where[] = "c.exam_course = %s";
+            $where_values[] = sanitize_text_field($args['exam_course']);
+        }
+
+        if (!empty($args['exam_session_min'])) {
+            $where[] = "c.exam_session >= %d";
+            $where_values[] = absint($args['exam_session_min']);
+        }
+
+        $where_clause = implode(' AND ', $where);
+
+        $sql = "
+            SELECT COUNT(*) 
+            FROM {$questions_table} q
+            INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+            WHERE {$where_clause}
+        ";
+
+        $query = $wpdb->prepare($sql, $where_values);
+        $count = $wpdb->get_var($query);
+
+        return (int) $count;
     }
     
     /**

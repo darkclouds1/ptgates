@@ -55,7 +55,7 @@
 
 .ptg-subject-list {
     list-style: none;
-    padding: 12px 20px 20px 20px; /* 아래쪽 패딩 추가 */
+    padding: 1px 1px 1px 1px; /* 아래쪽 패딩 추가 */
     margin: 0;
     display: flex;
     flex-wrap: wrap; /* 내용이 넘치면 다음 줄로 */

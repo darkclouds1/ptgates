@@ -52,10 +52,43 @@ $is_session2 = $timer_minutes === 75;
     <div id="ptgates-header" class="ptgates-header">
         <div class="ptgates-header-content">
             <h1 class="ptgates-header-title">실전 모의 학습</h1>
-            <button type="button" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-btn" aria-label="실전 모의 학습Tip">
-                [실전 모의 학습Tip]
-            </button>
+            <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습 tip]</a>
         </div>
+    </div>
+    
+    <!-- 필터 섹션 -->
+    <div id="ptg-quiz-filter-section" class="ptgates-filter-section">
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-filter-session" class="ptgates-filter-input" aria-label="교시">
+                <option value="">교시</option>
+                <option value="1">1교시</option>
+                <option value="2">2교시</option>
+            </select>
+        </div>
+        
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-filter-subject" class="ptgates-filter-input" aria-label="과목">
+                <option value="">과목</option>
+            </select>
+        </div>
+		
+		<div class="ptgates-filter-row">
+			<select id="ptg-quiz-filter-subsubject" class="ptgates-filter-input" aria-label="세부과목">
+				<option value="">세부과목</option>
+			</select>
+		</div>
+        
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-filter-limit" class="ptgates-filter-input" aria-label="문항 수">
+                <option value="5" selected>5문제</option>
+                <option value="10">10문제</option>
+                <option value="20">20문제</option>
+                <option value="30">30문제</option>
+                <option value="50">50문제</option>
+            </select>
+        </div>
+        
+        <button id="ptg-quiz-start-btn" class="ptgates-btn ptgates-btn-primary">조회</button>
     </div>
     
     <!-- 실전 모의 학습Tip 모달 -->
@@ -71,19 +104,21 @@ $is_session2 = $timer_minutes === 75;
                     <h3>🎯 교시별 모의고사</h3>
                     <div class="ptg-quiz-tip-grid">
                         <div class="ptg-quiz-tip-card">
-                            <h4>1교시</h4>
-                            <p class="ptg-quiz-tip-count">105문항</p>
+                            <h4>1교시 105문항</h4>
                             <ul>
-                                <li>물리치료 기초: 60문항</li>
-                                <li>물리치료 진단평가: 45문항</li>
+                                <h5>물리치료 기초(60문항)</h5>
+                                <li>해부생리학(22) 운동학(12) 물리적 인자치료(16) 공중보건학(10)</li>
+                                <h5>물리치료 진단평가(45문항)</h5>
+                                <li>근골격계 물리치료 진단평가(10) 신경계 물리치료 진단평가(16) <br>진단평가 원리(6) 심폐혈관계 검사 및 평가(4) 기타 계통 검사(2) 임상의사결정(7)</li>
                             </ul>
                         </div>
                         <div class="ptg-quiz-tip-card">
-                            <h4>2교시</h4>
-                            <p class="ptg-quiz-tip-count">85문항</p>
+                            <h4>2교시 85문항</h4>
                             <ul>
-                                <li>물리치료 중재: 65문항</li>
-                                <li>의료관계법규: 20문항</li>
+                                <h5>물리치료 중재(65문항)</h5>
+                                <li>근골격계 중재(28) 신경계 중재(25) 심폐혈관계 중재(5) <br>림프, 피부계 중재(2) 물리치료 문제해결(5)</li>
+                                <h5>의료관계법규(20문항)</h5>
+                                <li>의료법(5) 의료기사법(5) 노인복지법(4) 장애인복지법(3) 국민건강보험법(3)</li>
                             </ul>
                         </div>
                     </div>
@@ -167,6 +202,24 @@ $is_session2 = $timer_minutes === 75;
     </script>
 
     <!-- 도구바 -->
+    <!-- 위치 이동: 진행 상태 표시 아래로 -->
+    
+    <!-- 진행 상태 표시 -->
+    <div id="ptgates-progress-section" class="ptgates-progress-section" style="display: none;">
+        <div class="ptgates-progress-info">
+            <span id="ptgates-question-counter">1 / 10</span>
+            <div class="ptgates-progress-right">
+                <span id="ptgates-timer" class="ptgates-timer">00:00</span>
+                <button id="ptgates-time-tip-btn" class="ptgates-time-tip-btn">[시간관리 tip]</button>
+                <button id="ptgates-giveup-btn" class="ptgates-btn-giveup-inline">포기하기</button>
+            </div>
+        </div>
+        <div class="ptgates-progress-bar">
+            <div id="ptgates-progress-fill" class="ptgates-progress-fill"></div>
+        </div>
+    </div>
+    
+    <!-- 도구바 (progress 아래) -->
     <div class="ptg-quiz-toolbar">
         <!-- 드로잉 툴바 (왼쪽) -->
         <div class="ptg-drawing-toolbar" id="ptg-drawing-toolbar" style="display: none;">
@@ -222,7 +275,6 @@ $is_session2 = $timer_minutes === 75;
         </div>
     </div>
     
-    
     <!-- 문제 카드 영역 (드로잉 오버레이 포함) -->
     <div class="ptg-quiz-card-wrapper">
         <div class="ptg-quiz-card" id="ptg-quiz-card">
@@ -253,21 +305,6 @@ $is_session2 = $timer_minutes === 75;
         <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-next-question" style="display: none;">
             다음 문제
         </button>
-        <!-- 타이머 영역 (우측) -->
-        <?php if (!$is_unlimited): ?>
-        <div class="ptg-quiz-timer">
-            <span class="ptg-timer-label">남은 시간:</span>
-            <span class="ptg-timer-display" id="ptg-timer-display"><?php 
-                if ($is_session1 || $is_session2) {
-                    echo esc_html($timer_minutes) . ':00';
-                } else {
-                    // 연속 퀴즈의 경우 JavaScript에서 문제 수 × 50초로 업데이트됨
-                    // 초기값은 "00:00"으로 설정 (JavaScript에서 즉시 업데이트)
-                    echo '00:00';
-                }
-            ?></span>
-        </div>
-        <?php endif; ?>
     </div>
     
     <!-- 드로잉 캔버스 오버레이 (문제 카드 + 해설 영역 포함) -->
@@ -308,6 +345,64 @@ $is_session2 = $timer_minutes === 75;
             </div>
         </div>
         <button id="ptg-quiz-restart-btn" class="ptg-btn ptg-btn-primary">다시 시작</button>
+    </div>
+    
+    <!-- 시간관리 tip 모달 -->
+    <div id="ptgates-time-tip-modal" class="ptgates-modal" style="display: none;">
+        <div class="ptgates-modal-overlay"></div>
+        <div class="ptgates-modal-content">
+            <div class="ptgates-modal-header">
+                <h3>물리치료사 국가시험 시간관리 가이드</h3>
+                <button class="ptgates-modal-close" id="ptgates-time-tip-close">&times;</button>
+            </div>
+            <div class="ptgates-modal-body">
+                <p>물리치료사 국가시험은 전체 260문항에 총 250분의 시험 시간이 주어지므로, 전체적으로 한 문제당 평균 약 57.7초를 배분하여 풀어야 합니다.</p>
+                
+                <p>하지만 각 교시별로 문항 수와 시간이 다르기 때문에, 실제 시험에서는 각 교시의 할당 시간에 맞춰 문제를 풀어야 합니다.</p>
+                
+                <p>다음은 제48회 국가시험부터 적용된 교시별 평균 소요 시간입니다:</p>
+                
+                <table class="ptgates-time-table">
+                    <thead>
+                        <tr>
+                            <th>교시</th>
+                            <th>시험 과목 (총 문항 수)</th>
+                            <th>시험 시간 (분)</th>
+                            <th>한 문제당 평균 시간 (초)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1교시</td>
+                            <td>물리치료 기초 + 진단평가 (105문항)</td>
+                            <td>90분</td>
+                            <td>약 51.4초</td>
+                        </tr>
+                        <tr>
+                            <td>2교시</td>
+                            <td>물리치료 중재 + 의료관계법규 (85문항)</td>
+                            <td>75분</td>
+                            <td>약 52.9초</td>
+                        </tr>
+                        <tr>
+                            <td>3교시</td>
+                            <td>실기시험 (70문항)</td>
+                            <td>85분</td>
+                            <td>약 72.8초</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="ptgates-tip-summary">
+                    <h4>핵심 요약:</h4>
+                    <ul>
+                        <li><strong>필기(1/2교시):</strong> 문제당 약 51~53초로, 1분 이내에 문제를 해결하는 속도가 요구됩니다.</li>
+                        <li><strong>실기(3교시):</strong> 문제당 약 73초로, 필기시험에 비해 상대적으로 시간이 더 많이 주어집니다.</li>
+                    </ul>
+                    <p>물리치료사 국시는 과목 수와 문제 수가 많으므로, 시간 관리가 합격을 좌우하는 중요한 요소입니다. 따라서 실제 시험 시간과 동일하게 모의고사를 치르면서 시간 배분을 철저히 훈련하는 것이 중요합니다.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
