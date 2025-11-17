@@ -10,6 +10,64 @@
 // (전역 스코프에 선언하여 모든 함수에서 접근 가능)
 var USE_SERVER_SUBJECTS = true;
 
+const SESSION_STRUCTURE = {
+    '1': {
+        total: 105,
+        subjects: {
+            '물리치료 기초': {
+                total: 60,
+                subs: {
+                    '해부생리학': 22,
+                    '운동학': 12,
+                    '물리적 인자치료': 16,
+                    '공중보건학': 10
+                }
+            },
+            '물리치료 진단평가': {
+                total: 45,
+                subs: {
+                    '근골격계 물리치료 진단평가': 10,
+                    '신경계 물리치료 진단평가': 16,
+                    '진단평가 원리': 6,
+                    '심폐혈관계 검사 및 평가': 4,
+                    '기타 계통 검사': 2,
+                    '임상의사결정': 7
+                }
+            }
+        }
+    },
+    '2': {
+        total: 85,
+        subjects: {
+            '물리치료 중재': {
+                total: 65,
+                subs: {
+                    '근골격계 중재': 28,
+                    '신경계 중재': 25,
+                    '심폐혈관계 중재': 5,
+                    '림프, 피부계 중재': 2,
+                    '물리치료 문제해결': 5
+                }
+            },
+            '의료관계법규': {
+                total: 20,
+                subs: {
+                    '의료법': 5,
+                    '의료기사법': 5,
+                    '노인복지법': 4,
+                    '장애인복지법': 3,
+                    '국민건강보험법': 3
+                }
+            }
+        }
+    }
+};
+
+const LimitSelectionState = {
+    lastKey: '',
+    userOverride: false
+};
+
 // 원래 alert 함수 보존(필요 시 원래 alert으로 복구 가능)
 if (typeof window !== 'undefined' && typeof window.alert === 'function' && typeof window.__PTG_ORIG_ALERT === 'undefined') {
   window.__PTG_ORIG_ALERT = window.alert;
@@ -769,9 +827,15 @@ function PTG_quiz_alert(message) {
     function setupFilterUI() {
 		// 교시 목록 로드
 		const sessionSelect = document.getElementById('ptg-quiz-filter-session');
+        const limitSelect = document.getElementById('ptg-quiz-filter-limit');
 		if (sessionSelect) {
 			loadSessions();
 		}
+        if (limitSelect) {
+            limitSelect.addEventListener('change', () => {
+                LimitSelectionState.userOverride = true;
+            });
+        }
 		// 교시 선택 시 과목 목록 로드
 		const subjectSelect = document.getElementById('ptg-quiz-filter-subject');
 		const subSubjectSelect = document.getElementById('ptg-quiz-filter-subsubject');
@@ -779,17 +843,31 @@ function PTG_quiz_alert(message) {
             sessionSelect.addEventListener('change', async function() {
                 const session = this.value || '';
                 await loadSubjectsForSession(session);
+                const subjectValue = (subjectSelect && subjectSelect.value) || '';
+                const subValue = (subSubjectSelect && subSubjectSelect.value) || '';
+                applyRecommendedLimit(session || null, subjectValue || null, subValue || null);
             });
         }
 		
 		// 과목 선택 시 세부과목 목록 채우기
 		if (subjectSelect) {
-			subjectSelect.addEventListener('change', function() {
+			subjectSelect.addEventListener('change', async function() {
 				const session = (document.getElementById('ptg-quiz-filter-session') || {}).value || '';
 				const subject = this.value || '';
-				populateSubSubjects(session, subject);
+				await populateSubSubjects(session, subject);
+                const subValue = (subSubjectSelect && subSubjectSelect.value) || '';
+                applyRecommendedLimit(session || null, subject || null, subValue || null);
 			});
 		}
+
+        if (subSubjectSelect) {
+            subSubjectSelect.addEventListener('change', function() {
+                const session = (document.getElementById('ptg-quiz-filter-session') || {}).value || '';
+                const subject = (subjectSelect && subjectSelect.value) || '';
+                const subValue = this.value || '';
+                applyRecommendedLimit(session || null, subject || null, subValue || null);
+            });
+        }
         
         // 조회 버튼 클릭 시 퀴즈 시작
         const startBtn = document.getElementById('ptg-quiz-start-btn');
@@ -908,6 +986,11 @@ function PTG_quiz_alert(message) {
 				} catch(_) {}
 			}
         }
+
+        const sessionValue = (document.getElementById('ptg-quiz-filter-session') || {}).value || session || '';
+        const subjectValue = (subjectSelect && subjectSelect.value) || '';
+        const subValue = (subSubjectSelect && subSubjectSelect.value) || '';
+        applyRecommendedLimit(sessionValue || null, subjectValue || null, subValue || null);
     }
 	
 	/**
@@ -995,6 +1078,102 @@ function PTG_quiz_alert(message) {
 			console.error('[PTG Quiz] 세부과목 목록 로드 오류:', e);
 		}
 	}
+
+    function getRecommendedLimitValue(session, subject, subsubject) {
+        const sessKey = session ? String(session) : null;
+        const normalizedSubject = subject || '';
+        const normalizedSub = subsubject || '';
+
+        if (sessKey && SESSION_STRUCTURE[sessKey]) {
+            const sessionData = SESSION_STRUCTURE[sessKey];
+            if (normalizedSub && normalizedSubject && sessionData.subjects[normalizedSubject] && sessionData.subjects[normalizedSubject].subs[normalizedSub]) {
+                return sessionData.subjects[normalizedSubject].subs[normalizedSub];
+            }
+            if (normalizedSubject && sessionData.subjects[normalizedSubject]) {
+                return sessionData.subjects[normalizedSubject].total;
+            }
+            if (!normalizedSubject && !normalizedSub) {
+                return sessionData.total;
+            }
+        }
+
+        if (!sessKey && normalizedSubject) {
+            let total = null;
+            Object.keys(SESSION_STRUCTURE).some(key => {
+                const sessionData = SESSION_STRUCTURE[key];
+                if (sessionData.subjects[normalizedSubject]) {
+                    total = normalizedSub
+                        ? (sessionData.subjects[normalizedSubject].subs[normalizedSub] || null)
+                        : sessionData.subjects[normalizedSubject].total;
+                    return total !== null;
+                }
+                return false;
+            });
+            if (total !== null) {
+                return total;
+            }
+        }
+
+        if (!sessKey && !normalizedSubject && normalizedSub) {
+            let subTotal = null;
+            Object.keys(SESSION_STRUCTURE).some(key => {
+                const sessionData = SESSION_STRUCTURE[key];
+                return Object.keys(sessionData.subjects).some(subjName => {
+                    const subjectData = sessionData.subjects[subjName];
+                    if (subjectData.subs[normalizedSub]) {
+                        subTotal = subjectData.subs[normalizedSub];
+                        return true;
+                    }
+                    return false;
+                }) && subTotal !== null;
+            });
+            if (subTotal !== null) {
+                return subTotal;
+            }
+        }
+
+        return null;
+    }
+
+    function applyRecommendedLimit(session, subject, subsubject) {
+        const limitSelect = document.getElementById('ptg-quiz-filter-limit');
+        if (!limitSelect) {
+            return;
+        }
+
+        const key = `${session || 'all'}|${subject || 'all'}|${subsubject || 'all'}`;
+        if (LimitSelectionState.lastKey !== key) {
+            LimitSelectionState.lastKey = key;
+            LimitSelectionState.userOverride = false;
+        }
+
+        if (LimitSelectionState.userOverride) {
+            return;
+        }
+
+        const recommended = getRecommendedLimitValue(session, subject, subsubject);
+        if (!recommended) {
+            return;
+        }
+
+        let option = Array.from(limitSelect.options).find(opt => parseInt(opt.value, 10) === recommended);
+        if (!option) {
+            option = document.createElement('option');
+            option.value = String(recommended);
+            option.textContent = `${recommended}문제`;
+            option.dataset.autoAdded = '1';
+            limitSelect.appendChild(option);
+        }
+
+        const sortedOptions = Array.from(limitSelect.options)
+            .sort((a, b) => parseInt(a.value, 10) - parseInt(b.value, 10));
+
+        const fragment = document.createDocumentFragment();
+        sortedOptions.forEach(opt => fragment.appendChild(opt));
+        limitSelect.appendChild(fragment);
+
+        limitSelect.value = String(recommended);
+    }
     
     /**
      * 필터에서 조회 버튼 클릭 시 퀴즈 시작
@@ -1737,11 +1916,9 @@ async function loadQuestion() {
             : null;
         
         const questionNumberPrefix = questionNumber 
-            ? `${questionNumber}. ` 
+            ? `<strong class="ptg-question-number">${questionNumber}.</strong> ` 
             : '';
-        const questionNumberSuffix = totalQuestions 
-            ? ` (${questionNumber}/${totalQuestions})` 
-            : '';
+        const questionNumberSuffix = '';
         
         // 옵션이 없으면 경고
         if (!options || options.length === 0) {
@@ -3409,10 +3586,16 @@ async function loadQuestion() {
                 const explanationEl = document.getElementById('ptg-quiz-explanation');
                 if (explanationEl) {
                     const subject = response.data.subject || '';
+                    let explanationHtml = response.data.explanation || '해설이 없습니다.';
+
+                    if (explanationHtml.includes('(오답 해설)')) {
+                        explanationHtml = explanationHtml.split('(오답 해설)').join('<br><br>(오답 해설)');
+                    }
+
                     explanationEl.innerHTML = `
                         <h3>해설${subject ? ' | (' + subject + ')' : ''}</h3>
                         <div class="ptg-explanation-content">
-                            ${response.data.explanation || '해설이 없습니다.'}
+                            ${explanationHtml}
                         </div>
                     `;
                     explanationEl.style.display = 'block';
