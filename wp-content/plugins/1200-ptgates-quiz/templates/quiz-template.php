@@ -85,6 +85,7 @@ $is_session2 = $timer_minutes === 75;
                 <option value="20">20문제</option>
                 <option value="30">30문제</option>
                 <option value="50">50문제</option>
+                <option value="full">전체 (모의고사)</option>
             </select>
         </div>
         
@@ -94,52 +95,63 @@ $is_session2 = $timer_minutes === 75;
     <!-- 실전 모의 학습Tip 모달 -->
     <div id="ptg-quiz-tip-modal" class="ptg-quiz-tip-modal" style="display: none;">
         <div class="ptg-quiz-tip-modal-overlay"></div>
-        <div class="ptg-quiz-tip-modal-content">
+        <div class="ptg-quiz-tip-modal-content" role="dialog" aria-modal="true" aria-labelledby="ptg-quiz-tip-title">
             <div class="ptg-quiz-tip-modal-header">
-                <h2>실전 모의 학습 가이드</h2>
-                <button type="button" class="ptg-quiz-tip-modal-close" aria-label="닫기">&times;</button>
+                <h2 id="ptg-quiz-tip-title">실전 모의 학습 가이드</h2>
+                <button type="button"
+                        class="ptg-study-tip-close ptg-quiz-tip-modal-close"
+                        data-ptg-tip-close
+                        aria-label="닫기">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             <div class="ptg-quiz-tip-modal-body">
-                <div class="ptg-quiz-tip-section">
-                    <h3>🎯 교시별 모의고사</h3>
-                    <div class="ptg-quiz-tip-grid">
-                        <div class="ptg-quiz-tip-card">
-                            <h4>1교시 105문항</h4>
-                            <ul>
-                                <h5>물리치료 기초(60문항)</h5>
-                                <li>해부생리학(22) 운동학(12) 물리적 인자치료(16) 공중보건학(10)</li>
-                                <h5>물리치료 진단평가(45문항)</h5>
-                                <li>근골격계 물리치료 진단평가(10) 신경계 물리치료 진단평가(16) <br>진단평가 원리(6) 심폐혈관계 검사 및 평가(4) 기타 계통 검사(2) 임상의사결정(7)</li>
-                            </ul>
-                        </div>
-                        <div class="ptg-quiz-tip-card">
-                            <h4>2교시 85문항</h4>
-                            <ul>
-                                <h5>물리치료 중재(65문항)</h5>
-                                <li>근골격계 중재(28) 신경계 중재(25) 심폐혈관계 중재(5) <br>림프, 피부계 중재(2) 물리치료 문제해결(5)</li>
-                                <h5>의료관계법규(20문항)</h5>
-                                <li>의료법(5) 의료기사법(5) 노인복지법(4) 장애인복지법(3) 국민건강보험법(3)</li>
-                            </ul>
-                        </div>
+                <!-- New Section: Exam Trends -->
+                <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
+                    <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📊 출제 순서 경향 (ptGates 적용)</h3>
+                    <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름. (예: 운동치료학에서 원리 → 기법 → 질환별 적용 순)</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>과목별 배치:</strong> 각 과목(예: 공중보건학) 내에서도 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, <strong>환경/산업보건</strong> 같은 세부 응용 주제가 뒤쪽에 배치되는 경향이 명확함.</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>학습 활용:</strong> ptGates는 이 경향을 반영하여 '세부과목별 묶음 학습'과 '실제 기출 순서 학습' 모드를 모두 지원할 예정임.</li>
+                    </ul>
+                </div>
+
+                <!-- Restructured Section: Exam Sessions -->
+                <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
+                    <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🎯 교시별 모의고사 구성</h3>
+                    <div class="ptg-tip-block" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #333;">1교시 (105문항)</h4>
+                        <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
+                            <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 기초 (60문항):</strong> 해부생리학(22), 운동학(12), 물리적 인자치료(16), 공중보건학(10)</li>
+                            <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 진단평가 (45문항):</strong> 근골격계(10), 신경계(16), 진단평가 원리(6), 심폐혈관계(4), 기타(2), 임상의사결정(7)</li>
+                        </ul>
+                    </div>
+                    <div class="ptg-tip-block" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                        <h4 style="margin: 0 0 10px 0; color: #333;">2교시 (85문항)</h4>
+                        <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
+                            <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 중재 (65문항):</strong> 근골격계(28), 신경계(25), 심폐혈관계(5), 림프/피부(2), 문제해결(5)</li>
+                            <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>의료관계법규 (20문항):</strong> 의료법(5), 의료기사법(5), 노인복지법(4), 장애인복지법(3), 국민건강보험법(3)</li>
+                        </ul>
                     </div>
                 </div>
                 
-                <div class="ptg-quiz-tip-section">
-                    <h3>🔍 주요 기능</h3>
-                    <ul>
-                        <li><strong>기본 퀴즈</strong>: 필터 없이 사용 시 5문제 랜덤 출제</li>
-                        <li><strong>교시 선택</strong>: 1교시 또는 2교시 문제만 선택 가능</li>
-                        <li><strong>과목 선택</strong>: 특정 과목 문제만 선택 가능</li>
-                        <li><strong>문항 수 지정</strong>: 원하는 문제 수만큼 출제 가능</li>
-                        <li><strong>북마크/복습</strong>: 북마크하거나 복습 필요한 문제만 풀기 (로그인 필요)</li>
+                <!-- Restructured Section: Key Features -->
+                <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
+                    <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🔍 주요 기능</h3>
+                    <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 퀴즈:</strong> 필터 없이 사용 시 5문제 랜덤 출제</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>교시/과목 선택:</strong> 특정 교시나 과목을 집중적으로 학습 가능</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>문항 수 지정:</strong> 학습 시간에 맞춰 문제 수 조절 가능</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>북마크/복습:</strong> 중요하거나 틀린 문제만 모아서 다시 풀기 (로그인 필요)</li>
                     </ul>
                 </div>
                 
+                <!-- Restructured Section: Notes -->
                 <div class="ptg-quiz-tip-section">
-                    <h3>📌 참고사항</h3>
-                    <ul>
-                        <li>기출문제는 자동으로 제외됩니다</li>
-                        <li>전체 교시 모의고사는 국가시험 문항 구성 비율을 자동 적용합니다</li>
+                    <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📌 참고사항</h3>
+                    <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 기출문제는 자동으로 제외됩니다.</li>
+                        <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 전체 교시 모의고사는 국가시험 문항 구성 비율을 자동 적용합니다.</li>
                     </ul>
                 </div>
             </div>
@@ -265,6 +277,9 @@ $is_session2 = $timer_minutes === 75;
             </button>
             <button type="button" class="ptg-btn-icon ptg-btn-review" aria-label="복습 필요" title="복습 필요">
                 <span class="ptg-icon">🔁</span>
+            </button>
+            <button type="button" class="ptg-btn-icon ptg-btn-flashcard" aria-label="암기카드 생성" title="암기카드 생성">
+                <span class="ptg-icon">🗂️</span>
             </button>
             <button type="button" class="ptg-btn-icon ptg-btn-notes" aria-label="메모" title="메모">
                 <span class="ptg-icon">📝</span>

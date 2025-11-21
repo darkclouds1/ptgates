@@ -1349,16 +1349,17 @@
 
 .ptg-quiz-tip-modal-content {
     position: relative;
+    width: min(900px, calc(100% - 40px));
     max-width: 900px;
     max-height: 90vh;
-    width: 90%;
     background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     overflow: hidden;
     display: flex;
     flex-direction: column;
     animation: ptg-quiz-tip-modal-fade-in 0.3s ease;
+    padding: 0;
 }
 
 @keyframes ptg-quiz-tip-modal-fade-in {
@@ -1376,10 +1377,16 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 30px;
+    gap: 16px;
+    padding: 24px 32px;
     background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
     color: white;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    width: 100%;
+    box-sizing: border-box;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    min-height: 72px;
 }
 
 .ptg-quiz-tip-modal-header h2 {
@@ -1389,26 +1396,54 @@
     color: white;
 }
 
-.ptg-quiz-tip-modal-close {
-    background: rgba(255, 255, 255, 0.2);
+.ptg-quiz-tip-modal-close,
+.ptg-study-tip-close {
+    background: #ffffff;
     border: none;
-    color: white;
-    font-size: 28px;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    outline: none;
+    color: #1d3f7c;
+    font-size: 26px;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
     line-height: 1;
     padding: 0;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    -webkit-appearance: none;
+    appearance: none;
 }
 
-.ptg-quiz-tip-modal-close:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
+.ptg-quiz-tip-modal-header .ptg-quiz-tip-modal-close,
+.ptg-quiz-tip-modal-header .ptg-study-tip-close {
+    border: none !important;
+    background: #ffffff !important;
+    border-radius: 999px !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+}
+
+.ptg-quiz-tip-modal-close span,
+.ptg-study-tip-close span {
+    pointer-events: none;
+}
+
+.ptg-quiz-tip-modal-close:hover,
+.ptg-study-tip-close:hover {
+    background: #f0f4ff;
+    color: #0f2a57;
+    transform: scale(1.05);
+}
+
+.ptg-quiz-tip-modal-close:focus-visible,
+.ptg-study-tip-close:focus-visible {
+    outline: 3px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
 }
 
 .ptg-quiz-tip-modal-body {

@@ -114,6 +114,20 @@ class API {
                 ),
             ),
         ));
+
+        // 통합 사용자 상태 조회 (북마크, 복습, 메모, 암기카드)
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/user-status', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_user_status'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
         
         // 문제 상태 업데이트 (북마크, 복습 필요, 마지막 답안)
         register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/state', array(
@@ -206,41 +220,83 @@ class API {
                     'type' => 'integer',
                     'sanitize_callback' => 'absint',
                 ),
-                'format' => array(
+                'image_data' => array(
                     'required' => true,
                     'type' => 'string',
-                    'enum' => array('json', 'svg'),
-                ),
-                'data' => array(
-                    'required' => true,
-                    'type' => 'string',
-                ),
-                'width' => array(
-                    'type' => 'integer',
-                    'sanitize_callback' => 'absint',
-                ),
-                'height' => array(
-                    'type' => 'integer',
-                    'sanitize_callback' => 'absint',
-                ),
-                'device' => array(
-                    'type' => 'string',
-                    'sanitize_callback' => 'sanitize_text_field',
-                ),
-                'is_answered' => array(
-                    'type' => 'boolean',
-                    'default' => false,
                 ),
                 'device_type' => array(
                     'type' => 'string',
                     'default' => 'pc',
-                    'sanitize_callback' => function($param) {
-                        $allowed = array('pc', 'tablet', 'mobile');
-                        return in_array($param, $allowed) ? $param : 'pc';
-                    }
                 ),
             ),
         ));
+
+        // 메모 조회
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/memo', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_memo'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
+
+        // 메모 저장
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/memo', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_memo'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'content' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_textarea_field',
+                ),
+            ),
+        ));
+
+        // 메모 조회
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/memo', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_memo'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
+
+        // 메모 저장
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/memo', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_memo'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'content' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_textarea_field',
+                ),
+            ),
+        ));
+
         
         // 해설 조회
         register_rest_route(self::NAMESPACE, '/explanation/(?P<question_id>\d+)', array(
@@ -309,7 +365,7 @@ class API {
      */
     public static function get_questions_list($request) {
         global $wpdb;
-        
+
         $year = $request->get_param('year');
         $subject = $request->get_param('subject');
         $subsubject = $request->get_param('subsubject');
@@ -318,15 +374,26 @@ class API {
         $full_session = $request->get_param('full_session') === true || $request->get_param('full_session') === 'true';
         $bookmarked = $request->get_param('bookmarked') === true || $request->get_param('bookmarked') === 'true';
         $needs_review = $request->get_param('needs_review') === true || $request->get_param('needs_review') === 'true';
+
+        // 모듈 결정 (퀴즈 vs 복습)
+        $module = $needs_review ? 'reviewer' : 'quiz';
+
+        // 1. 권한/한도 체크
+        $current_user_id = get_current_user_id();
+        if (class_exists('PTG_Access_Manager')) {
+            $access_check = \PTG_Access_Manager::check_access($module, $current_user_id);
+            if (is_wp_error($access_check)) {
+                return Rest::error($access_check->get_error_code(), $access_check->get_error_message(), $access_check->get_error_data());
+            }
+        }
+
+        // 고급 퀴즈 유형 접근 권한 확인 (Basic 등급 제한)
+        $can_advanced = true;
+        if (class_exists('\PTG\Platform\Permissions')) {
+            $can_advanced = \PTG\Platform\Permissions::can_access_feature('advanced_quiz', $current_user_id);
+        }
         
-        // 기출문제 제외 (exam_session >= 1000)
-        // 1200-ptgates-quiz는 실전모의학습이므로 기출문제 제외
-        // 기출문제는 exam_session < 1000이므로, 기출문제를 제외하려면 exam_session >= 1000
-        $questions_table = 'ptgates_questions';
-        $categories_table = 'ptgates_categories';
-        $states_table = $wpdb->prefix . 'ptgates_user_states';
-        
-        // 북마크 또는 복습 필터가 있으면 user_id 필요
+        // 캐시 키 생성 (북마크/복습 필터는 사용자별로 다르므로 user_id 포함)
         $user_id = 0;
         if ($bookmarked || $needs_review) {
             $user_id = get_current_user_id();
@@ -336,9 +403,48 @@ class API {
             }
         }
         
+        $cache_params = array(
+            'year' => $year,
+            'subject' => $subject,
+            'subsubject' => $subsubject,
+            'limit' => $limit,
+            'session' => $session,
+            'full_session' => $full_session,
+            'bookmarked' => $bookmarked,
+            'needs_review' => $needs_review,
+            'user_id' => $user_id,
+        );
+        $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
+        
+        // 캐시 확인 (30분 유효 - 문제 목록은 자주 변경될 수 있음)
+        $cached = wp_cache_get($cache_key, 'ptg_quiz');
+        if ($cached !== false) {
+            // 캐시된 결과 반환 전 사용량 증가
+            if (class_exists('PTG_Access_Manager')) {
+                \PTG_Access_Manager::increment_usage($module, $current_user_id, count($cached));
+            }
+            return Rest::success($cached);
+        }
+        
+        // 기출문제 제외 (exam_session >= 1000)
+        // 1200-ptgates-quiz는 실전모의학습이므로 기출문제 제외
+        // 기출문제는 exam_session < 1000이므로, 기출문제를 제외하려면 exam_session >= 1000
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+        $states_table = 'ptgates_user_states';
+        
         $where = array("q.is_active = 1");
         // 기출문제 제외: exam_session >= 1000 (기출문제는 exam_session < 1000)
         $where[] = "c.exam_session >= 1000";
+
+        // 고급 퀴즈 유형 필터링 (Basic 등급은 고급 유형 제외)
+        if (!$can_advanced) {
+            // TODO: DB의 type 컬럼 값을 정확히 확인하여 필터링 필요
+            // 현재는 'multiple_choice', 'short_answer'가 표준 유형이라고 가정
+            // $where[] = "q.type IN ('multiple_choice', 'short_answer')";
+            // 또는 이미지 포함 여부 확인
+            // $where[] = "q.content NOT LIKE '%<img%'";
+        }
         
         // 북마크 또는 복습 필터가 있으면 JOIN 추가
         $join_clause = '';
@@ -432,7 +538,21 @@ class API {
         // 1교시: 물리치료 기초 60문항 + 물리치료 진단평가 45문항 = 105문항
         // 2교시: 물리치료 중재 65문항 + 의료관계법규 20문항 = 85문항
         if (!empty($session) && $full_session) {
+            // 모의고사 생성 한도 체크 및 차감 (Permissions 클래스 사용)
+            if (class_exists('\PTG\Platform\Permissions')) {
+                $check_result = \PTG\Platform\Permissions::check_and_deduct_exam_count($current_user_id, true);
+                if (is_wp_error($check_result)) {
+                    return Rest::error($check_result->get_error_code(), $check_result->get_error_message(), $check_result->get_error_data());
+                }
+            }
+
             $question_ids = self::get_session_questions_by_ratio($session, $where_clause, $join_clause);
+            
+            // 기존 Access Manager 사용량 증가는 제거하거나 유지 (여기서는 요구사항에 따라 Permissions로 대체됨)
+            // if (class_exists('PTG_Access_Manager')) {
+            //     \PTG_Access_Manager::increment_usage($module, $current_user_id, count($question_ids));
+            // }
+            
             return Rest::success($question_ids);
         }
         
@@ -466,6 +586,14 @@ class API {
             return (int) $row['question_id'];
         }, $results);
         
+        // 캐시 저장 (30분)
+        wp_cache_set($cache_key, $question_ids, 'ptg_quiz', 1800);
+        
+        // 사용량 증가
+        if (class_exists('PTG_Access_Manager')) {
+            \PTG_Access_Manager::increment_usage($module, $current_user_id, count($question_ids));
+        }
+
         return Rest::success($question_ids);
     }
     
@@ -566,6 +694,15 @@ class API {
             return Rest::not_found('문제를 찾을 수 없습니다. (ID: ' . $question_id . ')');
         }
         
+        // 캐시 키 생성
+        $cache_key = 'ptg_quiz_question_' . $question_id;
+        
+        // 캐시 확인 (1시간 유효)
+        $cached = wp_cache_get($cache_key, 'ptg_quiz');
+        if ($cached !== false) {
+            return Rest::success($cached);
+        }
+        
         // 카테고리와 조인하여 문제 조회
         $questions = LegacyRepo::get_questions_with_categories(array(
             'question_id' => $question_id,
@@ -602,6 +739,13 @@ class API {
         
         // 문제 본문에서 선택지 파싱 (ptgates-engine 스타일)
         $content = $question['content'];
+        // _x000D_ 제거 및 줄바꿈 정규화
+        $content = str_replace('_x000D_', '', $content);
+        $content = str_replace("\r\n", "\n", $content);
+        $content = str_replace("\r", "\n", $content);
+        // 연속된 줄바꿈을 하나로 정리
+        $content = preg_replace('/\n{2,}/', "\n", $content);
+        
         $options = array();
         $question_text = $content;
         
@@ -622,6 +766,9 @@ class API {
                 // 옵션 텍스트 추출 (원형 숫자 포함)
                 $option_text = substr($content, $start_pos, $end_pos - $start_pos);
                 $option_text = trim($option_text);
+                // 연속된 줄바꿈을 공백으로 정리 (선택지는 한 줄로 표시)
+                $option_text = preg_replace('/\n{2,}/', ' ', $option_text); // 연속된 줄바꿈을 공백으로
+                $option_text = preg_replace('/\n/', ' ', $option_text); // 단일 줄바꿈도 공백으로
                 
                 if (!empty($option_text)) {
                     $options[] = $option_text;
@@ -651,13 +798,23 @@ class API {
             }
         }
         
-        return Rest::success(array(
+        // 해설도 정리
+        $explanation = $question['explanation'];
+        if (!empty($explanation)) {
+            $explanation = str_replace('_x000D_', '', $explanation);
+            $explanation = str_replace("\r\n", "\n", $explanation);
+            $explanation = str_replace("\r", "\n", $explanation);
+            // 연속된 줄바꿈을 하나로 정리
+            $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
+        }
+        
+        $response_data = array(
             'question_id' => (int) $question['question_id'],
             'content' => $question_text, // 파싱된 지문만 반환
             'question_text' => $question_text, // 호환성을 위해 추가
             'options' => $options, // 파싱된 선택지 배열
             'answer' => $question['answer'],
-            'explanation' => $question['explanation'],
+            'explanation' => $explanation,
             'type' => $question['type'],
             'difficulty' => (int) $question['difficulty'],
             'exam_year' => (int) $question['exam_year'],
@@ -665,7 +822,12 @@ class API {
             'exam_course' => $question['exam_course'],
             'subject' => $question['subject'],
             'source_company' => $question['source_company'],
-        ));
+        );
+        
+        // 캐시 저장 (1시간)
+        wp_cache_set($cache_key, $response_data, 'ptg_quiz', 3600);
+        
+        return Rest::success($response_data);
     }
     
     /**
@@ -684,26 +846,8 @@ class API {
         $question_id = absint($request->get_param('question_id'));
 
         global $wpdb;
-        // 테이블 보장
-        $states_table = $wpdb->prefix . 'ptgates_user_states';
-        $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
-        if ($existing !== $states_table) {
-            // 최소 스키마 생성 (외래키 없이)
-            $charset_collate = $wpdb->get_charset_collate();
-            $sql = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
-                `user_id` bigint(20) unsigned NOT NULL,
-                `question_id` bigint(20) unsigned NOT NULL,
-                `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
-                `needs_review` tinyint(1) NOT NULL DEFAULT 0,
-                `last_result` varchar(10) DEFAULT NULL,
-                `last_answer` varchar(255) DEFAULT NULL,
-                `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                PRIMARY KEY (`user_id`,`question_id`),
-                KEY `idx_flags` (`bookmarked`,`needs_review`)
-            ) {$charset_collate};";
-            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-            dbDelta($sql);
-        }
+        // 테이블 보장 (성능을 위해 매 요청마다 확인하지 않음 - 활성화 시 생성됨)
+        $states_table = 'ptgates_user_states';
 
         // 안전한 조회
         $state = $wpdb->get_row(
@@ -760,7 +904,27 @@ class API {
         
         // 기존 상태 조회 또는 생성
         global $wpdb;
-        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $states_table = 'ptgates_user_states';
+        
+        // 테이블 존재 확인 및 자동 생성 (안전장치)
+        $existing_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
+        if ($existing_table !== $states_table) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
+                `user_id` bigint(20) unsigned NOT NULL,
+                `question_id` bigint(20) unsigned NOT NULL,
+                `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+                `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+                `last_result` varchar(10) DEFAULT NULL,
+                `last_answer` varchar(255) DEFAULT NULL,
+                `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                PRIMARY KEY (`user_id`,`question_id`),
+                KEY `idx_flags` (`bookmarked`,`needs_review`)
+            ) {$charset_collate};";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
+
         $existing_state = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
@@ -822,7 +986,7 @@ class API {
         $elapsed = absint($request->get_param('elapsed'));
 
         // 상태 테이블 보장
-        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $states_table = 'ptgates_user_states';
         $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states_table));
         if ($existing !== $states_table) {
             $charset_collate = $wpdb->get_charset_collate();
@@ -871,7 +1035,7 @@ class API {
         
         // 사용자 상태 업데이트
         global $wpdb;
-        $states_table = $wpdb->prefix . 'ptgates_user_states';
+        $states_table = 'ptgates_user_states';
         $existing_state = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
@@ -918,7 +1082,7 @@ class API {
         try {
             // 테이블 존재 확인 및 자동 생성 (안전장치)
             global $wpdb;
-            $table_name = $wpdb->prefix . 'ptgates_user_drawings';
+            $table_name = 'ptgates_user_drawings';
             $existing_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
             
             if ($existing_table !== $table_name) {
@@ -936,7 +1100,7 @@ class API {
             
             // 임시: Repo::find 대신 직접 쿼리 사용 (디버깅 목적)
             global $wpdb;
-            $table_name = $wpdb->prefix . 'ptgates_user_drawings';
+            $table_name = 'ptgates_user_drawings';
             
             // 답안 제출 여부 확인 (해설이 있으면 제출된 것으로 간주)
             $is_answered = absint($request->get_param('is_answered'));
@@ -994,7 +1158,7 @@ class API {
         try {
             // 테이블 존재 확인 및 자동 생성 (안전장치)
             global $wpdb;
-            $table_name = $wpdb->prefix . 'ptgates_user_drawings';
+            $table_name = 'ptgates_user_drawings';
             $existing_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
             
             if ($existing_table !== $table_name) {
@@ -1181,7 +1345,7 @@ class API {
         try {
             // 테이블 존재 확인
             global $wpdb;
-            $table_name = $wpdb->prefix . 'ptgates_user_drawings';
+            $table_name = 'ptgates_user_drawings';
             $existing_table = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
             
             if ($existing_table !== $table_name) {
@@ -1216,6 +1380,86 @@ class API {
             error_log('[PTG Quiz] 드로잉 삭제 오류: ' . $e->getMessage());
             return Rest::error('delete_error', '드로잉 삭제에 실패했습니다: ' . $e->getMessage(), 500);
         }
+        }
+        /**
+     * 메모 조회
+     */
+    public static function get_memo($request) {
+        global $wpdb;
+        $user_id = Permissions::get_user_id_or_error();
+        if (is_wp_error($user_id)) {
+            return $user_id;
+        }
+        
+        $question_id = absint($request->get_param('question_id'));
+        $table_name = 'ptgates_user_memos';
+        
+        // 테이블 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return Rest::success(['content' => '']);
+        }
+
+        $memo = $wpdb->get_var($wpdb->prepare(
+            "SELECT content FROM $table_name WHERE user_id = %d AND question_id = %d",
+            $user_id, $question_id
+        ));
+
+        return Rest::success(['content' => $memo ? $memo : '']);
+    }
+
+    /**
+     * 메모 저장
+     */
+    public static function update_memo($request) {
+        global $wpdb;
+        $user_id = Permissions::get_user_id_or_error();
+        if (is_wp_error($user_id)) {
+            return $user_id;
+        }
+        
+        $question_id = absint($request->get_param('question_id'));
+        $content = $request->get_param('content');
+        $table_name = 'ptgates_user_memos';
+
+        // 테이블 생성
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE $table_name (
+                id bigint(20) NOT NULL AUTO_INCREMENT,
+                user_id bigint(20) NOT NULL,
+                question_id bigint(20) NOT NULL,
+                content longtext NOT NULL,
+                updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY  (id),
+                UNIQUE KEY user_question (user_id, question_id)
+            ) $charset_collate;";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
+
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table_name WHERE user_id = %d AND question_id = %d",
+            $user_id, $question_id
+        ));
+
+        if ($existing) {
+            $wpdb->update(
+                $table_name,
+                ['content' => $content],
+                ['id' => $existing]
+            );
+        } else {
+            $wpdb->insert(
+                $table_name,
+                [
+                    'user_id' => $user_id,
+                    'question_id' => $question_id,
+                    'content' => $content
+                ]
+            );
+        }
+
+        return Rest::success(['success' => true]);
     }
     
     /**
@@ -1223,6 +1467,15 @@ class API {
      */
     public static function get_explanation($request) {
         $question_id = absint($request->get_param('question_id'));
+        
+        // 캐시 키 생성
+        $cache_key = 'ptg_quiz_explanation_' . $question_id;
+        
+        // 캐시 확인 (1시간 유효)
+        $cached = wp_cache_get($cache_key, 'ptg_quiz');
+        if ($cached !== false) {
+            return Rest::success($cached);
+        }
         
         $questions = LegacyRepo::get_questions_with_categories(array(
             'question_id' => $question_id,
@@ -1242,12 +1495,44 @@ class API {
             $subject = $wpdb->get_var($wpdb->prepare('SELECT subject FROM ptgates_categories WHERE question_id = %d LIMIT 1', $question_id));
         }
         
-        return Rest::success(array(
+        // 해설 정리
+        $explanation = $question['explanation'];
+        if (!empty($explanation)) {
+            $explanation = str_replace('_x000D_', '', $explanation);
+            $explanation = str_replace("\r\n", "\n", $explanation);
+            $explanation = str_replace("\r", "\n", $explanation);
+            // 연속된 줄바꿈을 하나로 정리
+            $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
+
+            // 동영상 강의 접근 권한 확인
+            $can_video = true;
+            if (class_exists('\PTG\Platform\Permissions')) {
+                $can_video = \PTG\Platform\Permissions::can_access_feature('video_lecture', get_current_user_id());
+            }
+
+            if (!$can_video) {
+                // iframe (유튜브 등) 및 video 태그 제거
+                $explanation = preg_replace('/<iframe.*?<\/iframe>/is', '', $explanation);
+                $explanation = preg_replace('/<video.*?<\/video>/is', '', $explanation);
+                // 동영상 링크 패턴 제거 (선택 사항)
+                // $explanation = preg_replace('/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]*/', '', $explanation);
+                
+                // 안내 메시지 추가
+                $explanation .= "\n\n[안내] 동영상 강의는 Trial 또는 Premium 멤버십에서만 제공됩니다.";
+            }
+        }
+        
+        $response_data = array(
             'question_id' => $question_id,
-            'explanation' => $question['explanation'],
+            'explanation' => $explanation,
             'answer' => $question['answer'],
             'subject' => $subject ? $subject : null
-        ));
+        );
+        
+        // 캐시 저장 (1시간)
+        wp_cache_set($cache_key, $response_data, 'ptg_quiz', 3600);
+        
+        return Rest::success($response_data);
     }
     
     /**
@@ -1293,6 +1578,57 @@ class API {
 
         $subs = Subjects::get_subsubjects($session, $subject);
         return Rest::success($subs);
+    }
+    /**
+     * 통합 사용자 상태 조회 (북마크, 복습, 메모, 암기카드)
+     */
+    public static function get_user_status($request) {
+        global $wpdb;
+        
+        $question_id = absint($request->get_param('question_id'));
+        $user_id = get_current_user_id();
+        
+        if (!$user_id) {
+            return Rest::error('unauthorized', '로그인이 필요합니다.', 401);
+        }
+        
+        // 1. 북마크 및 복습 상태 (ptgates_user_states)
+        // 2. 메모 상태 (ptgates_user_memos)
+        // 3. 암기카드 상태 (ptgates_flashcards)
+        
+        // 각 테이블 이름
+        $table_states = 'ptgates_user_states';
+        $table_memos = 'ptgates_user_memos';
+        $table_flashcards = 'ptgates_flashcards';
+        
+        // 단일 쿼리로 모든 상태 조회
+        // 서브쿼리를 사용하여 각 상태의 존재 여부(COUNT > 0)를 1/0으로 반환
+        $query = $wpdb->prepare("
+            SELECT 
+                (SELECT COUNT(*) FROM {$table_states} WHERE user_id = %d AND question_id = %d AND bookmarked = 1) as bookmarked,
+                (SELECT COUNT(*) FROM {$table_states} WHERE user_id = %d AND question_id = %d AND needs_review = 1) as needs_review,
+                (SELECT COUNT(*) FROM {$table_memos} WHERE user_id = %d AND question_id = %d) as has_memo,
+                (SELECT COUNT(*) FROM {$table_flashcards} WHERE user_id = %d AND source_id = %d AND source_type = 'quiz') as has_flashcard
+        ", $user_id, $question_id, $user_id, $question_id, $user_id, $question_id, $user_id, $question_id);
+        
+        $result = $wpdb->get_row($query, ARRAY_A);
+        
+        if (!$result) {
+            // 쿼리 실패 시 기본값 반환
+            return Rest::success(array(
+                'bookmark' => false,
+                'review' => false,
+                'memo' => false,
+                'flashcard' => false
+            ));
+        }
+        
+        return Rest::success(array(
+            'bookmark' => (bool) $result['bookmarked'],
+            'review' => (bool) $result['needs_review'],
+            'memo' => (bool) $result['has_memo'],
+            'flashcard' => (bool) $result['has_flashcard']
+        ));
     }
 }
 

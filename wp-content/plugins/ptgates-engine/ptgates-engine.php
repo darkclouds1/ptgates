@@ -75,6 +75,7 @@ class PTGates_Engine {
         require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-db.php';
         require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-api.php';
         require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-logger.php';
+        require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-access-manager.php';
         
         // REST API 등록
         add_action('rest_api_init', array('PTG_API', 'register_routes'));

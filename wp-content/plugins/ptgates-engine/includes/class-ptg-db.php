@@ -173,6 +173,10 @@ class PTG_DB {
         
         $results = $wpdb->get_results($query, ARRAY_A);
         
+        if (!is_array($results)) {
+            return array();
+        }
+        
         // 결과 포맷팅
         return array_map(array(__CLASS__, 'format_question'), $results);
     }
@@ -366,24 +370,35 @@ class PTG_DB {
     public static function get_available_years() {
         global $wpdb;
         
-        // 실제 테이블은 prefix 없이 사용
-        $questions_table = self::TABLE_QUESTIONS;
-        $categories_table = self::TABLE_CATEGORIES;
-        
-        // 기출문제만 필터링: exam_session이 NULL이거나 1000 미만인 경우만
-        // exam_session >= 1000인 경우는 기출문제가 아니므로 제외
-        $query = $wpdb->prepare("
-            SELECT DISTINCT c.exam_year
-            FROM {$categories_table} c
-            INNER JOIN {$questions_table} q ON c.question_id = q.question_id
-            WHERE q.is_active = 1
-              AND (c.exam_session IS NULL OR c.exam_session < %d)
-            ORDER BY c.exam_year DESC
-        ", 1000);
-        
-        $years = $wpdb->get_col($query);
-        
-        return array_values($years);
+        try {
+            // 실제 테이블은 prefix 없이 사용
+            $questions_table = self::TABLE_QUESTIONS;
+            $categories_table = self::TABLE_CATEGORIES;
+            
+            // 기출문제만 필터링: exam_session이 NULL이거나 1000 미만인 경우만
+            // exam_session >= 1000인 경우는 기출문제가 아니므로 제외
+            $query = $wpdb->prepare("
+                SELECT DISTINCT c.exam_year
+                FROM {$categories_table} c
+                INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+                WHERE q.is_active = 1
+                  AND (c.exam_session IS NULL OR c.exam_session < %d)
+                ORDER BY c.exam_year DESC
+            ", 1000);
+            
+            $years = $wpdb->get_col($query);
+            
+            if (!is_array($years)) {
+                return array();
+            }
+            
+            return array_values($years);
+        } catch (\Throwable $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTG_DB::get_available_years Error: ' . $e->getMessage());
+            }
+            return array();
+        }
     }
     
     /**
@@ -398,149 +413,159 @@ class PTG_DB {
     public static function get_available_subjects($year = null) {
         global $wpdb;
         
-        // 실제 테이블은 prefix 없이 사용
-        $questions_table = self::TABLE_QUESTIONS;
-        $categories_table = self::TABLE_CATEGORIES;
-        
-        $where = array("q.is_active = 1");
-        
-        // 기출문제만 필터링 (exam_session < 1000)
-        $where[] = "(c.exam_session IS NULL OR c.exam_session < 1000)";
-        
-        if (!empty($year)) {
-            $where[] = $wpdb->prepare("c.exam_year = %d", $year);
-        }
-        
-        $where_clause = implode(' AND ', $where);
-        
-        // 모든 과목 조회
-        $query = "
-            SELECT DISTINCT c.subject
-            FROM {$categories_table} c
-            INNER JOIN {$questions_table} q ON c.question_id = q.question_id
-            WHERE {$where_clause}
-            ORDER BY c.subject ASC
-        ";
-        
-        $subjects = $wpdb->get_col($query);
-        
-        // 디버깅: DB에서 가져온 모든 과목 확인 (개발 환경에서만)
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('PTG_DB::get_available_subjects - DB subjects: ' . print_r($subjects, true));
-            error_log('PTG_DB::get_available_subjects - Exception subjects: ' . print_r(self::$exception_subjects, true));
-        }
-        
-        // 그룹화된 과목 목록
-        $grouped_subjects = array();
-        
-        // 예외 과목이 DB에 실제로 존재하는지 확인
-        $found_exception_subjects = array();
-        $normal_subjects = array();
-        
-        foreach ($subjects as $subject) {
-            if (empty($subject)) {
-                continue;
+        try {
+            // 실제 테이블은 prefix 없이 사용
+            $questions_table = self::TABLE_QUESTIONS;
+            $categories_table = self::TABLE_CATEGORIES;
+            
+            $where = array("q.is_active = 1");
+            
+            // 기출문제만 필터링 (exam_session < 1000)
+            $where[] = "(c.exam_session IS NULL OR c.exam_session < 1000)";
+            
+            if (!empty($year)) {
+                $where[] = $wpdb->prepare("c.exam_year = %d", $year);
             }
             
-            $trimmed_subject = trim($subject);
-            $matched_exception = null;
+            $where_clause = implode(' AND ', $where);
             
-            // 예외 과목인지 확인 (대소문자 무시, 공백 정규화)
-            foreach (self::$exception_subjects as $exception) {
-                // 1. 정확히 일치 (공백 정규화 후 비교)
-                $normalized_subject = preg_replace('/\s+/', ' ', $trimmed_subject);
-                $normalized_exception = preg_replace('/\s+/', ' ', $exception);
-                if ($normalized_subject === $normalized_exception) {
-                    $matched_exception = $exception;
-                    break;
+            // 모든 과목 조회
+            $query = "
+                SELECT DISTINCT c.subject
+                FROM {$categories_table} c
+                INNER JOIN {$questions_table} q ON c.question_id = q.question_id
+                WHERE {$where_clause}
+                ORDER BY c.subject ASC
+            ";
+            
+            $subjects = $wpdb->get_col($query);
+            
+            if (!is_array($subjects)) {
+                return array();
+            }
+            
+            // 디버깅: DB에서 가져온 모든 과목 확인 (개발 환경에서만)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                // error_log('PTG_DB::get_available_subjects - DB subjects: ' . print_r($subjects, true));
+            }
+            
+            // 그룹화된 과목 목록
+            $grouped_subjects = array();
+            
+            // 예외 과목이 DB에 실제로 존재하는지 확인
+            $found_exception_subjects = array();
+            $normal_subjects = array();
+            
+            foreach ($subjects as $subject) {
+                if (empty($subject)) {
+                    continue;
                 }
-                // 2. DB 과목명이 예외 과목명으로 시작 (예: '물리적 인자치료 기본' -> '물리적 인자치료')
-                if (mb_strpos($normalized_subject, $normalized_exception) === 0) {
-                    $matched_exception = $exception;
-                    break;
-                }
-                // 3. 부분 일치 (예외 과목명의 핵심 키워드 포함 여부)
-                // '물리적 인자치료'의 경우 '물리적'과 '인자치료' 모두 포함하는지 확인
-                $exception_words = preg_split('/\s+/', $normalized_exception);
-                if (count($exception_words) >= 2) {
-                    $all_words_match = true;
-                    foreach ($exception_words as $word) {
-                        if (mb_strpos($normalized_subject, $word) === false) {
-                            $all_words_match = false;
-                            break;
-                        }
-                    }
-                    if ($all_words_match) {
+                
+                $trimmed_subject = trim($subject);
+                $matched_exception = null;
+                
+                // 예외 과목인지 확인 (대소문자 무시, 공백 정규화)
+                foreach (self::$exception_subjects as $exception) {
+                    // 1. 정확히 일치 (공백 정규화 후 비교)
+                    $normalized_subject = preg_replace('/\s+/', ' ', $trimmed_subject);
+                    $normalized_exception = preg_replace('/\s+/', ' ', $exception);
+                    if ($normalized_subject === $normalized_exception) {
                         $matched_exception = $exception;
                         break;
                     }
-                }
-            }
-            
-            // 예외 과목인 경우 found_exception_subjects에 추가
-            if ($matched_exception) {
-                if (!in_array($matched_exception, $found_exception_subjects, true)) {
-                    $found_exception_subjects[] = $matched_exception;
-                }
-            } else {
-                // 예외 과목이 아닌 경우 일반 과목 목록에 추가
-                $normal_subjects[] = $trimmed_subject;
-            }
-        }
-        
-        // 디버깅: 매칭 과정 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('PTG_DB::get_available_subjects - Normal subjects sample: ' . print_r(array_slice($normal_subjects, 0, 10), true));
-        }
-        
-        // 디버깅: 찾은 예외 과목 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('PTG_DB::get_available_subjects - Found exception subjects: ' . print_r($found_exception_subjects, true));
-        }
-        
-        // 예외 과목을 그룹화된 목록에 추가
-        foreach ($found_exception_subjects as $exception) {
-            $grouped_subjects[] = $exception;
-        }
-        
-        // 일반 과목 처리: 첫 단어로 그룹화
-        foreach ($normal_subjects as $subject) {
-            // 첫 단어 추출 (공백 또는 특수문자로 구분)
-            if (preg_match('/^([^\s]+)/u', $subject, $matches)) {
-                $first_word = $matches[1];
-                
-                // 첫 단어가 그룹화된 과목 목록에 없으면 추가
-                if (!in_array($first_word, $grouped_subjects, true)) {
-                    // 예외 과목과 중복되지 않는지 확인
-                    // 예외 과목의 첫 단어와 일치하는 경우 제외
-                    $is_exception_prefix = false;
-                    foreach (self::$exception_subjects as $exception) {
-                        // 예외 과목의 첫 단어 추출
-                        if (preg_match('/^([^\s]+)/u', $exception, $exception_matches)) {
-                            $exception_first_word = $exception_matches[1];
-                            // 일반 과목의 첫 단어가 예외 과목의 첫 단어와 일치하면 제외
-                            if ($first_word === $exception_first_word) {
-                                $is_exception_prefix = true;
-                                break;
-                            }
+                    // 2. DB 과목명이 예외 과목명으로 시작 (예: '물리적 인자치료 기본' -> '물리적 인자치료')
+                    // mb_strpos 사용 전 function_exists 확인
+                    if (function_exists('mb_strpos')) {
+                        if (mb_strpos($normalized_subject, $normalized_exception) === 0) {
+                            $matched_exception = $exception;
+                            break;
+                        }
+                    } else {
+                        if (strpos($normalized_subject, $normalized_exception) === 0) {
+                            $matched_exception = $exception;
+                            break;
                         }
                     }
                     
-                    if (!$is_exception_prefix) {
-                        $grouped_subjects[] = $first_word;
+                    // 3. 부분 일치 (예외 과목명의 핵심 키워드 포함 여부)
+                    $exception_words = preg_split('/\s+/', $normalized_exception);
+                    if (count($exception_words) >= 2) {
+                        $all_words_match = true;
+                        foreach ($exception_words as $word) {
+                            if (function_exists('mb_strpos')) {
+                                if (mb_strpos($normalized_subject, $word) === false) {
+                                    $all_words_match = false;
+                                    break;
+                                }
+                            } else {
+                                if (strpos($normalized_subject, $word) === false) {
+                                    $all_words_match = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if ($all_words_match) {
+                            $matched_exception = $exception;
+                            break;
+                        }
+                    }
+                }
+                
+                // 예외 과목인 경우 found_exception_subjects에 추가
+                if ($matched_exception) {
+                    if (!in_array($matched_exception, $found_exception_subjects, true)) {
+                        $found_exception_subjects[] = $matched_exception;
+                    }
+                } else {
+                    // 예외 과목이 아닌 경우 일반 과목 목록에 추가
+                    $normal_subjects[] = $trimmed_subject;
+                }
+            }
+            
+            // 예외 과목을 그룹화된 목록에 추가
+            foreach ($found_exception_subjects as $exception) {
+                $grouped_subjects[] = $exception;
+            }
+            
+            // 일반 과목 처리: 첫 단어로 그룹화
+            foreach ($normal_subjects as $subject) {
+                // 첫 단어 추출 (공백 또는 특수문자로 구분)
+                if (preg_match('/^([^\s]+)/u', $subject, $matches)) {
+                    $first_word = $matches[1];
+                    
+                    // 첫 단어가 그룹화된 과목 목록에 없으면 추가
+                    if (!in_array($first_word, $grouped_subjects, true)) {
+                        // 예외 과목과 중복되지 않는지 확인
+                        // 예외 과목의 첫 단어와 일치하는 경우 제외
+                        $is_exception_prefix = false;
+                        foreach (self::$exception_subjects as $exception) {
+                            // 예외 과목의 첫 단어 추출
+                            if (preg_match('/^([^\s]+)/u', $exception, $exception_matches)) {
+                                $exception_first_word = $exception_matches[1];
+                                // 일반 과목의 첫 단어가 예외 과목의 첫 단어와 일치하면 제외
+                                if ($first_word === $exception_first_word) {
+                                    $is_exception_prefix = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!$is_exception_prefix) {
+                            $grouped_subjects[] = $first_word;
+                        }
                     }
                 }
             }
+            
+            // 정렬
+            sort($grouped_subjects);
+            
+            return $grouped_subjects;
+        } catch (\Throwable $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTG_DB::get_available_subjects Error: ' . $e->getMessage());
+            }
+            return array();
         }
-        
-        // 정렬
-        sort($grouped_subjects);
-        
-        // 디버깅: 최종 결과 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('PTG_DB::get_available_subjects - Final grouped subjects: ' . print_r($grouped_subjects, true));
-        }
-        
-        return $grouped_subjects;
     }
 }

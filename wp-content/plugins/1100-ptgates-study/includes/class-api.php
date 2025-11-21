@@ -318,8 +318,10 @@ class Study_API {
                     'content'     => $q['content'],
                     'answer'      => $q['answer'],
                     'explanation' => $q['explanation'],
+                    'question_image' => isset($q['question_image']) ? $q['question_image'] : null,
                     'category'    => [
                         'year'    => $q['exam_year'],
+                        'session' => isset($q['exam_session']) ? $q['exam_session'] : null,
                         'subject' => $q['subject'],
                     ],
                 ];
@@ -382,8 +384,10 @@ class Study_API {
 				'content'     => $q['content'],
 				'answer'      => $q['answer'],
 				'explanation' => $q['explanation'],
+				'question_image' => isset($q['question_image']) ? $q['question_image'] : null,
 				'category'    => [
 					'year'    => $q['exam_year'],
+					'session' => isset($q['exam_session']) ? $q['exam_session'] : null,
 					'subject' => $q['subject'],
 				]
 			];

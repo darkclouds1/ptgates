@@ -193,38 +193,55 @@ class PTG_Study_Plugin {
             <div id="ptg-study-tip-modal" class="ptg-study-tip-modal" aria-hidden="true">
                 <div class="ptg-study-tip-backdrop" data-ptg-tip-close></div>
                 <div class="ptg-study-tip-dialog" role="dialog" aria-modal="true" aria-labelledby="ptg-study-tip-title">
-                    <button type="button" class="ptg-study-tip-close" data-ptg-tip-close aria-label="닫기">×</button>
-                    <h3 id="ptg-study-tip-title">학습Tip 요약</h3>
+                    <div class="ptg-study-tip-header">
+                        <h3 id="ptg-study-tip-title">기출 학습 가이드</h3>
+                        <button type="button" class="ptg-study-tip-close" data-ptg-tip-close aria-label="닫기">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
                     <div class="ptg-study-tip-body">
-                        <div class="ptg-tip-summary-cards">
-                            <div class="ptg-tip-card tip-1">
-                                <div class="ptg-tip-card-head">교시별 배열</div>
-                                <div class="ptg-tip-card-body">
-                                    <ul>
-                                        <li><strong>1교시</strong>: 기초(60) → 진단평가(45)</li>
-                                        <li><strong>2교시</strong>: 중재(65) → 법규(20)</li>
-                                    </ul>
-                                </div>
+                        <section class="ptg-study-tip-section">
+                            <h4>💡 ptGates Study 프로그램 사용 팁</h4>
+                            <ul class="ptg-study-tip-list">
+                                <li><strong>암기카드 활용:</strong> 이해가 어렵거나 외울 부분이 많은 개념은 툴바의 암기카드 기능을 이용해 즉시 저장하고 <strong>간격 반복 학습(SRS)</strong>을 활용할 것.</li>
+                                <li><strong>취약점 분석:</strong> 학습 후에는 <strong>대시보드(ptgates-analytics)</strong>를 확인하여, 연관 개념 중 취약한 단원을 찾아 복습 우선순위를 정할 것.</li>
+                                <li><strong>연속 학습:</strong> 출제 순서 경향을 참조하여 <strong>기초 → 응용</strong> 흐름에 따라 세부 영역 묶음 단위로 끊임없이 학습하는 것을 추천함.</li>
+                            </ul>
+                        </section>
+
+                        <section class="ptg-study-tip-section">
+                            <h4>📌 출제 순서 경향 요약</h4>
+                            <ul class="ptg-study-tip-list">
+                                <li><strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름.</li>
+                                <li><strong>과목별 배치:</strong> 각 과목 내에서 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, 세부 응용/임상 사례가 뒤쪽에 배치되는 경향이 명확함.</li>
+                            </ul>
+                        </section>
+
+                        <section class="ptg-study-tip-section">
+                            <h4>🎯 학습 구조</h4>
+                            <div class="ptg-tip-block">
+                                <h5>교시별 배열</h5>
+                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
+                                    <li><strong>1교시:</strong> 기초(60) → 진단평가(45)</li>
+                                    <li><strong>2교시:</strong> 중재(65) → 법규(20)</li>
+                                </ul>
                             </div>
-                            <div class="ptg-tip-card tip-2">
-                                <div class="ptg-tip-card-head">세부 영역 순서</div>
-                                <div class="ptg-tip-card-body">
-                                    <ul>
-                                        <li><strong>기초</strong>: 해부생리 → 운동학 → 물리적 인자 → 공중보건</li>
-                                        <li><strong>중재</strong>: 근골격 → 신경계 → 기타(심폐/피부/문제해결)</li>
-                                    </ul>
-                                </div>
+                            <div class="ptg-tip-block">
+                                <h5>세부 영역 순서</h5>
+                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
+                                    <li><strong>기초:</strong> 해부생리 → 운동학 → 물리적 인자 → 공중보건</li>
+                                    <li><strong>중재:</strong> 근골격 → 신경계 → 기타(심폐/피부/문제해결)</li>
+                                </ul>
                             </div>
-                            <div class="ptg-tip-card tip-3">
-                                <div class="ptg-tip-card-head">학습 전략</div>
-                                <div class="ptg-tip-card-body">
-                                    <ul>
-                                        <li>교시·과목·세부영역 <strong>묶음</strong>으로 연속 학습</li>
-                                        <li>정렬 모드로 <strong>흐름</strong> 익힌 뒤, 랜덤으로 <strong>복습</strong></li>
-                                    </ul>
-                                </div>
+                            <div class="ptg-tip-block">
+                                <h5>학습 전략</h5>
+                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
+                                    <li>교시·과목·세부영역 <strong>묶음</strong>으로 연속 학습</li>
+                                    <li>정렬 모드로 <strong>흐름</strong> 익힌 뒤, 랜덤으로 <strong>복습</strong></li>
+                                </ul>
                             </div>
-                        </div>
+                        </section>
+
                         <div class="ptg-tip-legend">
                             <span class="ptg-chip">정렬 학습</span>
                             <span class="ptg-chip">랜덤 복습</span>
@@ -237,8 +254,22 @@ class PTG_Study_Plugin {
         <?php if ( ! is_admin() ) : ?>
             <!-- 공용 UI 먼저 로드: PTGQuizUI (플랫폼) -->
             <script src="<?php echo esc_url( $platform_quizui_url ); ?>?ver=<?php echo esc_attr( $platform_quizui_ver ); ?>"></script>
+            
+            <!-- 스터디 설정 주입 -->
+            <script>
+                window.ptgStudy = {
+                    rest_url: '<?php echo esc_url( get_rest_url( null, 'ptg-study/v1/' ) ); ?>',
+                    api_nonce: '<?php echo wp_create_nonce( 'wp_rest' ); ?>',
+                    is_user_logged_in: <?php echo is_user_logged_in() ? 'true' : 'false'; ?>,
+                    login_url: '<?php echo esc_url( add_query_arg( 'redirect_to', urlencode( get_permalink() ), home_url( '/login/' ) ) ); ?>'
+                };
+            </script>
+
             <!-- 스터디 전용 스크립트 -->
             <script src="<?php echo esc_url( $plugin_dir_url . 'assets/js/study.js' ); ?>?v=<?php echo esc_attr( $script_version ); ?>"></script>
+            
+            <!-- 툴바 기능 스크립트 -->
+            <script src="<?php echo esc_url( $plugin_dir_url . 'assets/js/study-toolbar.js' ); ?>?v=<?php echo esc_attr( $script_version ); ?>"></script>
         <?php endif; ?>
         <?php
         return ob_get_clean();
@@ -311,7 +342,7 @@ class PTG_Study_Plugin {
                     display: none !important;
                     align-items: center !important;
                     justify-content: center !important;
-                    z-index: 9999 !important;
+                    z-index: 10000 !important;
                 }
                 .ptg-study-tip-modal.is-open {
                     display: flex !important;
@@ -319,146 +350,151 @@ class PTG_Study_Plugin {
                 .ptg-study-tip-backdrop {
                     position: absolute !important;
                     inset: 0 !important;
-                    background: rgba(15,23,42,0.55) !important;
+                    background: rgba(0,0,0,0.6) !important;
+                    backdrop-filter: blur(2px) !important;
                 }
                 .ptg-study-tip-dialog {
                     position: relative !important;
-                    max-width: 720px !important;
-                    width: 92% !important;
-                    max-height: 80vh !important;
+                    width: min(900px, calc(100% - 40px)) !important;
+                    max-height: 90vh !important;
                     background: #ffffff !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 20px 40px rgba(15,23,42,0.25) !important;
-                    padding: 20px 24px !important;
-                    overflow-y: auto !important;
-                    z-index: 1 !important;
+                    border-radius: 16px !important;
+                    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35) !important;
+                    overflow: hidden !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    animation: ptg-quiz-tip-modal-fade-in 0.3s ease !important;
+                }
+                .ptg-study-tip-header {
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: space-between !important;
+                    gap: 16px !important;
+                    padding: 24px 32px !important;
+                    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+                    color: #fff !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.25) !important;
+                    border-top-left-radius: inherit !important;
+                    border-top-right-radius: inherit !important;
+                    min-height: 72px !important;
+                    box-sizing: border-box !important;
+                }
+                .ptg-study-tip-header h3 {
+                    margin: 0 !important;
+                    font-size: 24px !important;
+                    font-weight: 700 !important;
+                    color: #fff !important;
                 }
                 .ptg-study-tip-close {
-                    position: absolute !important;
-                    top: 10px !important;
-                    right: 12px !important;
+                    background: #ffffff !important;
                     border: none !important;
-                    background: transparent !important;
-                    font-size: 20px !important;
-                    line-height: 1 !important;
+                    color: #1d3f7c !important;
+                    font-size: 26px !important;
+                    width: 44px !important;
+                    height: 44px !important;
+                    border-radius: 999px !important;
                     cursor: pointer !important;
-                    color: #6b7280 !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    transition: all 0.2s ease !important;
+                    box-shadow: 0 6px 16px rgba(0,0,0,0.15) !important;
+                    padding: 0 !important;
+                    line-height: 1 !important;
+                }
+                .ptg-study-tip-close span {
+                    pointer-events: none !important;
                 }
                 .ptg-study-tip-close:hover {
-                    color: #111827 !important;
+                    background: #f0f4ff !important;
+                    color: #0f2a57 !important;
+                    transform: scale(1.05) !important;
                 }
-                .ptg-study-tip-body h4 {
-                    margin-top: 16px !important;
-                    margin-bottom: 8px !important;
-                    font-size: 15px !important;
-                    font-weight: 600 !important;
+                .ptg-study-tip-close:focus-visible {
+                    outline: 3px solid rgba(255,255,255,0.85) !important;
+                    outline-offset: 2px !important;
                 }
-                .ptg-study-tip-body h5 {
-                    margin-top: 10px !important;
-                    margin-bottom: 6px !important;
-                    font-size: 14px !important;
-                    font-weight: 600 !important;
+                .ptg-study-tip-body {
+                    padding: 30px !important;
+                    overflow-y: auto !important;
+                    flex: 1 !important;
                 }
-                .ptg-study-tip-body p {
-                    margin: 6px 0 !important;
-                    font-size: 13px !important;
-                    line-height: 1.6 !important;
+                .ptg-study-tip-section {
+                    margin-bottom: 30px !important;
                 }
-                #ptg-study-tip-title {
+                .ptg-study-tip-section:last-child {
+                    margin-bottom: 0 !important;
+                }
+                .ptg-study-tip-section h4 {
+                    margin: 0 0 15px 0 !important;
                     font-size: 20px !important;
-                    font-weight: 800 !important;
-                    letter-spacing: -0.01em !important;
-                }
-                /* 요약 팝업 전용 디자인 */
-                .ptg-tip-summary-cards {
-                    display: grid !important;
-                    grid-template-columns: 1fr !important;
-                    gap: 10px !important;
-                    margin-top: 6px !important;
-                }
-                .ptg-tip-card {
-                    border: 1px solid #e5e7eb !important;
-                    border-radius: 10px !important;
-                    background: #f8fafc !important;
-                    padding: 0 !important;
-                }
-                .ptg-tip-card-head {
-                    font-size: 15px !important;
-                    font-weight: 800 !important;
-                    letter-spacing: -0.01em !important;
-                    padding: 10px 12px !important;
-                    border-bottom: 1px solid #e5e7eb !important;
-                    border-top-left-radius: 10px !important;
-                    border-top-right-radius: 10px !important;
-                }
-                .ptg-tip-card-body {
-                    padding: 10px 12px 12px 12px !important;
-                }
-                .ptg-tip-card ul {
-                    margin: 0 0 0 16px !important;
-                    padding: 0 !important;
-                    font-size: 14px !important;
-                    line-height: 1.6 !important;
-                }
-                /* 카드별 헤드 색상 & 상단 강조선 */
-                .ptg-tip-card.tip-1 {
-                    background: #fbfdff !important;
-                    border-color: #dbeafe !important;
-                }
-                .ptg-tip-card.tip-1 .ptg-tip-card-head {
-                    background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%) !important;
-                    color: #1e40af !important;
-                    box-shadow: inset 0 3px 0 0 #3b82f6 !important; /* blue */
-                    border-bottom-color: #dbeafe !important;
-                }
-                .ptg-tip-card.tip-2 {
-                    background: #fbfaff !important;
-                    border-color: #e9d5ff !important;
-                }
-                .ptg-tip-card.tip-2 .ptg-tip-card-head {
-                    background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 100%) !important;
-                    color: #5b21b6 !important;
-                    box-shadow: inset 0 3px 0 0 #8b5cf6 !important; /* violet */
-                    border-bottom-color: #e9d5ff !important;
-                }
-                .ptg-tip-card.tip-3 {
-                    background: #f7fdfa !important;
-                    border-color: #bbf7d0 !important;
-                }
-                .ptg-tip-card.tip-3 .ptg-tip-card-head {
-                    background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%) !important;
-                    color: #065f46 !important;
-                    box-shadow: inset 0 3px 0 0 #10b981 !important; /* emerald */
-                    border-bottom-color: #bbf7d0 !important;
-                }
-                .ptg-tip-legend {
-                    margin-top: 10px !important;
-                    display: flex !important;
-                    gap: 6px !important;
-                    flex-wrap: wrap !important;
-                }
-                .ptg-chip {
-                    display: inline-block !important;
-                    font-size: 13px !important;
-                    padding: 6px 10px !important;
-                    background: #eef2ff !important;
-                    color: #3730a3 !important;
-                    border: 1px solid #c7d2fe !important;
-                    border-radius: 9999px !important;
-                }
-                @media (max-width: 768px) {
-                    .ptg-tip-summary-cards {
-                        grid-template-columns: 1fr !important;
-                    }
+                    font-weight: 700 !important;
+                    color: #333 !important;
+                    border-bottom: 2px solid #4a90e2 !important;
+                    padding-bottom: 8px !important;
                 }
                 .ptg-study-tip-list {
-                    margin: 4px 0 8px 18px !important;
+                    list-style: none !important;
+                    margin: 10px 0 !important;
                     padding: 0 !important;
-                    font-size: 13px !important;
                 }
                 .ptg-study-tip-list li {
-                    margin: 2px 0 !important;
-                    list-style: disc !important;
+                    margin-bottom: 10px !important;
+                    padding-left: 24px !important;
+                    position: relative !important;
+                    color: #555 !important;
+                    line-height: 1.6 !important;
+                    font-size: 15px !important;
+                }
+                .ptg-study-tip-list li::before {
+                    content: "•" !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    color: #4a90e2 !important;
+                    font-weight: 700 !important;
+                }
+                .ptg-study-tip-list--sub li {
+                    color: #444 !important;
+                    font-size: 14px !important;
+                }
+                .ptg-tip-block {
+                    background: #f8f9fa !important;
+                    border-radius: 8px !important;
+                    padding: 15px !important;
+                    margin-bottom: 15px !important;
+                }
+                .ptg-tip-block:last-child {
+                    margin-bottom: 0 !important;
+                }
+                .ptg-tip-block h5 {
+                    margin: 0 0 10px 0 !important;
+                    color: #333 !important;
+                    font-size: 16px !important;
+                }
+                .ptg-tip-legend {
+                    display: flex !important;
+                    gap: 8px !important;
+                    flex-wrap: wrap !important;
+                    margin-top: 10px !important;
+                }
+                .ptg-chip {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    padding: 6px 12px !important;
+                    border-radius: 16px !important;
+                    background: #eff6ff !important;
+                    color: #1d4ed8 !important;
+                    font-size: 13px !important;
+                    font-weight: 600 !important;
+                    border: 1px solid #dbeafe !important;
+                }
+                @media (max-width: 768px) {
+                    .ptg-study-tip-body {
+                        padding: 24px 20px !important;
+                    }
+                    .ptg-study-tip-header {
+                        padding: 20px !important;
+                    }
                 }
                 .ptg-study-tip-footer {
                     margin-top: 12px !important;
@@ -646,6 +682,52 @@ class PTG_Study_Plugin {
                     .ptg-subject-list {
                         grid-template-columns: 1fr !important;
                     }
+                }
+                /* 정답 및 해설 영역 스타일 */
+                .ptg-lesson-answer-area .answer-content {
+                    margin-top: 16px !important;
+                    padding: 16px 20px !important;
+                    background-color: #f8f9fa !important;
+                    border-radius: 8px !important;
+                    border: 1px solid #e9ecef !important;
+                }
+                .ptg-lesson-answer-area .answer-content p {
+                    margin: 0 0 12px 0 !important;
+                }
+                .ptg-lesson-answer-area .answer-content p:last-child {
+                    margin-bottom: 0 !important;
+                }
+                .ptg-lesson-answer-area .answer-content hr {
+                    margin: 12px 0 !important;
+                    border: none !important;
+                    border-top: 1px solid #dee2e6 !important;
+                }
+                /* 헤더 줄 스타일 */
+                .ptg-lesson-header-row {
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: space-between !important;
+                    gap: 16px !important;
+                    margin-bottom: 16px !important;
+                }
+                .ptg-lesson-header-row h2 {
+                    margin: 0 !important;
+                }
+                .ptg-random-toggle {
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 8px !important;
+                    font-size: 0.9rem !important;
+                    cursor: pointer !important;
+                    white-space: nowrap !important;
+                }
+                /* 선택지 간 높이 줄이기 */
+                .ptg-question-options {
+                    gap: 2px !important;
+                }
+                .ptg-question-option {
+                    padding: 4px 10px !important;
+                    line-height: 1.4 !important;
                 }
             </style>
             <?php

@@ -12,6 +12,8 @@
  * Requires Plugins: 0000-ptgates-platform
  * Requires PHP: 8.1
  * Requires at least: 6.0
+ * 
+ * Shortcode: [ptg_study]
  */
 
 // 직접 접근 방지

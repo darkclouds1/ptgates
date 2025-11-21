@@ -18,7 +18,7 @@ PTGates Platform은 PTGates 학습 시스템의 핵심 플랫폼 코어입니다
 * 공통 Repository 클래스 (데이터베이스 접근)
 * 권한 관리 및 Nonce 검증
 * 공통 REST API 응답 처리
-* 공통 JavaScript 헬퍼 함수
+* 공통 JavaScript 헬퍼 함수 
 * 타임존 관리 (UTC/KST)
 
 == Installation ==

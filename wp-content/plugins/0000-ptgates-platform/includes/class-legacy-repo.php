@@ -50,10 +50,21 @@ class LegacyRepo {
             $where_values[] = absint($args['year']);
         }
         
-        // subject 필터
-        if (!empty($args['subject'])) {
+        // subject 필터 (단일 과목)
+        if (!empty($args['subject']) && empty($args['subjects'])) {
             $where[] = "c.subject = %s";
             $where_values[] = sanitize_text_field($args['subject']);
+        }
+        
+        // subjects 필터 (여러 과목 - 집계 모드용)
+        if (!empty($args['subjects']) && is_array($args['subjects'])) {
+            $subjects = array_map('sanitize_text_field', $args['subjects']);
+            $subjects = array_filter(array_map('trim', $subjects));
+            if (!empty($subjects)) {
+                $placeholders = implode(',', array_fill(0, count($subjects), '%s'));
+                $where[] = "c.subject IN ($placeholders)";
+                $where_values = array_merge($where_values, $subjects);
+            }
         }
 
         // exam_course 필터
@@ -74,6 +85,12 @@ class LegacyRepo {
         $limit = isset($args['limit']) ? absint($args['limit']) : 10;
         $offset = isset($args['offset']) ? absint($args['offset']) : 0;
         
+        // 랜덤 모드 처리
+        $order_by = "ORDER BY q.question_id DESC";
+        if (!empty($args['random']) && $args['random']) {
+            $order_by = "ORDER BY RAND()";
+        }
+        
         $sql = "
             SELECT 
                 q.question_id,
@@ -83,6 +100,7 @@ class LegacyRepo {
                 q.type,
                 q.difficulty,
                 q.is_active,
+                q.question_image,
                 q.created_at,
                 q.updated_at,
                 c.category_id,
@@ -94,7 +112,7 @@ class LegacyRepo {
             FROM {$questions_table} q
             INNER JOIN {$categories_table} c ON q.question_id = c.question_id
             WHERE {$where_clause}
-            ORDER BY q.question_id DESC
+            {$order_by}
             LIMIT %d OFFSET %d
         ";
         
@@ -102,7 +120,8 @@ class LegacyRepo {
         $where_values[] = $offset;
         
         $query = $wpdb->prepare($sql, $where_values);
-        return $wpdb->get_results($query, ARRAY_A);
+        $results = $wpdb->get_results($query, ARRAY_A);
+        return is_array($results) ? $results : array();
     }
 
     /**
@@ -130,9 +149,21 @@ class LegacyRepo {
             $where_values[] = absint($args['year']);
         }
 
-        if (!empty($args['subject'])) {
+        // subject 필터 (단일 과목)
+        if (!empty($args['subject']) && empty($args['subjects'])) {
             $where[] = "c.subject = %s";
             $where_values[] = sanitize_text_field($args['subject']);
+        }
+        
+        // subjects 필터 (여러 과목 - 집계 모드용)
+        if (!empty($args['subjects']) && is_array($args['subjects'])) {
+            $subjects = array_map('sanitize_text_field', $args['subjects']);
+            $subjects = array_filter(array_map('trim', $subjects));
+            if (!empty($subjects)) {
+                $placeholders = implode(',', array_fill(0, count($subjects), '%s'));
+                $where[] = "c.subject IN ($placeholders)";
+                $where_values = array_merge($where_values, $subjects);
+            }
         }
 
         if (!empty($args['exam_course'])) { 
@@ -148,13 +179,18 @@ class LegacyRepo {
         $where_clause = implode(' AND ', $where);
 
         $sql = "
-            SELECT COUNT(*) 
+            SELECT COUNT(DISTINCT q.question_id) 
             FROM {$questions_table} q
             INNER JOIN {$categories_table} c ON q.question_id = c.question_id
             WHERE {$where_clause}
         ";
 
-        $query = $wpdb->prepare($sql, $where_values);
+        if (!empty($where_values)) {
+            $query = $wpdb->prepare($sql, $where_values);
+        } else {
+            $query = $sql;
+        }
+        
         $count = $wpdb->get_var($query);
 
         return (int) $count;
@@ -178,6 +214,9 @@ class LegacyRepo {
         ";
         
         $results = $wpdb->get_results($sql, ARRAY_A);
+        if (!is_array($results)) {
+            return array();
+        }
         return array_map(function($row) {
             return (int) $row['exam_year'];
         }, $results);
@@ -217,6 +256,9 @@ class LegacyRepo {
         }
         
         $results = $wpdb->get_results($query, ARRAY_A);
+        if (!is_array($results)) {
+            return array();
+        }
         return array_map(function($row) {
             return $row['subject'];
         }, $results);

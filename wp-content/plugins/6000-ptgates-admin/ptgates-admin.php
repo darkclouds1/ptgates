@@ -43,6 +43,10 @@ final class PTG_Admin_Plugin {
 		// REST API 등록
 		add_action( 'rest_api_init', [ $this, 'init_rest_api' ] );
 
+		// Inline Edit AJAX
+		add_action( 'wp_ajax_pt_get_question_edit_form', [ $this, 'ajax_get_question_edit_form' ] );
+		add_action( 'wp_ajax_pt_update_question_inline', [ $this, 'ajax_update_question_inline' ] );
+
 		// CLI 지원 (기존 기능 유지)
 		if ( php_sapi_name() === 'cli' ) {
 			$this->init_cli();
@@ -74,6 +78,25 @@ final class PTG_Admin_Plugin {
 					exit;
 				}
 			}
+			
+			// 멤버십 관련 AJAX 액션
+			$member_actions = array( 'ptg_admin_get_member', 'ptg_admin_update_member', 'ptg_admin_get_history' );
+			if ( in_array( $_POST['action'], $member_actions, true ) ) {
+				$members_file = plugin_dir_path( __FILE__ ) . 'includes/class-members.php';
+				if ( file_exists( $members_file ) ) {
+					require_once $members_file;
+					
+					// 액션에 따라 메서드 호출
+					if ( $_POST['action'] === 'ptg_admin_get_member' ) {
+						PTG_Admin_Members::ajax_get_member();
+					} elseif ( $_POST['action'] === 'ptg_admin_update_member' ) {
+						PTG_Admin_Members::ajax_update_member();
+					} elseif ( $_POST['action'] === 'ptg_admin_get_history' ) {
+						PTG_Admin_Members::ajax_get_history();
+					}
+					exit;
+				}
+			}
 		}
 	}
 
@@ -92,9 +115,12 @@ final class PTG_Admin_Plugin {
 		// [ptg_admin] 숏코드가 있는 페이지에서만 스타일 로드
 		if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_admin' ) ) {
 			$css_path = plugin_dir_path( __FILE__ ) . 'assets/css/admin.css';
-			$js_path  = plugin_dir_path( __FILE__ ) . 'assets/js/admin-list.js';
+			$js_list_path  = plugin_dir_path( __FILE__ ) . 'assets/js/admin-list.js';
+			$js_stats_path = plugin_dir_path( __FILE__ ) . 'assets/js/admin-stats.js';
+			
 			$css_ver  = file_exists( $css_path ) ? filemtime( $css_path ) : '1.0.0';
-			$js_ver   = file_exists( $js_path ) ? filemtime( $js_path ) : '1.0.0';
+			$js_list_ver   = file_exists( $js_list_path ) ? filemtime( $js_list_path ) : '1.0.0';
+			$js_stats_ver  = file_exists( $js_stats_path ) ? filemtime( $js_stats_path ) : '1.0.0';
 
 			wp_enqueue_style(
 				'ptg-admin-style',
@@ -104,21 +130,32 @@ final class PTG_Admin_Plugin {
 			);
 			
 			// list 타입일 때 JavaScript 로드
-			if ( has_shortcode( $post->post_content, 'ptg_admin' ) ) {
-				wp_enqueue_script(
-					'ptg-admin-list',
-					plugin_dir_url( __FILE__ ) . 'assets/js/admin-list.js',
-					['jquery'],
-					$js_ver,
-					true
-				);
-				
-				// REST API URL과 nonce 전달
-				wp_localize_script('ptg-admin-list', 'ptgAdmin', array(
-					'apiUrl' => rest_url('ptg-admin/v1/'),
-					'nonce' => wp_create_nonce('wp_rest'),
-				));
-			}
+			wp_enqueue_script(
+				'ptg-admin-list',
+				plugin_dir_url( __FILE__ ) . 'assets/js/admin-list.js',
+				['jquery'],
+				$js_list_ver,
+				true
+			);
+			
+			// stats 타입일 때 JavaScript 로드
+			wp_enqueue_script(
+				'ptg-admin-stats',
+				plugin_dir_url( __FILE__ ) . 'assets/js/admin-stats.js',
+				['jquery'],
+				$js_stats_ver,
+				true
+			);
+			
+			// REST API URL과 nonce 전달
+			$script_data = array(
+				'apiUrl' => rest_url('ptg-admin/v1/'),
+				'nonce' => wp_create_nonce('wp_rest'),
+				'ajaxUrl' => admin_url('admin-ajax.php')
+			);
+			
+			wp_localize_script('ptg-admin-list', 'ptgAdmin', $script_data);
+			wp_localize_script('ptg-admin-stats', 'ptgAdmin', $script_data);
 		}
 	}
 	
@@ -126,13 +163,17 @@ final class PTG_Admin_Plugin {
 	 * 관리자 페이지 스타일/스크립트 로드
 	 */
 	public function enqueue_admin_assets( $hook ) {
-		// 문제 목록 페이지에서만 로드
+		// 문제 목록 페이지 또는 통계 페이지에서 로드
 		$current_page = isset( $_GET['page'] ) ? sanitize_text_field( $_GET['page'] ) : '';
-		if ( $current_page === 'ptgates-admin-list' ) {
+		
+		if ( strpos( $current_page, 'ptgates-admin' ) !== false ) {
 			$css_path = plugin_dir_path( __FILE__ ) . 'assets/css/admin.css';
-			$js_path  = plugin_dir_path( __FILE__ ) . 'assets/js/admin-list.js';
+			$js_list_path  = plugin_dir_path( __FILE__ ) . 'assets/js/admin-list.js';
+			$js_stats_path = plugin_dir_path( __FILE__ ) . 'assets/js/admin-stats.js';
+			
 			$css_ver  = file_exists( $css_path ) ? filemtime( $css_path ) : '1.0.0';
-			$js_ver   = file_exists( $js_path ) ? filemtime( $js_path ) : '1.0.0';
+			$js_list_ver   = file_exists( $js_list_path ) ? filemtime( $js_list_path ) : '1.0.0';
+			$js_stats_ver  = file_exists( $js_stats_path ) ? filemtime( $js_stats_path ) : '1.0.0';
 
 			wp_enqueue_style(
 				'ptg-admin-style',
@@ -141,19 +182,48 @@ final class PTG_Admin_Plugin {
 				$css_ver
 			);
 			
-			wp_enqueue_script(
-				'ptg-admin-list',
-				plugin_dir_url( __FILE__ ) . 'assets/js/admin-list.js',
-				['jquery'],
-				$js_ver,
-				true
-			);
+			if ( $current_page === 'ptgates-admin-list' ) {
+				wp_enqueue_script(
+					'ptg-admin-list',
+					plugin_dir_url( __FILE__ ) . 'assets/js/admin-list.js',
+					['jquery'],
+					$js_list_ver,
+					true
+				);
+			}
+			
+			if ( $current_page === 'ptgates-admin-stats' ) {
+				wp_enqueue_script(
+					'ptg-admin-stats',
+					plugin_dir_url( __FILE__ ) . 'assets/js/admin-stats.js',
+					['jquery'],
+					$js_stats_ver,
+					true
+				);
+			}
 			
 			// REST API URL과 nonce 전달
-			wp_localize_script('ptg-admin-list', 'ptgAdmin', array(
+			$script_data = array(
 				'apiUrl' => rest_url('ptg-admin/v1/'),
 				'nonce' => wp_create_nonce('wp_rest'),
-			));
+				'ajaxUrl' => admin_url('admin-ajax.php')
+			);
+			
+			wp_localize_script('ptg-admin-list', 'ptgAdmin', $script_data);
+			wp_localize_script('ptg-admin-stats', 'ptgAdmin', $script_data);
+			wp_localize_script('ptg-admin-list', 'ptgAdmin', $script_data);
+			wp_localize_script('ptg-admin-stats', 'ptgAdmin', $script_data);
+			
+			// 멤버십 관리 페이지 스크립트
+			if ( $current_page === 'ptgates-admin-members' ) {
+				wp_enqueue_script(
+					'ptg-admin-members',
+					plugin_dir_url( __FILE__ ) . 'assets/js/admin-members.js',
+					['jquery'],
+					file_exists(plugin_dir_path(__FILE__) . 'assets/js/admin-members.js') ? filemtime(plugin_dir_path(__FILE__) . 'assets/js/admin-members.js') : '1.0.0',
+					true
+				);
+			}
 		}
 	}
 
@@ -166,11 +236,22 @@ final class PTG_Admin_Plugin {
 			'PTGate 문제은행',
 			'manage_options',
 			'ptgates-admin',
-			[ $this, 'render_admin_page' ],
+			[ $this, 'render_import_page' ], // 기본 페이지를 "문제 일괄 등록"으로 설정
 			'dashicons-clipboard',
 			30
 		);
 
+		// 첫 번째 서브메뉴: 문제 일괄 등록 (기본 페이지)
+		add_submenu_page(
+			'ptgates-admin',
+			'문제 일괄 등록',
+			'문제 일괄 등록',
+			'manage_options',
+			'ptgates-admin-import',
+			[ $this, 'render_import_page' ]
+		);
+
+		// 두 번째 서브메뉴: 문제 목록 & 편집
 		add_submenu_page(
 			'ptgates-admin',
 			'문제 목록 & 편집',
@@ -180,13 +261,24 @@ final class PTG_Admin_Plugin {
 			[ $this, 'render_list_page' ]
 		);
 
+		// 세 번째 서브메뉴: 통계 대시보드
 		add_submenu_page(
 			'ptgates-admin',
-			'문제 일괄 등록',
-			'문제 일괄 등록',
+			'통계 대시보드',
+			'통계 대시보드',
 			'manage_options',
-			'ptgates-admin-import',
-			[ $this, 'render_import_page' ]
+			'ptgates-admin-stats',
+			[ $this, 'render_stats_page' ]
+		);
+
+		// 네 번째 서브메뉴: 멤버십 관리 (WP 관리자 전용)
+		add_submenu_page(
+			'ptgates-admin',
+			'멤버십 관리',
+			'멤버십 관리',
+			'manage_options',
+			'ptgates-admin-members',
+			[ $this, 'render_members_page' ]
 		);
 
 		// 기본 상위 메뉴(첫 번째 하위) 중복 제거
@@ -211,6 +303,8 @@ final class PTG_Admin_Plugin {
 			<ul>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-list' ); ?>">문제 목록</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-import' ); ?>">CSV 일괄 삽입</a></li>
+				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-stats' ); ?>">통계 대시보드</a></li>
+				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-members' ); ?>">멤버십 관리</a></li>
 			</ul>
 		</div>
 		<?php
@@ -220,9 +314,9 @@ final class PTG_Admin_Plugin {
 	 * 문제 목록 페이지 렌더링
 	 */
 	public function render_list_page() {
-		// 관리자 권한 재확인
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( '권한이 없습니다.' );
+		// ptGates 관리자 권한 확인
+		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
 		}
 
 		echo '<div class="wrap">';
@@ -231,12 +325,26 @@ final class PTG_Admin_Plugin {
 	}
 
 	/**
+	 * 통계 페이지 렌더링
+	 */
+	public function render_stats_page() {
+		// ptGates 관리자 권한 확인
+		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
+		}
+
+		echo '<div class="wrap">';
+		$this->render_statistics();
+		echo '</div>';
+	}
+
+	/**
 	 * CSV 일괄 삽입 페이지 렌더링
 	 */
 	public function render_import_page() {
-		// 관리자 권한 재확인
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( '권한이 없습니다.' );
+		// ptGates 관리자 권한 확인
+		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
 		}
 
 		// 기존 import_question.php의 웹 인터페이스 부분 사용
@@ -373,18 +481,18 @@ final class PTG_Admin_Plugin {
 			<div id="ptg-pagination" class="ptg-pagination"></div>
 			
 			<!-- 편집 모달 -->
-			<div id="ptg-edit-modal" class="ptg-edit-modal" style="display: none;">
+			<div id="pt-admin-question-edit-modal" class="ptg-edit-modal" style="display: none;">
 				<div class="ptg-edit-modal-content">
 					<div class="ptg-edit-modal-header">
 						<h3>문제 편집</h3>
-						<button class="ptg-edit-modal-close">×</button>
+						<button class="pt-admin-modal-close">×</button>
 					</div>
 					<div class="ptg-edit-modal-body">
 						<input type="hidden" id="ptg-edit-question-id" />
 						
 						<div class="ptg-edit-field">
 							<label>지문 (content):</label>
-							<textarea id="ptg-edit-content" rows="10" style="width: 100%;"></textarea>
+							<textarea id="ptg-edit-content" rows="15" style="width: 100%;"></textarea>
 						</div>
 						
 						<div class="ptg-edit-field">
@@ -394,7 +502,7 @@ final class PTG_Admin_Plugin {
 						
 						<div class="ptg-edit-field">
 							<label>해설 (explanation):</label>
-							<textarea id="ptg-edit-explanation" rows="10" style="width: 100%;"></textarea>
+							<textarea id="ptg-edit-explanation" rows="15" style="width: 100%;"></textarea>
 						</div>
 						
 						<div class="ptg-edit-field">
@@ -413,8 +521,8 @@ final class PTG_Admin_Plugin {
 						</div>
 					</div>
 					<div class="ptg-edit-modal-footer">
-						<button id="ptg-save-btn" class="ptg-btn-primary">저장</button>
-						<button id="ptg-cancel-btn" class="ptg-btn-secondary">취소</button>
+						<button id="pt-admin-save-question" class="ptg-btn-primary">저장</button>
+						<button id="pt-admin-cancel-btn" class="ptg-btn-secondary">취소</button>
 					</div>
 				</div>
 			</div>
@@ -423,21 +531,299 @@ final class PTG_Admin_Plugin {
 	}
 
 	/**
-	 * 통계 렌더링 (향후 구현)
+	 * 통계 렌더링
 	 */
 	private function render_statistics() {
-		echo '<div class="ptg-admin-info"><p>📊 통계 기능은 향후 구현 예정입니다.</p></div>';
+		?>
+		<div class="ptg-admin-stats-container">
+			<h2>📊 문제은행 통계 대시보드</h2>
+			
+			<!-- 요약 카드 -->
+			<div class="ptg-stats-summary">
+				<div class="ptg-stat-card">
+					<h3>총 문제 수</h3>
+					<div id="ptg-total-count" class="ptg-stat-value">-</div>
+				</div>
+				<div class="ptg-stat-card">
+					<h3>최근 업데이트</h3>
+					<div id="ptg-last-update" class="ptg-stat-value small">-</div>
+				</div>
+			</div>
+			
+			<div class="ptg-stats-grid">
+				<!-- 회차별 현황 -->
+				<div class="ptg-stats-section">
+					<h3>📅 회차별 현황</h3>
+					<div class="ptg-stats-table-container">
+						<table class="ptg-stats-table" id="ptg-exam-stats-table">
+							<thead>
+								<tr>
+									<th>년도</th>
+									<th>회차</th>
+									<th>교시</th>
+									<th>문항 수</th>
+									<th>생성일</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr><td colspan="5" class="loading">로딩 중...</td></tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+				
+				<!-- 과목별 분포 -->
+				<div class="ptg-stats-section">
+					<h3>📚 과목별 분포</h3>
+					<div class="ptg-stats-controls">
+						<select id="ptg-stats-year">
+							<option value="">년도 선택</option>
+						</select>
+						<select id="ptg-stats-course">
+							<option value="1교시">1교시</option>
+							<option value="2교시">2교시</option>
+						</select>
+						<button id="ptg-stats-refresh" class="ptg-btn-small">조회</button>
+					</div>
+					<div id="ptg-subject-chart" class="ptg-chart-container">
+						<p class="ptg-chart-placeholder">년도와 교시를 선택하여 조회하세요.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
-	 * CLI 초기화
+	 * 멤버십 관리 페이지 렌더링
 	 */
+	public function render_members_page() {
+		$members_file = plugin_dir_path( __FILE__ ) . 'includes/class-members.php';
+		if ( file_exists( $members_file ) ) {
+			require_once $members_file;
+			PTG_Admin_Members::render_page();
+		} else {
+			echo '<div class="error"><p>멤버십 관리 클래스 파일을 찾을 수 없습니다.</p></div>';
+		}
+	}
 	private function init_cli() {
 		$import_file = plugin_dir_path( __FILE__ ) . 'includes/class-import.php';
 		if ( file_exists( $import_file ) ) {
 			// CLI 환경에서는 직접 실행
 			// class-import.php가 CLI 모드일 때 자체적으로 실행됨
 		}
+	}
+
+	/**
+	 * AJAX: 문제 편집 폼 가져오기 (Inline)
+	 */
+	public function ajax_get_question_edit_form() {
+		check_ajax_referer( 'wp_rest', 'security' );
+		
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( '권한이 없습니다.' );
+		}
+
+		$question_id = isset( $_POST['question_id'] ) ? intval( $_POST['question_id'] ) : 0;
+		if ( ! $question_id ) {
+			wp_send_json_error( '잘못된 문제 ID입니다.' );
+		}
+
+		global $wpdb;
+		// 테이블 이름은 prefix 없이 사용 (다른 플러그인과 일관성 유지)
+		$table_name = 'ptgates_questions';
+		$question = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table_name WHERE question_id = %d", $question_id ) );
+
+		if ( ! $question ) {
+			wp_send_json_error( '문제를 찾을 수 없습니다.' );
+		}
+
+		// 폼 HTML 생성
+		ob_start();
+		?>
+		<div class="ptg-inline-edit-form">
+			<input type="hidden" name="question_id" value="<?php echo esc_attr( $question->question_id ); ?>">
+			
+			<div class="ptg-edit-field">
+				<label>지문 (content):</label>
+				<textarea name="content" rows="8" class="ptg-edit-input"><?php echo esc_textarea( $question->content ); ?></textarea>
+			</div>
+			
+			<div class="ptg-edit-field">
+				<label>정답 (answer):</label>
+				<input type="text" name="answer" value="<?php echo esc_attr( $question->answer ); ?>" class="ptg-edit-input">
+			</div>
+			
+			<div class="ptg-edit-field">
+				<label>해설 (explanation):</label>
+				<textarea name="explanation" rows="8" class="ptg-edit-input"><?php echo esc_textarea( $question->explanation ); ?></textarea>
+			</div>
+
+			<div class="ptg-edit-field">
+				<label>이미지 (Image):</label>
+				<?php if ( ! empty( $question->question_image ) ) : ?>
+					<?php
+					// 이미지 경로 계산
+					// DB에서 년도/회차 정보를 가져와야 함. ptgates_categories 테이블 조인 필요하지만
+					// 여기서는 간단히 question_id로 조회하거나, 이미지가 있으면 보여주는 방식.
+					// 하지만 정확한 경로를 알기 위해선 category 정보가 필요함.
+					// $question 객체는 ptgates_questions 테이블만 조회한 상태임.
+					// 따라서 카테고리 정보를 추가로 조회해야 함.
+					$cat_info = $wpdb->get_row( $wpdb->prepare( "SELECT exam_year, exam_session FROM ptgates_categories WHERE question_id = %d LIMIT 1", $question_id ) );
+					$image_url = '';
+					if ( $cat_info ) {
+						$upload_dir = wp_upload_dir();
+						$image_path = '/ptgates-questions/' . $cat_info->exam_year . '/' . $cat_info->exam_session . '/' . $question->question_image;
+						$image_url = $upload_dir['baseurl'] . $image_path;
+					}
+					?>
+					<?php if ( $image_url ) : ?>
+						<div class="ptg-image-preview-container">
+							<img src="<?php echo esc_url( $image_url ); ?>" class="ptg-image-preview" alt="Question Image">
+							<p class="ptg-image-filename"><?php echo esc_html( $question->question_image ); ?></p>
+							<button type="button" class="ptg-btn-delete-image">이미지 삭제</button>
+						</div>
+					<?php endif; ?>
+				<?php endif; ?>
+				<input type="hidden" name="delete_image" value="0">
+				<input type="file" name="question_image" accept="image/*" class="ptg-edit-input">
+				<p class="description">이미지를 업로드하면 기존 이미지는 덮어씌워집니다. (자동으로 {문제ID}.확장자 로 저장됨)</p>
+			</div>
+			
+			<div class="ptg-edit-row">
+				<div class="ptg-edit-field half">
+					<label>난이도:</label>
+					<select name="difficulty" class="ptg-edit-input">
+						<option value="1" <?php selected( $question->difficulty, 1 ); ?>>1 (하)</option>
+						<option value="2" <?php selected( $question->difficulty, 2 ); ?>>2 (중)</option>
+						<option value="3" <?php selected( $question->difficulty, 3 ); ?>>3 (상)</option>
+					</select>
+				</div>
+				<div class="ptg-edit-field half checkbox-field">
+					<label>
+						<input type="checkbox" name="is_active" value="1" <?php checked( $question->is_active, 1 ); ?>> 활성화
+					</label>
+				</div>
+			</div>
+
+			<div class="ptg-edit-actions">
+				<button type="button" class="ptg-btn-primary pt-btn-save-edit">저장</button>
+				<button type="button" class="ptg-btn-secondary pt-btn-cancel-edit">취소</button>
+			</div>
+		</div>
+		<?php
+		$html = ob_get_clean();
+		wp_send_json_success( $html );
+	}
+
+	/**
+	 * AJAX: 문제 업데이트 (Inline)
+	 */
+	public function ajax_update_question_inline() {
+		check_ajax_referer( 'wp_rest', 'security' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( '권한이 없습니다.' );
+		}
+
+		$question_id = isset( $_POST['question_id'] ) ? intval( $_POST['question_id'] ) : 0;
+		if ( ! $question_id ) {
+			wp_send_json_error( '잘못된 문제 ID입니다.' );
+		}
+
+		global $wpdb;
+		// 테이블 이름은 prefix 없이 사용 (다른 플러그인과 일관성 유지)
+		$table_name = 'ptgates_questions';
+
+		$content = isset( $_POST['content'] ) ? wp_kses_post( $_POST['content'] ) : '';
+		$explanation = isset( $_POST['explanation'] ) ? wp_kses_post( $_POST['explanation'] ) : '';
+
+		// 줄바꿈 제거 후 동그라미 숫자 앞에 줄바꿈 추가 (지문만)
+		$content = str_replace( array( "\r\n", "\r", "\n" ), '', $content );
+		$content = preg_replace( '/([①-⑳])/u', "\n$1", $content );
+		
+		// 해설은 줄바꿈만 제거하고 (오답해설) 앞에 줄바꿈 추가
+		// $explanation = str_replace( array( "\r\n", "\r", "\n" ), '', $explanation );
+		// $explanation = preg_replace( '/\s*(\(오답\s*해설\))/u', "\n$1", $explanation ); 
+
+		$data = array(
+			'content'     => $content,
+			'answer'      => isset( $_POST['answer'] ) ? sanitize_text_field( $_POST['answer'] ) : '',
+			'explanation' => $explanation,
+			'difficulty'  => isset( $_POST['difficulty'] ) ? intval( $_POST['difficulty'] ) : 2,
+			'is_active'   => isset( $_POST['is_active'] ) ? 1 : 0,
+			'updated_at'  => current_time( 'mysql' )
+		);
+
+		// 이미지 삭제 처리
+		if ( isset( $_POST['delete_image'] ) && $_POST['delete_image'] === '1' ) {
+			// 기존 이미지 정보 조회
+			$old_image = $wpdb->get_var( $wpdb->prepare( "SELECT question_image FROM {$table_name} WHERE question_id = %d", $question_id ) );
+			
+			if ( $old_image ) {
+				// 카테고리 정보 조회 (년도/회차)
+				$cat_info = $wpdb->get_row( $wpdb->prepare( "SELECT exam_year, exam_session FROM ptgates_categories WHERE question_id = %d LIMIT 1", $question_id ) );
+				
+				if ( $cat_info ) {
+					$upload_dir = wp_upload_dir();
+					$target_file = $upload_dir['basedir'] . '/ptgates-questions/' . $cat_info->exam_year . '/' . $cat_info->exam_session . '/' . $old_image;
+					
+					if ( file_exists( $target_file ) ) {
+						unlink( $target_file );
+					}
+				}
+				
+				$data['question_image'] = null; // DB에서 삭제
+			}
+		}
+
+		// 이미지 업로드 처리
+		if ( ! empty( $_FILES['question_image']['name'] ) ) {
+			$file = $_FILES['question_image'];
+			
+			// 파일 타입 검사
+			$allowed_types = array( 'image/jpeg', 'image/png', 'image/gif' );
+			if ( ! in_array( $file['type'], $allowed_types ) ) {
+				wp_send_json_error( '허용되지 않는 파일 형식입니다. (jpg, png, gif 만 가능)' );
+			}
+
+			// 카테고리 정보 조회 (년도/회차)
+			$cat_info = $wpdb->get_row( $wpdb->prepare( "SELECT exam_year, exam_session FROM ptgates_categories WHERE question_id = %d LIMIT 1", $question_id ) );
+			
+			if ( ! $cat_info ) {
+				wp_send_json_error( '문제의 카테고리 정보를 찾을 수 없어 이미지를 저장할 수 없습니다.' );
+			}
+
+			$upload_dir = wp_upload_dir();
+			$target_dir = $upload_dir['basedir'] . '/ptgates-questions/' . $cat_info->exam_year . '/' . $cat_info->exam_session;
+
+			// 디렉토리 생성
+			if ( ! file_exists( $target_dir ) ) {
+				if ( ! wp_mkdir_p( $target_dir ) ) {
+					wp_send_json_error( '업로드 디렉토리를 생성할 수 없습니다.' );
+				}
+			}
+
+			// 파일명 생성 (문제ID.확장자)
+			$ext = pathinfo( $file['name'], PATHINFO_EXTENSION );
+			$filename = $question_id . '.' . $ext;
+			$target_file = $target_dir . '/' . $filename;
+
+			// 파일 이동
+			if ( move_uploaded_file( $file['tmp_name'], $target_file ) ) {
+				$data['question_image'] = $filename;
+			} else {
+				wp_send_json_error( '파일 업로드에 실패했습니다.' );
+			}
+		}
+
+		$result = $wpdb->update( $table_name, $data, array( 'question_id' => $question_id ) );
+
+		if ( $result === false ) {
+			wp_send_json_error( '데이터베이스 업데이트 실패' );
+		}
+
+		wp_send_json_success( '저장되었습니다.' );
 	}
 }
 

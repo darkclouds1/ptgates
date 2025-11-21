@@ -100,6 +100,19 @@ class PTG_Platform {
         
         // 관리자 페이지에서 마이그레이션 수동 실행 (디버깅용)
         add_action('admin_init', array($this, 'maybe_run_migration_manually'));
+
+        // 로그인 시 멤버십 체크 및 생성
+        add_action('wp_login', array($this, 'check_and_create_member_on_login'), 10, 2);
+
+        // Trial 만료 체크 크론 이벤트 등록
+        if (!wp_next_scheduled('ptg_daily_trial_check')) {
+            wp_schedule_event(time(), 'daily', 'ptg_daily_trial_check');
+        }
+        add_action('ptg_daily_trial_check', array($this, 'check_trial_expiration'));
+        
+        // Ultimate Member 커스텀 로그인/로그아웃 페이지 적용 (인증 UI 일관성)
+        add_filter('login_url', array($this, 'custom_login_url'), 10, 2);
+        add_filter('logout_url', array($this, 'custom_logout_url'), 10, 2);
         
         // 디버깅: 플러그인 초기화 확인
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -246,9 +259,13 @@ class PTG_Platform {
         global $wpdb;
 
         $required_tables = array(
-            $wpdb->prefix . 'ptgates_user_states',
-            $wpdb->prefix . 'ptgates_user_notes',
-            $wpdb->prefix . 'ptgates_user_drawings',
+            'ptgates_user_states',
+            'ptgates_user_notes',
+            'ptgates_user_drawings',
+            'ptgates_user_member',
+            'ptgates_billing_history',
+            'ptgates_organization',
+            'ptgates_org_member_link',
         );
 
         $missing = false;
@@ -281,6 +298,153 @@ class PTG_Platform {
             }
         }
     }
+
+    /**
+     * 로그인 시 멤버십 레코드 확인 및 생성
+     * 
+     * @param string $user_login 사용자 로그인명
+     * @param WP_User $user 사용자 객체
+     */
+    public function check_and_create_member_on_login($user_login, $user) {
+        if (!isset($user->ID)) {
+            return;
+        }
+
+        $user_id = $user->ID;
+
+        // Repo 클래스가 로드되었는지 확인
+        if (!class_exists('\PTG\Platform\Repo')) {
+            return;
+        }
+
+        // 레코드 존재 여부 확인
+        $existing = \PTG\Platform\Repo::find_one('ptgates_user_member', array('user_id' => $user_id));
+
+        if (!$existing) {
+            $defaults = self::get_default_limits('trial');
+            
+            // 레코드가 없으면 생성 (기본값: trial)
+            $result = \PTG\Platform\Repo::insert(
+                'ptgates_user_member',
+                array(
+                    'user_id' => $user_id,
+                    'membership_source' => 'individual',
+                    'member_grade' => 'trial', // 기본 등급
+                    'billing_status' => 'active',
+                    'billing_expiry_date' => date('Y-m-d H:i:s', strtotime('+7 days')), // 7일 체험
+                    'exam_count_used' => 0,
+                    'exam_count_total' => $defaults['exam_count_total'],
+                    'study_count_used' => 0,
+                    'study_count_total' => $defaults['study_count_total'],
+                    'is_active' => 1
+                )
+            );
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if ($result) {
+                    error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드가 자동 생성되었습니다.");
+                } else {
+                    error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드 생성 실패.");
+                }
+            }
+        } else {
+            // 이미 존재하면 마지막 로그인 시간 업데이트 (선택 사항)
+            \PTG\Platform\Repo::update(
+                'ptgates_user_member',
+                array('last_login' => current_time('mysql')),
+                array('user_id' => $user_id)
+            );
+        }
+    }
+
+    /**
+     * Trial 만료 체크 및 Basic 전환 (Cron Job)
+     */
+    public function check_trial_expiration() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'ptgates_user_member';
+        
+        // 만료된 Trial 사용자 찾기
+        // member_grade = 'trial' AND billing_expiry_date < NOW()
+        $sql = "UPDATE $table_name 
+                SET member_grade = 'basic' 
+                WHERE member_grade = 'trial' 
+                AND billing_expiry_date < NOW() 
+                AND billing_expiry_date IS NOT NULL";
+                
+        $result = $wpdb->query($sql);
+        
+        if (defined('WP_DEBUG') && WP_DEBUG && $result !== false) {
+            error_log("[PTG Platform] Trial 만료 체크 완료. {$result}명의 사용자가 Basic으로 전환되었습니다.");
+        }
+    }
+
+    /**
+     * 커스텀 로그인 URL (Ultimate Member 페이지 사용)
+     * 
+     * @param string $login_url 기본 로그인 URL
+     * @param string $redirect 리다이렉트 URL
+     * @return string 커스텀 로그인 URL
+     */
+    public function custom_login_url($login_url, $redirect = '') {
+        // Ultimate Member 로그인 페이지 URL
+        $custom_login_page = home_url('/login/');
+        
+        // 리다이렉트 URL이 있으면 쿼리 파라미터로 추가
+        if (!empty($redirect)) {
+            $custom_login_page = add_query_arg('redirect_to', urlencode($redirect), $custom_login_page);
+        }
+        
+        return $custom_login_page;
+    }
+
+    /**
+     * 커스텀 로그아웃 URL (Ultimate Member 페이지 사용)
+     * 
+     * @param string $logout_url 기본 로그아웃 URL
+     * @param string $redirect 리다이렉트 URL
+     * @return string 커스텀 로그아웃 URL
+     */
+    public function custom_logout_url($logout_url, $redirect = '') {
+        // Ultimate Member 로그아웃 처리 후 홈으로
+        $custom_logout_url = home_url('/');
+        
+        if (!empty($redirect)) {
+            $custom_logout_url = add_query_arg('redirect_to', urlencode($redirect), $custom_logout_url);
+        }
+        
+        return $custom_logout_url;
+    }
+
+    /**
+     * 등급별 기본 한도 값 반환
+     * 
+     * @param string $grade 등급 (trial, basic, premium)
+     * @return array 한도 설정 (exam_count_total, study_count_total)
+     */
+    public static function get_default_limits($grade) {
+        // 나중에 설정 페이지에서 가져오도록 개선 가능
+        $defaults = array(
+            'trial' => array(
+                'exam_count_total' => 5, // 체험판 5회
+                'study_count_total' => 100
+            ),
+            'basic' => array(
+                'exam_count_total' => 1, // 누적 1회
+                'study_count_total' => 10
+            ),
+            'premium' => array(
+                'exam_count_total' => -1, // 무제한
+                'study_count_total' => -1
+            ),
+            'pt_admin' => array(
+                'exam_count_total' => -1,
+                'study_count_total' => -1
+            )
+        );
+        
+        return isset($defaults[$grade]) ? $defaults[$grade] : $defaults['basic'];
+    }
 }
 
 // 플러그인 초기화
@@ -307,4 +471,3 @@ function ptg_quiz_ui_template($args = array()) {
         error_log('[PTG Platform] 퀴즈 UI 템플릿을 찾을 수 없음: ' . $template_path);
     }
 }
-

@@ -3,429 +3,618 @@
  */
 
 .ptg-admin-error {
-	background-color: #fff3cd;
-	border: 1px solid #ffc107;
-	border-radius: 4px;
-	padding: 12px 16px;
-	margin: 16px 0;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 16px 0;
 }
 
 .ptg-admin-error p {
-	margin: 0;
-	color: #856404;
-	font-weight: 500;
+  margin: 0;
+  color: #856404;
+  font-weight: 500;
 }
 
 .ptg-admin-info {
-	background-color: #d1ecf1;
-	border: 1px solid #bee5eb;
-	border-radius: 4px;
-	padding: 12px 16px;
-	margin: 16px 0;
+  background-color: #d1ecf1;
+  border: 1px solid #bee5eb;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 16px 0;
 }
 
 .ptg-admin-info p {
-	margin: 0;
-	color: #0c5460;
+  margin: 0;
+  color: #0c5460;
 }
 
 /* 문제 목록 스타일 */
 .ptg-admin-list-container {
-	max-width: 1200px;
-	margin: 0 auto;
-	padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 .ptg-admin-list-header {
-	margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
 .ptg-admin-list-header h2 {
-	margin: 0 0 15px 0;
-	color: #333;
+  margin: 0 0 15px 0;
+  color: #333;
 }
 
 .ptg-admin-search-box {
-	display: flex;
-	gap: 10px;
-	margin-bottom: 15px;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
 }
 
 .ptg-admin-search-box input {
-	flex: 1;
-	padding: 8px 12px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	font-size: 14px;
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
 .ptg-admin-search-box button {
-	padding: 8px 16px;
-	border: 1px solid #0073aa;
-	border-radius: 4px;
-	background: #0073aa;
-	color: white;
-	cursor: pointer;
-	font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid #0073aa;
+  border-radius: 4px;
+  background: #0073aa;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .ptg-admin-search-box button:hover {
-	background: #005a87;
+  background: #005a87;
 }
 
 .ptg-admin-filter-box {
-	display: flex;
-	gap: 10px;
-	align-items: center;
-	margin-bottom: 15px;
-	flex-wrap: wrap;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
 }
 
 .ptg-admin-filter-box label {
-	font-weight: 500;
-	white-space: nowrap;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .ptg-admin-filter-box select {
-	padding: 6px 35px 6px 12px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	font-size: 14px;
-	background-color: white;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-	background-repeat: no-repeat;
-	background-position: right 12px center;
-	background-size: 12px;
-	appearance: none;
-	-moz-appearance: none;
-	-webkit-appearance: none;
-	min-width: 150px !important;
-	max-width: 150px !important;
-	width: 150px !important;
-	flex: 0 0 auto;
-	display: inline-block;
-	cursor: pointer;
-	box-sizing: border-box;
+  padding: 6px 35px 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  appearance: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  min-width: 150px !important;
+  max-width: 150px !important;
+  width: 150px !important;
+  flex: 0 0 auto;
+  display: inline-block;
+  cursor: pointer;
+  box-sizing: border-box;
 }
 
 .editable-session {
-	color: #0073aa;
-	font-weight: 600;
-	cursor: pointer;
-	display: inline-block;
-	padding: 2px 4px;
-	border: 1px solid transparent;
-	border-radius: 4px;
-	transition: border-color 0.2s, background-color 0.2s;
+  color: #0073aa;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-block;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 .editable-session:hover {
-	text-decoration: underline;
-	background-color: #eef6fb;
-	border-color: #b3d4f5;
+  text-decoration: underline;
+  background-color: #eef6fb;
+  border-color: #b3d4f5;
 }
 
 .editable-session.updating {
-	opacity: 0.6;
-	cursor: progress;
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .ptg-result-count {
-	margin-left: auto;
-	font-weight: 500;
-	color: #0073aa;
-	font-size: 14px;
-	padding: 4px 12px;
-	background: #e7f3ff;
-	border-radius: 4px;
+  margin-left: auto;
+  font-weight: 500;
+  color: #0073aa;
+  font-size: 14px;
+  padding: 4px 12px;
+  background: #e7f3ff;
+  border-radius: 4px;
 }
 
 .ptg-questions-list {
-	min-height: 200px;
+  min-height: 200px;
 }
 
 .ptg-loading {
-	text-align: center;
-	padding: 40px;
-	color: #666;
+  text-align: center;
+  padding: 40px;
+  color: #666;
 }
 
 .ptg-questions-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-	gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
 }
 
 .ptg-question-card {
-	border: 1px solid #ddd;
-	border-radius: 8px;
-	padding: 15px;
-	background: white;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .ptg-question-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: flex-start;
-	margin-bottom: 10px;
-	padding-bottom: 10px;
-	border-bottom: 1px solid #eee;
-	flex-wrap: wrap;
-	gap: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .ptg-question-id-info {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
 }
 
 .ptg-question-id-info strong {
-	color: #0073aa;
-	font-size: 16px;
+  color: #0073aa;
+  font-size: 16px;
 }
 
 .ptg-question-meta-info {
-	font-size: 12px;
-	color: #666;
-	font-weight: normal;
+  font-size: 12px;
+  color: #666;
+  font-weight: normal;
+  display: inline-block;
+}
+
+/* 이미지 표시 아이콘 */
+.ptg-image-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 16px;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: help;
 }
 
 .ptg-question-subjects,
 .ptg-question-subsubjects {
-	font-size: 12px;
-	color: #666;
-	background: #f0f0f0;
-	padding: 4px 8px;
-	border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .ptg-question-content {
-	margin-bottom: 15px;
+  margin-bottom: 15px;
 }
 
 .ptg-question-field {
-	margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .ptg-question-field label {
-	display: block;
-	font-weight: 500;
-	font-size: 12px;
-	color: #666;
-	margin-bottom: 4px;
+  display: block;
+  font-weight: 500;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
 }
 
 .ptg-question-text {
-	font-size: 14px;
-	color: #333;
-	line-height: 1.6;
-	white-space: pre-wrap;
-	word-break: break-word;
-	max-height: none;
-	overflow: visible;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: none;
+  overflow: visible;
+  /* 엔터(\n)를 줄바꿈으로 인식하면서, 가로폭이 넘치면 자동 줄바꿈됨 */
+  white-space: pre-wrap;
 }
 
 .ptg-question-meta {
-	display: flex;
-	gap: 15px;
-	font-size: 12px;
-	color: #666;
-	margin-top: 10px;
-	padding-top: 10px;
-	border-top: 1px solid #eee;
+  display: flex;
+  gap: 15px;
+  font-size: 12px;
+  color: #666;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
 }
 
 .ptg-question-actions {
-	text-align: right;
+  text-align: right;
 }
 
 .ptg-btn-edit {
-	padding: 6px 12px;
-	border: 1px solid #0073aa;
-	border-radius: 4px;
-	background: #0073aa;
-	color: white;
-	cursor: pointer;
-	font-size: 14px;
+  padding: 6px 12px;
+  border: 1px solid #0073aa;
+  border-radius: 4px;
+  background: #0073aa;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .ptg-btn-edit:hover {
-	background: #005a87;
+  background: #005a87;
 }
 
 /* 페이지네이션 */
 .ptg-pagination {
-	margin-top: 30px;
-	text-align: center;
+  margin-top: 30px;
+  text-align: center;
 }
 
 .ptg-pagination-controls {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	gap: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
 }
 
 .ptg-pagination-btn {
-	padding: 8px 16px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	background: white;
-	cursor: pointer;
-	font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
 }
 
-.ptg-pagination-btn:hover {
-	background: #f0f0f0;
-}
 
-/* 편집 모달 */
-.ptg-edit-modal {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: rgba(0,0,0,0.5);
-	z-index: 10000;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.ptg-edit-modal-content {
-	background: white;
-	border-radius: 8px;
-	width: 90%;
-	max-width: 800px;
-	max-height: 90vh;
-	overflow-y: auto;
-	box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-.ptg-edit-modal-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 20px;
-	border-bottom: 1px solid #ddd;
-}
-
-.ptg-edit-modal-header h3 {
-	margin: 0;
-	color: #333;
-}
-
-.ptg-edit-modal-close {
-	background: none;
-	border: none;
-	font-size: 28px;
-	cursor: pointer;
-	color: #666;
-	padding: 0;
-	width: 30px;
-	height: 30px;
-	line-height: 1;
-}
-
-.ptg-edit-modal-close:hover {
-	color: #000;
-}
-
-.ptg-edit-modal-body {
-	padding: 20px;
-}
 
 .ptg-edit-field {
-	margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
 .ptg-edit-field label {
-	display: block;
-	font-weight: 500;
-	margin-bottom: 8px;
-	color: #333;
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #333;
 }
 
 .ptg-edit-field input[type="text"],
 .ptg-edit-field textarea,
 .ptg-edit-field select {
-	width: 100%;
-	padding: 8px 12px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	font-size: 14px;
-	font-family: inherit;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
 }
 
 .ptg-edit-field textarea {
-	resize: vertical;
-	min-height: 100px;
+  resize: vertical;
+  min-height: 100px;
 }
 
 .ptg-edit-field input[type="checkbox"] {
-	width: auto;
-	margin-right: 8px;
+  width: auto;
+  margin-right: 8px;
 }
 
 .ptg-edit-modal-footer {
-	padding: 20px;
-	border-top: 1px solid #ddd;
-	display: flex;
-	justify-content: flex-end;
-	gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #ddd;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .ptg-btn-primary {
-	padding: 10px 20px;
-	border: none;
-	border-radius: 4px;
-	background: #0073aa;
-	color: white;
-	cursor: pointer;
-	font-size: 14px;
-	font-weight: 500;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #0073aa;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .ptg-btn-primary:hover {
-	background: #005a87;
+  background: #005a87;
 }
 
 .ptg-btn-secondary {
-	padding: 10px 20px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	background: white;
-	color: #333;
-	cursor: pointer;
-	font-size: 14px;
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .ptg-btn-secondary:hover {
-	background: #f0f0f0;
+  background: #f0f0f0;
 }
 
 /* 반응형 */
 @media (max-width: 768px) {
-	.ptg-questions-grid {
-		grid-template-columns: 1fr;
-	}
-	
-	.ptg-admin-search-box {
-		flex-direction: column;
-	}
-	
-	.ptg-admin-filter-box {
-		flex-direction: column;
-		align-items: flex-start;
-	}
-	
-	.ptg-edit-modal-content {
-		width: 95%;
-		max-height: 95vh;
-	}
+  .ptg-questions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ptg-admin-search-box {
+    flex-direction: column;
+  }
+
+  .ptg-admin-filter-box {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ptg-edit-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
 }
 
+/* 통계 대시보드 스타일 */
+.ptg-admin-stats-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.ptg-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.ptg-stat-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.ptg-stat-card h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.ptg-stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #0073aa;
+}
+
+.ptg-stat-value.small {
+  font-size: 14px;
+  color: #666;
+  font-weight: normal;
+}
+
+.ptg-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+.ptg-stats-section {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ptg-stats-section h3 {
+  margin: 0 0 20px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  color: #333;
+  font-size: 16px;
+}
+
+.ptg-stats-table-container {
+  overflow-x: auto;
+}
+
+.ptg-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ptg-stats-table th,
+.ptg-stats-table td {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+.ptg-stats-table th {
+  background: #f9f9f9;
+  font-weight: 600;
+  color: #555;
+}
+
+.ptg-stats-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.ptg-stats-controls select {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.ptg-btn-small {
+  padding: 6px 12px;
+  border: 1px solid #0073aa;
+  border-radius: 4px;
+  background: #0073aa;
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ptg-btn-small:hover {
+  background: #005a87;
+}
+
+.ptg-chart-container {
+  min-height: 200px;
+}
+
+.ptg-chart-placeholder {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
+}
+
+/* 바 차트 스타일 */
+.ptg-bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.ptg-chart-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.ptg-chart-label {
+  width: 120px;
+  font-size: 13px;
+  color: #333;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ptg-chart-bar-wrap {
+  flex: 1;
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+.ptg-chart-total {
+  margin-top: 20px;
+  text-align: right;
+  font-weight: bold;
+  color: #666;
+}
+
+/* Inline Edit Form */
+.ptg-inline-edit-form {
+    background: #f9f9f9;
+    border: 1px solid #0073aa;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.ptg-edit-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.ptg-edit-field.half {
+    flex: 1;
+}
+
+.ptg-edit-field.checkbox-field {
+    display: flex;
+    align-items: center;
+    padding-top: 25px; /* Align with input */
+}
+
+.ptg-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+
+/* Image Preview */
+.ptg-image-preview-container {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    text-align: center;
+}
+
+.ptg-image-preview {
+    max-width: 100%;
+    max-height: 300px;
+    height: auto;
+    border: 1px solid #eee;
+    margin-bottom: 5px;
+}
+
+.ptg-image-filename {
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.ptg-btn-delete-image {
+    padding: 4px 8px;
+    border: 1px solid #dc3232;
+    border-radius: 4px;
+    background: #fff;
+    color: #dc3232;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.ptg-btn-delete-image:hover {
+    background: #dc3232;
+    color: #fff;
+}

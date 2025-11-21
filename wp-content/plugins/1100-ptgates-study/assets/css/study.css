@@ -7,13 +7,13 @@
 
 .ptg-course-categories {
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 항상 3열 그리드 */
+    grid-template-columns: repeat(3, 1fr);
     gap: 24px;
 }
 
 @media (max-width: 768px) {
     .ptg-course-categories {
-        grid-template-columns: 1fr; /* 모바일에서는 1열 */
+        grid-template-columns: 1fr;
     }
 }
 
@@ -55,11 +55,11 @@
 
 .ptg-subject-list {
     list-style: none;
-    padding: 1px 1px 1px 1px; /* 아래쪽 패딩 추가 */
+    padding: 1px 1px 1px 1px;
     margin: 0;
     display: flex;
-    flex-wrap: wrap; /* 내용이 넘치면 다음 줄로 */
-    gap: 12px; /* 아이템 간 간격 */
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
 @media (max-width: 768px) {
@@ -69,8 +69,6 @@
     }
 }
 
-/* 스크롤바 스타일 제거 */
-
 .ptg-subject-item {
     background-color: #f1f5f9;
     padding: 8px 16px;
@@ -78,7 +76,6 @@
     cursor: pointer;
     transition: background-color 0.2s, color 0.2s;
     font-size: 0.875rem;
-    /* margin-right 제거 (gap으로 대체) */
     flex-shrink: 0;
 }
 
@@ -110,7 +107,6 @@
     font-size: 0.85rem;
 }
 
-/* 학습 내용 보기 (문제 목록) */
 .ptg-lesson-view {
     padding: 20px;
 }
@@ -144,20 +140,632 @@
     margin: 0 0 16px 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
 }
 
 .ptg-question-option {
     background-color: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 4px 10px;
     font-size: 0.95rem;
-    line-height: 1.5;
+    line-height: 1.4;
+}
+
+.ptg-lesson-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.ptg-lesson-header-row h2 {
+    margin: 0;
+}
+
+.ptg-random-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ptg-random-toggle input[type="checkbox"] {
+    cursor: pointer;
 }
 
 .ptg-lesson-answer-area {
     margin-top: 20px;
     padding-top: 20px;
     border-top: 1px dashed #e2e8f0;
+}
+
+.ptg-lesson-answer-area .answer-content {
+    margin-top: 16px !important;
+    padding: 16px 20px !important;
+    background-color: #f8f9fa !important;
+    border-radius: 8px !important;
+    border: 1px solid #e9ecef !important;
+}
+
+.ptg-lesson-answer-area .answer-content p {
+    margin: 0 0 12px 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content p:last-child {
+    margin-bottom: 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content hr {
+    margin: 12px 0 !important;
+    border: none !important;
+    border-top: 1px solid #dee2e6 !important;
+}
+
+/* Contextual Action Button */
+.ptg-contextual-action-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #666;
+    font-size: 20px;
+    margin-left: 12px;
+}
+
+.ptg-contextual-action-btn:hover {
+    background: #f5f5f5;
+    border-color: #999;
+    color: #333;
+}
+
+/* Question Toolbar */
+.ptg-question-toolbar {
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    display: none;
+}
+
+.ptg-question-toolbar .ptg-toolbar-icons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+/* Toolbar Icon Buttons */
+.ptg-btn-icon {
+    background: transparent;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    font-size: 20px;
+    transition: color 0.2s, background-color 0.2s;
+    border-radius: 4px;
+    color: #333;
+    outline: none;
+}
+
+.ptg-btn-icon:hover {
+    color: #d63638;
+    background-color: #fcd5d5;
+}
+
+.ptg-btn-icon.active {
+    color: #0073aa;
+    background-color: #b3d9e8;
+}
+
+.ptg-btn-icon.active:hover {
+    color: #005a87;
+    background-color: #99cce0;
+}
+
+/* 학습 Tip 모달 */
+.ptg-study-tip-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.ptg-study-tip-modal.is-open {
+    display: flex;
+}
+
+.ptg-study-tip-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.ptg-study-tip-dialog {
+    position: relative;
+    width: min(900px, calc(100% - 40px));
+    max-height: 90vh;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: ptg-quiz-tip-modal-fade-in 0.3s ease;
+}
+
+.ptg-study-tip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    min-height: 72px;
+    box-sizing: border-box;
+}
+
+.ptg-study-tip-header h3 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.ptg-study-tip-close {
+    background: #ffffff;
+    border: none;
+    color: #1d3f7c;
+    font-size: 26px;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    padding: 0;
+    line-height: 1;
+}
+
+.ptg-study-tip-close span {
+    pointer-events: none;
+}
+
+.ptg-study-tip-close:hover {
+    background: #f0f4ff;
+    color: #0f2a57;
+    transform: scale(1.05);
+}
+
+.ptg-study-tip-close:focus-visible {
+    outline: 3px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+.ptg-study-tip-body {
+    padding: 30px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ptg-study-tip-section {
+    margin-bottom: 30px;
+}
+
+.ptg-study-tip-section:last-child {
+    margin-bottom: 0;
+}
+
+.ptg-study-tip-section h4 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    border-bottom: 2px solid #4a90e2;
+    padding-bottom: 8px;
+}
+
+.ptg-study-tip-list {
+    list-style: none;
+    margin: 10px 0;
+    padding: 0;
+}
+
+.ptg-study-tip-list li {
+    margin-bottom: 10px;
+    padding-left: 24px;
+    position: relative;
+    color: #555;
+    line-height: 1.6;
+    font-size: 15px;
+}
+
+.ptg-study-tip-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #4a90e2;
+    font-weight: 700;
+}
+
+.ptg-study-tip-list--sub li {
+    color: #444;
+    font-size: 14px;
+}
+
+.ptg-tip-block {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.ptg-tip-block:last-child {
+    margin-bottom: 0;
+}
+
+.ptg-tip-block h5 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.ptg-tip-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.ptg-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid #dbeafe;
+}
+
+@keyframes ptg-quiz-tip-modal-fade-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (max-width: 768px) {
+    .ptg-study-tip-body {
+        padding: 24px 20px;
+    }
+
+    .ptg-study-tip-header {
+        padding: 20px;
+    }
+}
+.ptg-header-row { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.ptg-header-row h2, .ptg-header-row h3 { margin: 0; }
+
+/* Memo Tool Area */
+/* Memo Tool Area */
+.memo-toggle-area {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.memo-input {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    resize: vertical;
+    margin-bottom: 0;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.memo-input:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.memo-input:disabled {
+    background-color: #f7fafc;
+    cursor: not-allowed;
+}
+
+.memo-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 8px;
+    min-height: 20px;
+}
+
+.memo-save-status {
+    font-size: 0.85rem;
+    font-weight: 500;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.memo-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Modal Styles (for Memo and Flashcard) */
+.ptg-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: none;
+}
+
+.ptg-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(3px);
+}
+
+.ptg-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    animation: ptg-modal-fade-in 0.3s ease;
+}
+
+@keyframes ptg-modal-fade-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -45%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.ptg-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: #fff;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.ptg-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.ptg-modal-close {
+    background: #fff;
+    border: none;
+    color: #1d3f7c;
+    font-size: 28px;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ptg-modal-close:hover {
+    background: #f0f4ff;
+    transform: scale(1.1);
+}
+
+.ptg-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ptg-modal-body textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ptg-modal-body textarea:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.ptg-modal-body .form-group {
+    margin-bottom: 16px;
+}
+
+.ptg-modal-body .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.ptg-modal-body .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.ptg-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+/* Button Styles */
+.ptg-btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    outline: none;
+}
+
+.ptg-btn-primary {
+    background: #4a90e2;
+    color: #fff;
+    border: 1px solid #4a90e2;
+}
+
+.ptg-btn-primary:hover {
+    background: #357abd;
+    border-color: #357abd;
+}
+
+.ptg-btn-secondary {
+    background: #fff;
+    color: #333;
+    border: 1px solid #cbd5e0;
+}
+
+.ptg-btn-secondary:hover {
+    background: #f7fafc;
+    border-color: #a0aec0;
+}
+
+.ptg-btn-tertiary {
+    background: transparent;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.ptg-btn-tertiary:hover {
+    background: #f5f5f5;
+    border-color: #999;
+}
+
+@media (max-width: 768px) {
+    .ptg-modal-content {
+        width: 95%;
+        max-height: 85vh;
+    }
+    
+    .ptg-modal-header,
+    .ptg-modal-body,
+    .ptg-modal-footer {
+        padding: 16px;
+    }
+}
+
+/* Toolbar Icon Active States */
+.ptg-toolbar-btn .ptg-toolbar-icon {
+    transition: all 0.2s ease;
+}
+
+.ptg-toolbar-btn.is-active .ptg-toolbar-icon {
+    background-color: #FFEB3B; /* Default highlight */
+    color: #000;
+    border-color: #FBC02D;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Specific colors for different actions */
+.ptg-toolbar-btn[data-action="bookmark"].is-active .ptg-toolbar-icon {
+    background-color: #FFF9C4; /* Yellow */
+    color: #FBC02D;
+    border-color: #FBC02D;
+}
+
+.ptg-toolbar-btn[data-action="review"].is-active .ptg-toolbar-icon {
+    background-color: #FFEBEE; /* Red */
+    color: #E53935;
+    border-color: #EF5350;
+}
+
+.ptg-toolbar-btn[data-action="memo"].is-active .ptg-toolbar-icon {
+    background-color: #E3F2FD; /* Blue */
+    color: #1E88E5;
+    border-color: #42A5F5;
+}
+
+.ptg-toolbar-btn[data-action="flashcard"].is-active .ptg-toolbar-icon {
+    background-color: #E8F5E9; /* Green */
+    color: #43A047;
+    border-color: #66BB6A;
 }

@@ -525,15 +525,17 @@
         let html = `
             <div class="ptg-lesson-view">
                 <button id="back-to-courses" class="ptg-btn ptg-btn-secondary">&laquo; 과목 목록으로 돌아가기</button>
-                <h2>${escapeHtml(heading)}</h2>
-                ${(!isCategory && subjectId) ? `
-                    <div class="ptg-random-toggle-wrapper">
-                        <label class="ptg-random-toggle">
-                            <input type="checkbox" id="ptg-random-toggle" ${isRandom ? 'checked' : ''}>
-                            <span>랜덤 섞기</span>
-                        </label>
-                    </div>
-                ` : ''}
+                <div class="ptg-lesson-header" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                    <h3 style="margin: 0;">${escapeHtml(heading)}</h3>
+                    ${(!isCategory && subjectId) ? `
+                        <div class="ptg-random-toggle-wrapper">
+                            <label class="ptg-random-toggle">
+                                <input type="checkbox" id="ptg-random-toggle" ${isRandom ? 'checked' : ''}>
+                                <span>랜덤 섞기</span>
+                            </label>
+                        </div>
+                    ` : ''}
+                </div>
         `;
 
         if (isCategory && Array.isArray(courseDetail.subjects) && courseDetail.subjects.length > 0) {
@@ -549,25 +551,39 @@
         lessons.forEach(function(lesson, index) {
             const questionHtml = renderQuestionFromUI(lesson, index + 1);
 
+
             // 해설에 표시할 세부과목명 결정: 우선 응답의 category.subject, 없으면 현재 과목 제목 사용
             const explanationSubject = (lesson.category && lesson.category.subject)
                 ? lesson.category.subject
                 : subjectTitle;
+
+            // 이미지 URL 구성 (year, session은 lesson.category에서 가져오기)
+            let imageUrl = '';
+            if (lesson.question_image && lesson.category) {
+                const year = lesson.category.year || '';
+                const session = lesson.category.session || '';
+                if (year && session) {
+                    imageUrl = `/wp-content/uploads/ptgates-questions/${year}/${session}/${lesson.question_image}`;
+                }
+            }
 
             html += `
                 <div class="ptg-lesson-item ptg-quiz-card" data-lesson-id="${escapeHtml(lesson.id)}">
                     ${questionHtml}
                     <div class="ptg-lesson-answer-area">
                         <button class="toggle-answer ptg-btn ptg-btn-primary">정답 및 해설 보기</button>
+                        ${lesson.question_image ? '<button class="toggle-answer-img ptg-btn ptg-btn-primary">학습 이미지</button>' : ''}
                         <div class="answer-content" style="display: none;">
                             <p><strong>정답:</strong> ${escapeHtml(lesson.answer)}</p>
                             <hr>
-                            <p><strong>해설 (${escapeHtml(explanationSubject)}):</strong></p>
+                            <p><strong>해설 (${escapeHtml(explanationSubject)}) - quiz-ID: ${escapeHtml(lesson.id)}</strong></p>
 							<div>${lesson.explanation ? formatExplanationText(lesson.explanation) : '해설이 없습니다.'}</div>
                         </div>
+                        ${imageUrl ? `<div class="question-image-content" style="display: none;"><img src="${imageUrl}" alt="문제 이미지" style="max-width: 100%; height: auto;" /></div>` : ''}
                     </div>
                 </div>
             `;
+
         });
 
         html += '</div>';
@@ -611,6 +627,9 @@
         });
         $('.toggle-answer').on('click', function() {
             $(this).siblings('.answer-content').slideToggle();
+        });
+        $('.toggle-answer-img').on('click', function() {
+            $(this).siblings('.question-image-content').slideToggle();
         });
 
         // 랜덤 섞기 토글 (단일 세부과목에서만 표시)

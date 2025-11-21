@@ -1,0 +1,121 @@
+/* Flashcards Modal */
+.ptg-flashcard-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: none;
+}
+
+.ptg-flashcard-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.ptg-flashcard-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ptg-flashcard-modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+}
+
+.ptg-flashcard-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.ptg-flashcard-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    color: #999;
+}
+
+.ptg-flashcard-modal-close:hover {
+    color: #333;
+}
+
+.ptg-flashcard-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+.ptg-form-group {
+    margin-bottom: 15px;
+}
+
+.ptg-form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+    font-size: 14px;
+}
+
+.ptg-form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.ptg-form-group textarea:focus {
+    border-color: #0066cc;
+    outline: none;
+}
+
+.ptg-form-actions {
+    margin-top: 20px;
+    text-align: right;
+}
+
+.ptg-form-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.ptg-btn-primary {
+    background-color: #0066cc;
+    color: #fff;
+}
+
+.ptg-btn-primary:hover {
+    background-color: #0052a3;
+}

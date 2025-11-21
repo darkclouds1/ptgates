@@ -1,0 +1,127 @@
+<?php
+/**
+ * Plugin Name: PTGates Flashcards
+ * Description: PTGates 암기카드 - 문제 참조 방식의 암기카드 및 SM-lite 반복 학습
+ * Version: 1.0.0
+ * Author: PTGates
+ * Requires Plugins: 0000-ptgates-platform
+ * 
+ * Shortcode: [ptg_flash]
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+final class PTG_Flashcards_Plugin {
+
+	private static $instance = null;
+
+	public static function get_instance() {
+		if ( is_null( self::$instance ) ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
+	private function __construct() {
+		register_activation_hook( __FILE__, [ $this, 'activate' ] );
+		
+		add_action( 'rest_api_init', [ $this, 'init_rest_api' ] );
+		add_action( 'init', [ $this, 'register_shortcode' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+	}
+
+	public function activate() {
+		require_once plugin_dir_path( __FILE__ ) . 'includes/class-migration.php';
+		\PTG\Flashcards\Migration::run_migrations();
+	}
+
+	public function init_rest_api() {
+		require_once plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+
+		if ( class_exists( '\PTG\Flashcards\API' ) ) {
+			\PTG\Flashcards\API::register_routes();
+		}
+	}
+
+	public function register_shortcode() {
+		add_shortcode( 'ptg_flash', [ $this, 'render_shortcode' ] );
+	}
+
+	public function enqueue_assets() {
+		global $post;
+		if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_flash' ) ) {
+			// CSS (Placeholder)
+			// wp_enqueue_style(...)
+		}
+	}
+
+	public function render_shortcode( $atts ) {
+		$atts = shortcode_atts(
+			[
+				'mode' => 'list', // list, review
+				'set_id' => null,
+			],
+			$atts,
+			'ptg_flash'
+		);
+
+		$plugin_url   = plugin_dir_url( __FILE__ );
+		$platform_url = plugins_url( '0000-ptgates-platform/assets/js/platform.js' );
+		$flash_js     = $plugin_url . 'assets/js/flashcards.js';
+		$rest_url     = esc_url_raw( rest_url( 'ptg-flash/v1/' ) );
+		$nonce        = wp_create_nonce( 'wp_rest' );
+		
+		// Inline Loader Script
+		$loader_script = sprintf(
+			'<script id="ptg-flash-loader">
+			(function(d){
+				var cfg=d.defaultView||window;
+				cfg.ptgFlash=cfg.ptgFlash||{};
+				cfg.ptgFlash.restUrl=%1$s;
+				cfg.ptgFlash.nonce=%2$s;
+				
+				var queue=[
+					{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},
+					{check:function(){return typeof cfg.PTGFlash!=="undefined";},url:%4$s}
+				];
+				
+				function load(i){
+					if(i>=queue.length)return;
+					var item=queue[i];
+					if(item.check()){load(i+1);return;}
+					var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');
+					if(existing){existing.addEventListener("load",function(){load(i+1);});return;}
+					var s=d.createElement("script");
+					s.src=item.url;
+					s.async=false;
+					s.setAttribute("data-ptg-src",item.url);
+					s.onload=function(){load(i+1);};
+					(d.head||d.body||d.documentElement).appendChild(s);
+				}
+				if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}
+			})(document);
+			</script>',
+			wp_json_encode( $rest_url ),
+			wp_json_encode( $nonce ),
+			wp_json_encode( $platform_url ),
+			wp_json_encode( $flash_js )
+		);
+
+		ob_start();
+		
+		// Include template
+		$template_path = plugin_dir_path( __FILE__ ) . 'templates/flashcards-template.php';
+		if ( file_exists( $template_path ) ) {
+			include $template_path;
+		} else {
+			echo '<div id="ptg-flash-app">Template not found.</div>';
+		}
+
+		echo $loader_script; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		return ob_get_clean();
+	}
+}
+
+PTG_Flashcards_Plugin::get_instance();

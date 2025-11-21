@@ -50,6 +50,18 @@ class Migration {
         
         // 8. 모의고사 프리셋 테이블
         self::create_exam_presets_table($charset_collate);
+
+        // 9. 개인/기관 멤버십 현황 테이블
+        self::create_user_member_table($charset_collate);
+
+        // 10. 결제 이력 테이블
+        self::create_billing_history_table($charset_collate);
+
+        // 11. B2B 기관/학과 정보 테이블
+        self::create_organization_table($charset_collate);
+
+        // 12. 기관-사용자 연결 테이블
+        self::create_org_member_link_table($charset_collate);
         
         // 디버깅: 마이그레이션 완료 로그
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -63,7 +75,7 @@ class Migration {
     private static function create_exam_sessions_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_exam_sessions';
+        $table_name = 'ptgates_exam_sessions';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `session_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -92,8 +104,8 @@ class Migration {
     private static function create_exam_session_items_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_exam_session_items';
-        $sessions_table = $wpdb->prefix . 'ptgates_exam_sessions';
+        $table_name = 'ptgates_exam_session_items';
+        $sessions_table = 'ptgates_exam_sessions';
         // 레거시 문제 테이블은 prefix 없이 고정
         $questions_table = 'ptgates_questions';
         
@@ -124,7 +136,7 @@ class Migration {
     private static function create_user_states_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_user_states';
+        $table_name = 'ptgates_user_states';
         // 레거시 문제 테이블은 prefix 없이 고정
         $questions_table = 'ptgates_questions';
         
@@ -152,7 +164,7 @@ class Migration {
     private static function create_user_notes_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_user_notes';
+        $table_name = 'ptgates_user_notes';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `note_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -176,7 +188,7 @@ class Migration {
     private static function create_user_drawings_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_user_drawings';
+        $table_name = 'ptgates_user_drawings';
         
         // 외래키 제약 조건 없이 테이블 생성 (외래키는 나중에 추가 가능)
         // 외래키 제약 조건이 테이블 생성 실패의 원인이 될 수 있으므로 제거
@@ -339,7 +351,7 @@ class Migration {
     private static function create_review_schedule_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_review_schedule';
+        $table_name = 'ptgates_review_schedule';
         // 레거시 테이블은 prefix 없이 고정
         $questions_table = 'ptgates_questions';
         $results_table = 'ptgates_user_results';
@@ -372,7 +384,7 @@ class Migration {
     private static function create_highlights_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_highlights';
+        $table_name = 'ptgates_highlights';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `highlight_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -395,7 +407,7 @@ class Migration {
     private static function create_exam_presets_table($charset_collate) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'ptgates_exam_presets';
+        $table_name = 'ptgates_exam_presets';
         
         $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
             `preset_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -407,6 +419,125 @@ class Migration {
             KEY `idx_user_title` (`user_id`,`title`)
         ) {$charset_collate};";
         
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * 개인/기관 멤버십 현황 테이블 생성
+     */
+    private static function create_user_member_table($charset_collate) {
+        global $wpdb;
+
+        $table_name = 'ptgates_user_member';
+
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `user_id` bigint(20) unsigned NOT NULL,
+            `membership_source` varchar(20) NOT NULL DEFAULT 'individual' COMMENT '멤버십 획득 경로 (individual, b2b)',
+            `org_id` bigint(20) unsigned NULL COMMENT '소속된 기관의 org_id (b2b 멤버십인 경우)',
+            `member_grade` varchar(50) NOT NULL DEFAULT 'basic' COMMENT '회원의 현재 멤버십 등급 (basic, premium, trial 등)',
+            `billing_status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '결제 상태 (active, expired, pending, cancelled)',
+            `billing_expiry_date` datetime NULL COMMENT '멤버십 만료일',
+            `total_payments_krw` decimal(10, 2) NOT NULL DEFAULT 0.00 COMMENT '누적 결제 금액',
+            `exam_count_total` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '총 생성 가능한 모의고사 횟수',
+            `exam_count_used` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '사용한 모의고사 횟수',
+            `study_count_total` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '총 학습 가능한 횟수 또는 시간 (플랜에 따라 정의)',
+            `study_count_used` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '사용한 학습 횟수',
+            `last_login` datetime NULL COMMENT '마지막 플러그인 학습/접속 시간',
+            `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '계정 활성화 상태 (1=활성, 0=비활성/정지)',
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `user_id` (`user_id`),
+            KEY `member_grade_status` (`member_grade`, `billing_status`),
+            KEY `org_id_idx` (`org_id`)
+        ) {$charset_collate};";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * 결제 이력 테이블 생성
+     */
+    private static function create_billing_history_table($charset_collate) {
+        global $wpdb;
+
+        $table_name = 'ptgates_billing_history';
+
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `user_id` bigint(20) unsigned NOT NULL COMMENT '결제 행위를 수행한 사용자 ID (개인 또는 기관 담당자)',
+            `order_id` varchar(100) NOT NULL COMMENT '결제 시스템(PG사)의 고유 주문 번호',
+            `pg_transaction_id` varchar(100) NULL COMMENT 'PG사에서 부여한 실제 거래 ID (영수증 ID)',
+            `transaction_type` varchar(50) NOT NULL COMMENT '트랜잭션 유형 (purchase, renewal, refund, cancellation 등)',
+            `product_name` varchar(255) NOT NULL COMMENT '결제한 상품/멤버십 이름',
+            `payment_method` varchar(50) NOT NULL COMMENT '결제 수단 (card, transfer, kakao/naverpay 등)',
+            `amount` decimal(10, 2) NOT NULL COMMENT '결제 금액',
+            `currency` varchar(10) NOT NULL DEFAULT 'KRW',
+            `status` varchar(20) NOT NULL COMMENT '결제 처리 상태 (paid, failed, refunded, pending)',
+            `transaction_date` datetime NOT NULL COMMENT '결제 또는 트랜잭션 발생 시점',
+            `memo` text NULL COMMENT '관리자용 특이사항 메모',
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `order_id_unique` (`order_id`),
+            KEY `user_id` (`user_id`),
+            KEY `transaction_date` (`transaction_date`)
+        ) {$charset_collate};";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * B2B 기관/학과 정보 테이블 생성
+     */
+    private static function create_organization_table($charset_collate) {
+        global $wpdb;
+
+        $table_name = 'ptgates_organization';
+
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `org_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `org_name` varchar(255) NOT NULL COMMENT '기관/학과 공식 명칭',
+            `contact_user_id` bigint(20) unsigned NULL COMMENT '기관 담당 관리자의 wp_users.ID',
+            `org_email` varchar(100) NULL,
+            `org_type` varchar(50) NOT NULL DEFAULT 'university' COMMENT '기관 유형 (university, school, company 등)',
+            `member_limit` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '허용된 최대 등록 학생/사용자 수',
+            `members_registered` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '현재 등록된 학생/사용자 수',
+            `billing_plan` varchar(50) NOT NULL COMMENT '기관에 적용된 B2B 멤버십 플랜',
+            `plan_expiry_date` datetime NULL COMMENT '기관 멤버십 만료일',
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`org_id`),
+            UNIQUE KEY `org_name` (`org_name`),
+            KEY `contact_user_id` (`contact_user_id`)
+        ) {$charset_collate};";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * 기관-사용자 연결 테이블 생성
+     */
+    private static function create_org_member_link_table($charset_collate) {
+        global $wpdb;
+
+        $table_name = 'ptgates_org_member_link';
+
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `org_id` bigint(20) unsigned NOT NULL,
+            `user_id` bigint(20) unsigned NOT NULL,
+            `assignment_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '기관 멤버십에 할당된 시점',
+            `expiry_date` datetime NULL COMMENT 'B2B 혜택 만료일 (사용자별)',
+            `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '현재 B2B 혜택 적용 여부',
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `org_user_unique` (`org_id`, `user_id`),
+            KEY `user_id` (`user_id`)
+        ) {$charset_collate};";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
     }

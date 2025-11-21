@@ -16,9 +16,14 @@ if (!defined('ABSPATH')) {
 class Repo {
     
     /**
-     * 테이블 이름 접두사 (wpdb prefix 포함)
+     * 테이블 이름 접두사
+     * ptgates_로 시작하는 테이블은 prefix 없이 사용
      */
     private static function get_table_name($table) {
+        // ptgates_로 시작하는 테이블은 prefix 없이 사용
+        if (strpos($table, 'ptgates_') === 0) {
+            return $table;
+        }
         global $wpdb;
         return $wpdb->prefix . $table;
     }

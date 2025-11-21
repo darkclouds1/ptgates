@@ -39,7 +39,8 @@ $platform_tables = array(
 
 // 테이블 삭제 (CASCADE로 인해 외래키가 있는 테이블도 자동 삭제됨)
 foreach ($platform_tables as $table) {
-    $table_name = $wpdb->prefix . $table;
+    // ptgates_ 테이블은 prefix 없이 사용
+    $table_name = $table;
     $wpdb->query("DROP TABLE IF EXISTS `{$table_name}`");
 }
 

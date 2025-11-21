@@ -991,6 +991,22 @@ function process_csv_import($wpdb) {
             }
             
             $explanation = !empty($data['explanation']) ? $data['explanation'] : null;
+
+            // Explanation cleanup logic
+            if ($explanation) {
+                // 1. Replace _x000D_ with \n
+                $explanation = str_replace('_x000D_', "\n", $explanation);
+
+                // 2. Normalize newlines (\r\n, \r -> \n)
+                $explanation = str_replace(array("\r\n", "\r"), "\n", $explanation);
+
+                // 3. Ensure (오답 해설) is on a new line if it's not at the start
+                $explanation = preg_replace('/(?<!\n)\s*(\(오답 해설\))/u', "\n$1", $explanation);
+                
+                // Optional: Trim extra whitespace
+                $explanation = trim($explanation);
+            }
+
             $type = !empty($data['type']) ? trim($data['type']) : '객관식';
             if (!in_array($type, array('객관식', '주관식', '서술형'))) {
                 $type = '객관식';
@@ -1155,6 +1171,41 @@ function process_csv_import($wpdb) {
         $wpdb->query('COMMIT');
         $log[] = "✅ 성공적으로 {$import_count}개의 문제를 삽입했습니다!";
         $log[] = "완료 시간: " . date('Y-m-d H:i:s');
+        
+        // 자동 데이터 정리
+        $log[] = "🔧 데이터 정리 중...";
+        
+        // 1. 문제 앞의 숫자 + 점(".") 제거
+        $number_cleaned = $wpdb->query(
+            "UPDATE {$questions_table} 
+             SET content = REGEXP_REPLACE(content, '^[0-9]+\\\\.\\\\s*', '')
+             WHERE content REGEXP '^[0-9]+\\\\.'"
+        );
+        
+        if ($number_cleaned !== false && $number_cleaned > 0) {
+            $log[] = "✅ {$number_cleaned}개 문제의 앞 번호를 제거했습니다.";
+        }
+        
+        // 2. content 필드 정리 (_x000D_ 및 \r\n 제거)
+        $content_cleaned = $wpdb->query(
+            "UPDATE {$questions_table} 
+             SET content = REPLACE(REPLACE(content, '_x000D_', '\n'), '\r\n', '\n')
+             WHERE content LIKE '%_x000D_%' OR content LIKE '%\r\n%'"
+        );
+        
+        // 3. explanation 필드 정리
+        $explanation_cleaned = $wpdb->query(
+            "UPDATE {$questions_table} 
+             SET explanation = REPLACE(REPLACE(explanation, '_x000D_', '\n'), '\r\n', '\n')
+             WHERE explanation LIKE '%_x000D_%' OR explanation LIKE '%\r\n%'"
+        );
+        
+        $total_cleaned = ($content_cleaned !== false ? $content_cleaned : 0) + ($explanation_cleaned !== false ? $explanation_cleaned : 0);
+        if ($total_cleaned > 0) {
+            $log[] = "✅ {$total_cleaned}개 레코드의 특수문자를 정리했습니다.";
+        } else {
+            $log[] = "✅ 정리할 특수문자가 없습니다.";
+        }
         
         // 마지막 업로드 파일 정보를 세션에 저장
         $_SESSION['last_uploaded_file'] = array(
@@ -2436,6 +2487,32 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 </ul>
             </div>
         </div>
+        
+        <!-- CSV/Excel 파일 업로드 섹션 -->
+        <div class="upload-section">
+            <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">📁 CSV/Excel 파일 업로드</h3>
+            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                CSV 파일 또는 Excel 파일(.xlsx, .xls)을 업로드할 수 있습니다. Excel 파일은 자동으로 CSV로 변환됩니다.
+            </p>
+            <div class="file-input-wrapper">
+                <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" />
+                <label for="csvFile" class="file-label">📁 CSV/Excel 파일 선택</label>
+            </div>
+            <div class="file-name" id="fileName">파일을 선택해주세요</div>
+            
+            <div style="margin-top: 20px;">
+                <label style="display: block; margin-bottom: 10px;">
+                    <input type="checkbox" id="overwriteMode" />
+                    <span style="margin-left: 8px; color: #666;">기존 데이터 삭제 후 삽입 (덮어쓰기)</span>
+                </label>
+            </div>
+            
+            <div style="margin-top: 10px;">
+                <button class="btn btn-primary" id="startBtn" disabled>🚀 시작</button>
+                <button class="btn btn-secondary" id="clearBtn">초기화</button>
+            </div>
+        </div>
+        
         <!-- TXT 파일에서 CSV 생성 섹션 (접기/펼치기) -->
         <div class="collapsible-section" id="txtToCsvSection">
             <div class="collapsible-header" id="txtToCsvHeader">
@@ -2479,31 +2556,6 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                         💡 생성된 CSV 파일을 열어서 데이터 검증 후 다음 단계 업로드 진행하세요.
                     </p>
                 </div>
-            </div>
-        </div>
-        
-        <!-- CSV/Excel 파일 업로드 섹션 -->
-        <div class="upload-section">
-            <h3 style="margin-top: 0; margin-bottom: 15px; color: #333;">📁 CSV/Excel 파일 업로드</h3>
-            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                CSV 파일 또는 Excel 파일(.xlsx, .xls)을 업로드할 수 있습니다. Excel 파일은 자동으로 CSV로 변환됩니다.
-            </p>
-            <div class="file-input-wrapper">
-                <input type="file" id="csvFile" accept=".csv,.xlsx,.xls" />
-                <label for="csvFile" class="file-label">📁 CSV/Excel 파일 선택</label>
-            </div>
-            <div class="file-name" id="fileName">파일을 선택해주세요</div>
-            
-            <div style="margin-top: 20px;">
-                <label style="display: block; margin-bottom: 10px;">
-                    <input type="checkbox" id="overwriteMode" />
-                    <span style="margin-left: 8px; color: #666;">기존 데이터 삭제 후 삽입 (덮어쓰기)</span>
-                </label>
-            </div>
-            
-            <div style="margin-top: 10px;">
-                <button class="btn btn-primary" id="startBtn" disabled>🚀 시작</button>
-                <button class="btn btn-secondary" id="clearBtn">초기화</button>
             </div>
         </div>
         

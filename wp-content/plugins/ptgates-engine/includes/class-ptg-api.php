@@ -144,23 +144,31 @@ class PTG_API {
      * @return WP_REST_Response|WP_Error
      */
     public static function get_questions($request) {
-        $args = array(
-            'year' => $request->get_param('year'),
-            'subject' => $request->get_param('subject'),
-            'session' => $request->get_param('session'),
-            'full_session' => $request->get_param('full_session'),
-            'limit' => $request->get_param('limit'),
-            'offset' => $request->get_param('offset'),
-        );
-        
-        // 빈 값 제거
-        $args = array_filter($args, function($value) {
-            return $value !== null && $value !== '';
-        });
-        
-        $questions = PTG_DB::get_questions($args);
-        
-        return rest_ensure_response($questions);
+        try {
+            $args = array(
+                'year' => $request->get_param('year'),
+                'subject' => $request->get_param('subject'),
+                'session' => $request->get_param('session'),
+                'full_session' => $request->get_param('full_session'),
+                'limit' => $request->get_param('limit'),
+                'offset' => $request->get_param('offset'),
+            );
+            
+            // 빈 값 제거
+            $args = array_filter($args, function($value) {
+                return $value !== null && $value !== '';
+            });
+            
+            $questions = PTG_DB::get_questions($args);
+            
+            return rest_ensure_response($questions);
+        } catch (\Throwable $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTG API Error (get_questions): ' . $e->getMessage());
+                error_log($e->getTraceAsString());
+            }
+            return new WP_Error('server_error', '서버 오류가 발생했습니다.', array('status' => 500));
+        }
     }
     
     /**
@@ -170,21 +178,29 @@ class PTG_API {
      * @return WP_REST_Response
      */
     public static function get_years($request) {
-        $years = PTG_DB::get_available_years();
-        
-        // 디버깅: API 응답 확인 (개발 환경에서만)
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('PTGates API get_years response: ' . print_r($years, true));
+        try {
+            $years = PTG_DB::get_available_years();
+            
+            // 디버깅: API 응답 확인 (개발 환경에서만)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTGates API get_years response: ' . print_r($years, true));
+            }
+            
+            $response = rest_ensure_response($years);
+            
+            // REST API 응답에 캐시 방지 헤더 추가
+            $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+            $response->header('Pragma', 'no-cache');
+            $response->header('Expires', '0');
+            
+            return $response;
+        } catch (\Throwable $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTG API Error (get_years): ' . $e->getMessage());
+                error_log($e->getTraceAsString());
+            }
+            return new WP_Error('server_error', '서버 오류가 발생했습니다.', array('status' => 500));
         }
-        
-        $response = rest_ensure_response($years);
-        
-        // REST API 응답에 캐시 방지 헤더 추가
-        $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
-        $response->header('Pragma', 'no-cache');
-        $response->header('Expires', '0');
-        
-        return $response;
     }
     
     /**
@@ -194,9 +210,17 @@ class PTG_API {
      * @return WP_REST_Response
      */
     public static function get_subjects($request) {
-        $year = $request->get_param('year');
-        $subjects = PTG_DB::get_available_subjects($year);
-        return rest_ensure_response($subjects);
+        try {
+            $year = $request->get_param('year');
+            $subjects = PTG_DB::get_available_subjects($year);
+            return rest_ensure_response($subjects);
+        } catch (\Throwable $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('PTG API Error (get_subjects): ' . $e->getMessage());
+                error_log($e->getTraceAsString());
+            }
+            return new WP_Error('server_error', '서버 오류가 발생했습니다.', array('status' => 500));
+        }
     }
     
     /**

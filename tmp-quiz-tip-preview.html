@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>PTG Quiz Tip Preview</title>
+    <link rel="stylesheet" href="wp-content/plugins/1200-ptgates-quiz/assets/css/quiz.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 40px;
+            background: #eef1f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="ptg-quiz-tip-modal" style="display:flex;">
+        <div class="ptg-quiz-tip-modal-overlay"></div>
+        <div class="ptg-quiz-tip-modal-content" role="dialog" aria-modal="true" aria-labelledby="ptg-quiz-tip-title">
+            <div class="ptg-quiz-tip-modal-header">
+                <h2 id="ptg-quiz-tip-title">실전 모의 학습 가이드</h2>
+                <button type="button" class="ptg-quiz-tip-modal-close" aria-label="닫기">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="ptg-quiz-tip-modal-body">
+                <div class="ptg-quiz-tip-section">
+                    <h3>📊 출제 순서 경향 (ptGates 적용)</h3>
+                    <ul class="ptg-tip-list" style="list-style:none;padding:0;margin:0;">
+                        <li style="margin-bottom:10px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#4a90e2;">•</span> <strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong> 패턴을 따릅니다.</li>
+                        <li style="margin-bottom:10px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#4a90e2;">•</span> <strong>과목별 배치:</strong> 각 과목에서도 개론이 앞쪽, 응용이 뒤쪽에 배치됩니다.</li>
+                    </ul>
+                </div>
+                <div class="ptg-quiz-tip-section">
+                    <h3>🎯 교시별 모의고사 구성</h3>
+                    <div class="ptg-tip-block" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
+                        <h4 style="margin:0 0 10px 0;color:#333;">1교시 (105문항)</h4>
+                        <ul class="ptg-tip-list" style="list-style:none;padding:0;margin:0;">
+                            <li style="margin-bottom:8px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#666;">•</span> <strong>물리치료 기초 (60문항)</strong></li>
+                            <li style="margin-bottom:8px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#666;">•</span> <strong>물리치료 진단평가 (45문항)</strong></li>
+                        </ul>
+                    </div>
+                    <div class="ptg-tip-block" style="background:#f8f9fa;padding:15px;border-radius:8px;">
+                        <h4 style="margin:0 0 10px 0;color:#333;">2교시 (85문항)</h4>
+                        <ul class="ptg-tip-list" style="list-style:none;padding:0;margin:0;">
+                            <li style="margin-bottom:8px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#666;">•</span> <strong>물리치료 중재 (65문항)</strong></li>
+                            <li style="margin-bottom:8px;padding-left:20px;position:relative;"><span style="position:absolute;left:0;color:#666;">•</span> <strong>의료관계법규 (20문항)</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

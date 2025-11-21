@@ -217,9 +217,28 @@ class API {
             $per_page = $request->get_param('per_page') ?: 20;
             $offset = ($page - 1) * $per_page;
             
-            global $table_prefix;
-            $questions_table = $table_prefix . 'ptgates_questions';
-            $categories_table = $table_prefix . 'ptgates_categories';
+            // 캐시 키 생성 (검색어 포함 - 관리자는 실시간 데이터 필요할 수 있으므로 짧은 캐시)
+            $cache_params = array(
+                'subject' => $subject,
+                'subsubject' => $subsubject,
+                'search' => $search,
+                'exam_year' => $exam_year,
+                'exam_session' => $exam_session,
+                'exam_course' => $exam_course,
+                'page' => $page,
+                'per_page' => $per_page,
+            );
+            $cache_key = 'ptg_admin_questions_' . md5(serialize($cache_params));
+            
+            // 캐시 확인 (5분 유효 - 관리자는 짧은 캐시)
+            $cached = wp_cache_get($cache_key, 'ptg_admin');
+            if ($cached !== false) {
+                return Rest::success($cached);
+            }
+            
+            // 테이블 이름은 prefix 없이 사용 (다른 플러그인과 일관성 유지)
+            $questions_table = 'ptgates_questions';
+            $categories_table = 'ptgates_categories';
             
             $where = array("q.is_active = 1");
             $where_values = array();
@@ -328,7 +347,7 @@ class API {
             }
             
             // 문제 목록 조회 (년도, 회차, 교시 정보 포함)
-            $list_sql = "SELECT DISTINCT q.question_id, q.content, q.answer, q.explanation, q.type, q.difficulty, q.is_active,
+            $list_sql = "SELECT DISTINCT q.question_id, q.content, q.answer, q.explanation, q.type, q.difficulty, q.is_active, q.question_image,
                         GROUP_CONCAT(DISTINCT c.subject ORDER BY c.subject SEPARATOR ', ') as subjects,
                         GROUP_CONCAT(DISTINCT c.exam_year ORDER BY c.exam_year SEPARATOR ', ') as exam_years,
                         GROUP_CONCAT(DISTINCT c.exam_session ORDER BY c.exam_session SEPARATOR ', ') as exam_sessions,
@@ -365,6 +384,31 @@ class API {
             
             if ($wpdb->last_error) {
                 return Rest::error('query_failed', '쿼리 실행 중 오류: ' . $wpdb->last_error, 500);
+            }
+            
+            // 각 문제의 content와 explanation 정리 (_x000D_ 제거 및 줄바꿈 정리)
+            if (is_array($questions)) {
+                foreach ($questions as &$q) {
+                    // content 정리
+                    if (isset($q['content']) && is_string($q['content'])) {
+                        $q['content'] = str_replace('_x000D_', '', $q['content']);
+                        $q['content'] = str_replace("\r\n", "\n", $q['content']);
+                        $q['content'] = str_replace("\r", "\n", $q['content']);
+                        // 선택지 번호 앞의 연속된 줄바꿈 정리
+                        $q['content'] = preg_replace('/\n{2,}\s*([①-⑳])/u', "\n$1", $q['content']);
+                        // 전체에서 연속된 줄바꿈 정리
+                        $q['content'] = preg_replace('/\n{2,}/', "\n", $q['content']);
+                    }
+                    // explanation 정리
+                    if (isset($q['explanation']) && is_string($q['explanation'])) {
+                        $q['explanation'] = str_replace('_x000D_', "\n", $q['explanation']);
+                        $q['explanation'] = str_replace("\r\n", "\n", $q['explanation']);
+                        $q['explanation'] = str_replace("\r", "\n", $q['explanation']);
+                        // 연속된 줄바꿈 정리 (해설은 원본 유지 요청으로 주석 처리)
+                        // $q['explanation'] = preg_replace('/\n{2,}/', "\n", $q['explanation']);
+                    }
+                }
+                unset($q);
             }
             
             // 각 문제에 과목(대분류) 정보 추가
@@ -408,7 +452,7 @@ class API {
                 unset($q);
             }
             
-            return Rest::success(array(
+            $response_data = array(
                 'questions' => $questions ? $questions : array(),
                 'total' => (int) $total,
                 'page' => $page,
@@ -422,7 +466,12 @@ class API {
                     'subsubject' => $subsubject,
                     'search' => $search,
                 ),
-            ));
+            );
+            
+            // 캐시 저장 (5분)
+            wp_cache_set($cache_key, $response_data, 'ptg_admin', 300);
+            
+            return Rest::success($response_data);
         } catch (\Exception $e) {
             return Rest::error('server_error', '서버 오류: ' . $e->getMessage(), 500);
         }
@@ -435,6 +484,16 @@ class API {
         global $wpdb;
         
         $question_id = $request->get_param('id');
+        
+        // 캐시 키 생성
+        $cache_key = 'ptg_admin_question_' . $question_id;
+        
+        // 캐시 확인 (10분 유효 - 관리자는 짧은 캐시)
+        $cached = wp_cache_get($cache_key, 'ptg_admin');
+        if ($cached !== false) {
+            return Rest::success($cached);
+        }
+        
         $questions_table = 'ptgates_questions';
         $categories_table = 'ptgates_categories';
         
@@ -450,6 +509,27 @@ class API {
         if (!$question) {
             return Rest::error('not_found', '문제를 찾을 수 없습니다.', 404);
         }
+        
+        // content와 explanation 정리 (_x000D_ 제거 및 줄바꿈 정리)
+        if (isset($question['content']) && is_string($question['content'])) {
+            $question['content'] = str_replace('_x000D_', '', $question['content']);
+            $question['content'] = str_replace("\r\n", "\n", $question['content']);
+            $question['content'] = str_replace("\r", "\n", $question['content']);
+            // 선택지 번호 앞의 연속된 줄바꿈 정리
+            $question['content'] = preg_replace('/\n{2,}\s*([①-⑳])/u', "\n$1", $question['content']);
+            // 전체에서 연속된 줄바꿈 정리
+            $question['content'] = preg_replace('/\n{2,}/', "\n", $question['content']);
+        }
+        if (isset($question['explanation']) && is_string($question['explanation'])) {
+            $question['explanation'] = str_replace('_x000D_', "\n", $question['explanation']);
+            $question['explanation'] = str_replace("\r\n", "\n", $question['explanation']);
+            $question['explanation'] = str_replace("\r", "\n", $question['explanation']);
+            // 연속된 줄바꿈 정리 (해설은 원본 유지 요청으로 주석 처리)
+            // $question['explanation'] = preg_replace('/\n{2,}/', "\n", $question['explanation']);
+        }
+        
+        // 캐시 저장 (10분)
+        wp_cache_set($cache_key, $question, 'ptg_admin', 600);
         
         return Rest::success($question);
     }
@@ -584,6 +664,17 @@ class API {
      */
     public static function get_subjects($request) {
         try {
+            $session = $request->get_param('session');
+            
+            // 캐시 키 생성
+            $cache_key = 'ptg_admin_subjects_' . ($session ? (int)$session : 'all');
+            
+            // 캐시 확인 (1시간 유효 - 과목 목록은 자주 변경되지 않음)
+            $cached = wp_cache_get($cache_key, 'ptg_admin');
+            if ($cached !== false) {
+                return Rest::success($cached);
+            }
+            
             // Subjects 클래스가 없으면 다시 로드 시도
             if (!class_exists('\PTG\Quiz\Subjects')) {
                 $possible_paths = array(
@@ -602,8 +693,6 @@ class API {
             if (!class_exists('\PTG\Quiz\Subjects')) {
                 return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요. 경로: ' . WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php', 500);
             }
-            
-            $session = $request->get_param('session');
             
             // 교시별 과목 목록
             $result = array();
@@ -642,6 +731,9 @@ class API {
                 }
             }
             
+            // 캐시 저장 (1시간)
+            wp_cache_set($cache_key, $result, 'ptg_admin', 3600);
+            
             return Rest::success($result);
         } catch (\Exception $e) {
             return Rest::error('server_error', '서버 오류: ' . $e->getMessage() . ' (File: ' . $e->getFile() . ', Line: ' . $e->getLine() . ')', 500);
@@ -655,6 +747,15 @@ class API {
      */
     public static function get_sessions($request) {
         try {
+            // 캐시 키 생성
+            $cache_key = 'ptg_admin_sessions';
+            
+            // 캐시 확인 (1시간 유효 - 교시 목록은 자주 변경되지 않음)
+            $cached = wp_cache_get($cache_key, 'ptg_admin');
+            if ($cached !== false) {
+                return Rest::success($cached);
+            }
+            
             // Subjects 클래스가 없으면 다시 로드 시도
             if (!class_exists('\PTG\Quiz\Subjects')) {
                 $possible_paths = array(
@@ -684,6 +785,9 @@ class API {
                     );
                 }
             }
+            
+            // 캐시 저장 (1시간)
+            wp_cache_set($cache_key, $result, 'ptg_admin', 3600);
             
             return Rest::success($result);
         } catch (\Exception $e) {
