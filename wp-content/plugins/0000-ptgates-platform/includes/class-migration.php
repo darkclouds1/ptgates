@@ -22,7 +22,11 @@ class Migration {
         
         // 디버깅: 마이그레이션 시작 로그
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Platform] 마이그레이션 시작');
+            if (function_exists('ptg_error_log_kst')) {
+                ptg_error_log_kst('[PTG Platform] 마이그레이션 시작');
+            } else {
+                error_log('[PTG Platform] 마이그레이션 시작');
+            }
         }
         
         $charset_collate = $wpdb->get_charset_collate();
@@ -36,10 +40,7 @@ class Migration {
         // 3. 사용자 상태 테이블
         self::create_user_states_table($charset_collate);
         
-        // 4. 사용자 메모 테이블
-        self::create_user_notes_table($charset_collate);
-        
-        // 5. 사용자 드로잉 테이블
+        // 4. 사용자 드로잉 테이블
         self::create_user_drawings_table($charset_collate);
         
         // 6. 복습 스케줄 테이블
@@ -63,10 +64,10 @@ class Migration {
         // 12. 기관-사용자 연결 테이블
         self::create_org_member_link_table($charset_collate);
         
-        // 디버깅: 마이그레이션 완료 로그
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Platform] 마이그레이션 완료');
-        }
+        // 13. ptgates_user_states 테이블 트리거 생성
+        self::create_user_states_triggers();
+        
+        // 정상 케이스는 로그를 남기지 않음
     }
     
     /**
@@ -159,30 +160,6 @@ class Migration {
     }
     
     /**
-     * 사용자 메모 테이블 생성
-     */
-    private static function create_user_notes_table($charset_collate) {
-        global $wpdb;
-        
-        $table_name = 'ptgates_user_notes';
-        
-        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
-            `note_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            `user_id` bigint(20) unsigned NOT NULL,
-            `ref_type` enum('question','theory','notebook') NOT NULL DEFAULT 'question',
-            `ref_id` bigint(20) unsigned NOT NULL COMMENT 'question_id 또는 이론ID 등',
-            `text` longtext NOT NULL,
-            `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-            `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-            PRIMARY KEY (`note_id`),
-            KEY `idx_user_ref` (`user_id`,`ref_type`,`ref_id`)
-        ) {$charset_collate};";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
-    
-    /**
      * 사용자 드로잉 테이블 생성
      */
     private static function create_user_drawings_table($charset_collate) {
@@ -234,10 +211,13 @@ class Migration {
             // 디버깅: 컬럼 추가 확인
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                    error_log('[PTG Platform] is_answered 컬럼 추가 오류: ' . $wpdb->last_error);
-                } else {
-                    error_log('[PTG Platform] is_answered 컬럼 추가 성공');
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] is_answered 컬럼 추가 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] is_answered 컬럼 추가 오류: ' . $wpdb->last_error);
+                    }
                 }
+                // 정상 케이스는 로그를 남기지 않음
             }
         }
         
@@ -258,10 +238,13 @@ class Migration {
             // 디버깅: 컬럼 추가 확인
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                    error_log('[PTG Platform] device_type 컬럼 추가 오류: ' . $wpdb->last_error);
-                } else {
-                    error_log('[PTG Platform] device_type 컬럼 추가 성공');
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] device_type 컬럼 추가 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] device_type 컬럼 추가 오류: ' . $wpdb->last_error);
+                    }
                 }
+                // 정상 케이스는 로그를 남기지 않음
             }
         }
         
@@ -279,10 +262,13 @@ class Migration {
             // 디버깅: 기존 UNIQUE KEY 제거 확인
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                    error_log('[PTG Platform] 기존 UNIQUE KEY 제거 오류: ' . $wpdb->last_error);
-                } else {
-                    error_log('[PTG Platform] 기존 UNIQUE KEY 제거 성공');
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] 기존 UNIQUE KEY 제거 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] 기존 UNIQUE KEY 제거 오류: ' . $wpdb->last_error);
+                    }
                 }
+                // 정상 케이스는 로그를 남기지 않음
             }
         }
         
@@ -323,23 +309,35 @@ class Migration {
             // 디버깅: 새로운 UNIQUE 제약 조건 추가 확인
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                    error_log('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 오류: ' . $wpdb->last_error);
-                } else {
-                    error_log('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 성공');
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] 새로운 UNIQUE 제약 조건 추가 오류: ' . $wpdb->last_error);
+                    }
                 }
+                // 정상 케이스는 로그를 남기지 않음
             }
         }
         
-        // 디버깅: 테이블 생성 결과 확인
+        // 디버깅: 테이블 생성 결과 확인 (오류 케이스만)
         if (defined('WP_DEBUG') && WP_DEBUG) {
             $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
             if ($existing === $table_name) {
-                error_log('[PTG Platform] 드로잉 테이블 생성 성공: ' . $table_name);
+                // 정상 케이스는 로그를 남기지 않음
             } else {
-                error_log('[PTG Platform] ⚠️ 드로잉 테이블 생성 실패: ' . $table_name);
+                if (function_exists('ptg_error_log_kst')) {
+                    ptg_error_log_kst('[PTG Platform] ⚠️ 드로잉 테이블 생성 실패: ' . $table_name);
+                } else {
+                    error_log('[PTG Platform] ⚠️ 드로잉 테이블 생성 실패: ' . $table_name);
+                }
                 if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                    error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
-                    error_log('[PTG Platform] SQL 쿼리: ' . $wpdb->last_query);
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                        ptg_error_log_kst('[PTG Platform] SQL 쿼리: ' . $wpdb->last_query);
+                    } else {
+                        error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                        error_log('[PTG Platform] SQL 쿼리: ' . $wpdb->last_query);
+                    }
                 }
             }
         }
@@ -540,6 +538,164 @@ class Migration {
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+    
+    /**
+     * ptgates_user_states 테이블 트리거 생성
+     * study_count 변경 시 last_study_date 자동 업데이트
+     * quiz_count 변경 시 last_quiz_date 자동 업데이트
+     */
+    private static function create_user_states_triggers() {
+        global $wpdb;
+        
+        $table_name = 'ptgates_user_states';
+        
+        // 테이블 존재 확인
+        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
+        if ($table_exists !== $table_name) {
+            // 테이블이 없으면 트리거 생성 불가
+            return;
+        }
+        
+        // study_count 변경 시 last_study_date 업데이트 트리거 (UPDATE)
+        $trigger_study_update = 'ptgates_update_last_study_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_study_update
+        ));
+        
+        if (!$trigger_exists) {
+            // UPDATE 트리거 생성
+            $sql_study_update = "CREATE TRIGGER `{$trigger_study_update}`
+                BEFORE UPDATE ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.study_count != OLD.study_count THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_study_date = NEW.updated_at;
+                    END IF;
+                END";
+            
+            $wpdb->query($sql_study_update);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] study_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] study_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                    }
+                }
+            }
+        }
+        
+        // study_count 설정 시 last_study_date 업데이트 트리거 (INSERT)
+        $trigger_study_insert = 'ptgates_insert_last_study_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_study_insert
+        ));
+        
+        if (!$trigger_exists) {
+            // INSERT 트리거 생성
+            $sql_study_insert = "CREATE TRIGGER `{$trigger_study_insert}`
+                BEFORE INSERT ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.study_count > 0 THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_study_date = NEW.updated_at;
+                    END IF;
+                END";
+            
+            $wpdb->query($sql_study_insert);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] study_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] study_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
+                    }
+                }
+            }
+        }
+        
+        // quiz_count 변경 시 last_quiz_date 업데이트 트리거 (UPDATE)
+        $trigger_quiz_update = 'ptgates_update_last_quiz_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_quiz_update
+        ));
+        
+        if (!$trigger_exists) {
+            // UPDATE 트리거 생성
+            $sql_quiz_update = "CREATE TRIGGER `{$trigger_quiz_update}`
+                BEFORE UPDATE ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.quiz_count != OLD.quiz_count THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_quiz_date = NEW.updated_at;
+                    END IF;
+                END";
+            
+            $wpdb->query($sql_quiz_update);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] quiz_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] quiz_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                    }
+                }
+            }
+        }
+        
+        // quiz_count 설정 시 last_quiz_date 업데이트 트리거 (INSERT)
+        $trigger_quiz_insert = 'ptgates_insert_last_quiz_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_quiz_insert
+        ));
+        
+        if (!$trigger_exists) {
+            // INSERT 트리거 생성
+            $sql_quiz_insert = "CREATE TRIGGER `{$trigger_quiz_insert}`
+                BEFORE INSERT ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.quiz_count > 0 THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_quiz_date = NEW.updated_at;
+                    END IF;
+                END";
+            
+            $wpdb->query($sql_quiz_insert);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] quiz_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
+                    } else {
+                        error_log('[PTG Platform] quiz_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
+                    }
+                }
+            }
+        }
     }
 }
 

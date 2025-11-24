@@ -1,0 +1,771 @@
+.ptg-mynote-container {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.ptg-mynote-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.ptg-mynote-header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.ptg-mynote-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.ptg-btn-dashboard {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #667eea;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.ptg-btn-dashboard:hover {
+    background: #5568d3;
+    color: #ffffff;
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+}
+
+.ptg-mynote-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ptg-input {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.ptg-memo-list {
+    margin-top: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.ptg-loading,
+.ptg-empty,
+.ptg-error {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+}
+
+.ptg-memo-table {
+    width: 100%;
+    min-width: 800px; /* 작은 화면에서도 모든 컬럼이 보이도록 최소 너비 설정 */
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    overflow: visible;
+    table-layout: auto;
+}
+
+.ptg-memo-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ptg-memo-table th {
+    padding: 16px 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #ffffff;
+    border-bottom: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.3);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.ptg-memo-table th:last-child {
+    border-top-right-radius: 12px;
+    border-right: none;
+}
+
+.ptg-memo-table th:last-child {
+    border-top-right-radius: 12px;
+}
+
+.ptg-memo-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+    color: #334155;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.ptg-memo-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.ptg-memo-table tbody tr:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ptg-memo-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ptg-memo-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 12px;
+}
+
+.ptg-memo-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 12px;
+}
+
+.ptg-memo-content-cell {
+    max-width: none;
+    min-width: 300px;
+    width: auto;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.6;
+    color: #475569;
+    text-align: left !important;
+}
+
+.ptg-sort-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    color: #ffffff;
+    padding: 4px 8px;
+    font-size: inherit;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ptg-sort-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+.ptg-sort-btn.active {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.ptg-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.ptg-btn-primary {
+    background: #4299e1;
+    color: #fff;
+}
+
+.ptg-btn-primary:hover {
+    background: #3182ce;
+}
+
+.ptg-btn-secondary {
+    background: #e2e8f0;
+    color: #2d3748;
+}
+
+.ptg-btn-secondary:hover {
+    background: #cbd5e0;
+}
+
+.ptg-btn-outline {
+    background: transparent;
+    border: 1px solid #4a90e2;
+    color: #1f3b75;
+}
+
+.ptg-btn-outline:hover {
+    background: rgba(74, 144, 226, 0.12);
+    border-color: #2f6ed8;
+    color: #2f6ed8;
+}
+
+.ptg-btn-danger {
+    background: #fc8181;
+    color: #fff;
+}
+
+.ptg-btn-danger:hover {
+    background: #f56565;
+}
+
+.ptg-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 20px;
+}
+
+.ptg-page-btn {
+    padding: 8px 16px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.ptg-page-btn:hover {
+    background: #f7fafc;
+}
+
+.ptg-page-info {
+    font-size: 0.875rem;
+    color: #718096;
+}
+
+/* 상세 화면 스타일 (1100 study 재사용) */
+.ptg-mynote-detail {
+    width: 100%;
+}
+
+.ptg-mynote-detail-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.ptg-lesson-view {
+    width: 100%;
+}
+
+.ptg-lesson-item {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ptg-quiz-card {
+    width: 100%;
+}
+
+.ptg-question-card {
+    margin-bottom: 20px;
+}
+
+/* 문제 텍스트, 선택지, 툴바 스타일은 모두 공통 컴포넌트 question-viewer.css에서 제공됨 */
+/* 중복 정의 제거 - 공통 컴포넌트 CSS 사용 */
+
+.ptg-lesson-answer-area {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.ptg-answer-buttons-container {
+    display: flex;
+    align-items: center;
+    padding-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ptg-lesson-answer-area .answer-content {
+    margin-top: 16px !important;
+    padding: 16px 20px !important;
+    background-color: #f8f9fa !important;
+    border-radius: 8px !important;
+    border: 1px solid #e9ecef !important;
+}
+
+.ptg-lesson-answer-area .answer-content p {
+    margin: 0 0 12px 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content p:last-child {
+    margin-bottom: 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content hr {
+    margin: 12px 0 !important;
+    border: none !important;
+    border-top: 1px solid #dee2e6 !important;
+}
+
+
+.question-image-content {
+    margin-top: 15px;
+}
+
+.question-image-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.ptg-mynote-memo-display {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    border-left: 4px solid #4299e1;
+}
+
+.ptg-mynote-memo-display h4 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    color: #2d3748;
+}
+
+.ptg-memo-content {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #4a5568;
+    white-space: pre-wrap;
+}
+
+/* 툴바 스타일은 공통 컴포넌트 question-viewer.css에서 제공됨 */
+/* 중복 정의 제거 - 공통 컴포넌트 CSS 사용 */
+
+/* 카드형 레이아웃 */
+.ptg-memo-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    .ptg-memo-card-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+}
+
+.ptg-memo-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #dbe7ff;
+    box-shadow: 0 25px 45px rgba(26, 56, 125, 0.08);
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ptg-memo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 32px 60px rgba(26, 56, 125, 0.15);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Toolbar modal fallback (Study toolbar components inside MyNote)            */
+/* -------------------------------------------------------------------------- */
+.ptg-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: none;
+}
+
+.ptg-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(3px);
+}
+
+.ptg-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    animation: ptg-modal-fade-in 0.3s ease;
+}
+
+@keyframes ptg-modal-fade-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -45%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.ptg-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: #fff;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.ptg-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.ptg-modal-close {
+    background: #fff;
+    border: none;
+    color: #1d3f7c;
+    font-size: 28px;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ptg-modal-close:hover {
+    background: #f0f4ff;
+    transform: scale(1.1);
+}
+
+.ptg-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ptg-modal-body textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ptg-modal-body textarea:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.ptg-modal-body .form-group {
+    margin-bottom: 16px;
+}
+
+.ptg-modal-body .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.ptg-modal-body .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.ptg-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+@media (max-width: 768px) {
+    .ptg-modal-content {
+        width: 95%;
+        max-height: 85vh;
+    }
+
+    .ptg-modal-header,
+    .ptg-modal-body,
+    .ptg-modal-footer {
+        padding: 16px;
+    }
+}
+
+.ptg-memo-card-header {
+    background: linear-gradient(135deg, #1f3b75 0%, #2f6ed8 100%);
+    color: #fff;
+    padding: 18px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.ptg-memo-card-hgroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    flex-wrap: wrap;
+    word-break: normal;
+    overflow-wrap: normal;
+}
+
+.ptg-memo-card-divider {
+    opacity: 0.7;
+}
+
+.ptg-memo-card-id {
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.ptg-memo-card-body {
+    background: #f8fbff;
+    padding: 22px;
+}
+
+.ptg-memo-card-content {
+    color: #1a202c;
+    font-size: 1rem;
+    line-height: 1.75;
+    white-space: pre-wrap;
+}
+
+.ptg-memo-card.is-editing {
+    box-shadow: 0 32px 60px rgba(26, 56, 125, 0.18);
+    border-color: #2f6ed8;
+}
+
+.ptg-memo-edit-field {
+    width: 100%;
+    min-height: 140px;
+    border: 1px solid #cbd5e0;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1rem;
+    line-height: 1.7;
+    resize: none;
+    overflow: hidden;
+    font-family: inherit;
+    color: #1a202c;
+    background: #fff;
+    box-shadow: inset 0 2px 6px rgba(31, 59, 117, 0.08);
+}
+
+.ptg-memo-edit-field:focus {
+    outline: none;
+    border-color: #2f6ed8;
+    box-shadow: 0 0 0 2px rgba(47, 110, 216, 0.18);
+}
+
+.ptg-memo-card-footer {
+    padding: 14px 22px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ptg-memo-card-date {
+    font-size: 0.9rem;
+    color: #4a5568;
+}
+
+.ptg-card-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.ptg-card-status {
+    display: none;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+    border-left: 4px solid #5a67d8;
+    color: #1f3b75;
+    background: #edf2ff;
+}
+
+.ptg-card-status.is-success {
+    background: #f0fff4;
+    border-color: #38a169;
+    color: #22543d;
+}
+
+.ptg-card-status.is-error {
+    background: #fff5f5;
+    border-color: #e53e3e;
+    color: #742a2a;
+}
+
+.ptg-card-status.is-info {
+    background: #ebf8ff;
+    border-color: #3182ce;
+    color: #2b6cb0;
+}
+
+.ptg-infinite-loader,
+.ptg-infinite-end {
+    text-align: center;
+    padding: 16px;
+    font-size: 0.95rem;
+    color: #4a5568;
+}
+
+.ptg-infinite-loader {
+    color: #1f3b75;
+}
+
+.ptg-infinite-end {
+    color: #2d3748;
+    font-weight: 500;
+}
+
+@media (max-width: 800px) {
+    .ptg-memo-table {
+        display: none;
+    }
+
+    .ptg-memo-list {
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .ptg-mynote-container {
+        padding: 10px;
+        overflow-x: hidden; /* 컨테이너 자체는 넘치지 않도록 */
+    }
+
+    .ptg-mynote-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ptg-mynote-header-left {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .ptg-mynote-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .ptg-btn-dashboard {
+        width: 100%;
+        justify-content: center;
+        padding: 10px 16px;
+    }
+
+    .ptg-memo-card-header {
+        padding: 10px 12px;
+    }
+
+    .ptg-memo-card-body {
+        padding: 12px;
+    }
+
+    .ptg-memo-card-footer {
+        padding: 10px 12px;
+        flex-direction: column;
+    }
+
+    .ptg-card-actions {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .ptg-memo-card-footer .ptg-btn {
+        width: 100%;
+        min-width: auto;
+        flex: 1;
+    }
+
+    .ptg-memo-card-label {
+        min-width: 70px;
+        font-size: 0.8rem;
+    }
+
+    .ptg-memo-card-value,
+    .ptg-memo-card-content {
+        font-size: 0.85rem;
+    }
+}
+

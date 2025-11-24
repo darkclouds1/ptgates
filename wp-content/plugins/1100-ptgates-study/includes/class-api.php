@@ -3,6 +3,10 @@ namespace PTG\Study;
 
 use PTG\Platform\LegacyRepo;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 class Study_API {
     public static function register_routes() {
         // 'courses'는 이제 과목 목록을 반환
@@ -32,7 +36,28 @@ class Study_API {
                     'sanitize_callback' => 'absint',
                 ],
             ],
-        ]);
+		]);
+
+		register_rest_route(
+			'ptg-study/v1',
+			'/study-progress',
+			[
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => [ __CLASS__, 'log_study_progress' ],
+				'permission_callback' => function() {
+					return is_user_logged_in();
+				},
+				'args'                => [
+					'question_id' => [
+						'required'          => true,
+						'sanitize_callback' => 'absint',
+						'validate_callback' => function( $value ) {
+							return absint( $value ) > 0;
+						},
+					],
+				],
+			]
+		);
     }
 
     /**
@@ -404,6 +429,147 @@ class Study_API {
 		];
 
         return new \WP_REST_Response($response_data, 200);
+    }
+
+    /**
+     * 사용자의 Study 진행 기록을 저장합니다.
+     */
+    public static function log_study_progress( $request ) {
+        global $wpdb;
+
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            return new \WP_Error( 'unauthorized', '로그인이 필요합니다.', [ 'status' => 401 ] );
+        }
+
+        $question_id = absint( $request->get_param( 'question_id' ) );
+        if ( $question_id <= 0 ) {
+            return new \WP_Error( 'invalid_question', '유효한 문제 ID가 필요합니다.', [ 'status' => 400 ] );
+        }
+
+        $question = LegacyRepo::get_questions_with_categories(
+            [
+                'question_id' => $question_id,
+                'limit'       => 1,
+            ]
+        );
+
+        if ( empty( $question ) ) {
+            return new \WP_Error( 'not_found', '해당 문제를 찾을 수 없습니다.', [ 'status' => 404 ] );
+        }
+
+        $states_table = self::ensure_user_states_table();
+        $wpdb->suppress_errors( true );
+
+        $existing_state = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM `{$states_table}` WHERE `user_id` = %d AND `question_id` = %d LIMIT 1",
+                $user_id,
+                $question_id
+            ),
+            ARRAY_A
+        );
+
+        $current_time_utc = current_time( 'mysql', true );
+        $new_count        = $existing_state ? ( (int) $existing_state['study_count'] + 1 ) : 1;
+
+        // 트리거가 자동으로 last_study_date를 설정하므로 study_count만 포함
+        $data = [
+            'study_count' => $new_count,
+            // last_study_date는 INSERT/UPDATE 트리거가 자동으로 설정
+            // updated_at도 트리거가 자동으로 설정
+        ];
+
+        if ( $existing_state ) {
+            // 트리거가 자동으로 last_study_date를 업데이트하므로 study_count만 업데이트
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE `{$states_table}` 
+                    SET `study_count` = %d 
+                    WHERE `user_id` = %d AND `question_id` = %d",
+                    $new_count,
+                    $user_id,
+                    $question_id
+                )
+            );
+        } else {
+            // INSERT 시 트리거가 자동으로 last_study_date를 설정하므로 명시적으로 설정하지 않음
+            $insert_data = array_merge(
+                [
+                    'user_id'        => $user_id,
+                    'question_id'    => $question_id,
+                    'bookmarked'     => 0,
+                    'needs_review'   => 0,
+                    'quiz_count'     => 0,
+                    'last_quiz_date' => null,
+                    'last_result'    => null,
+                    'last_answer'    => null,
+                    // updated_at과 last_study_date는 INSERT 트리거가 자동으로 설정
+                ],
+                $data
+            );
+
+            $wpdb->insert(
+                $states_table,
+                $insert_data,
+                [
+                    '%d', // user_id
+                    '%d', // question_id
+                    '%d', // bookmarked
+                    '%d', // needs_review
+                    '%d', // quiz_count
+                    '%s', // last_quiz_date
+                    '%s', // last_result
+                    '%s', // last_answer
+                    '%s', // updated_at
+                    '%d', // study_count
+                    '%s', // last_study_date
+                ]
+            );
+        }
+
+        $wpdb->suppress_errors( false );
+
+        return rest_ensure_response(
+            [
+                'question_id' => $question_id,
+                'study_count' => $new_count,
+            ]
+        );
+    }
+
+    /**
+     * ptgates_user_states 테이블을 보장합니다.
+     */
+    private static function ensure_user_states_table() {
+        global $wpdb;
+
+        $states_table = 'ptgates_user_states';
+
+        $existing_table = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $states_table ) );
+        if ( $existing_table !== $states_table ) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql             = "CREATE TABLE IF NOT EXISTS `{$states_table}` (
+                `user_id` bigint(20) unsigned NOT NULL,
+                `question_id` bigint(20) unsigned NOT NULL,
+                `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+                `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+                `study_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `quiz_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `last_result` enum('correct','wrong') DEFAULT NULL,
+                `last_answer` varchar(255) DEFAULT NULL,
+                `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                `last_study_date` datetime DEFAULT NULL,
+                `last_quiz_date` datetime DEFAULT NULL,
+                PRIMARY KEY (`user_id`,`question_id`),
+                KEY `idx_flags` (`bookmarked`,`needs_review`)
+            ) {$charset_collate};";
+
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            dbDelta( $sql );
+        }
+
+        return $states_table;
     }
 }
 

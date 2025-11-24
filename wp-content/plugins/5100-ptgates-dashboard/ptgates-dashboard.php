@@ -50,10 +50,6 @@ class PTG_Dashboard {
     }
 
     private function boot_rest_api() {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Dashboard] Bootstrapping REST API');
-        }
-
         if (!class_exists('\PTG\Dashboard\API')) {
             require_once PTG_DASHBOARD_PATH . 'includes/class-api.php';
         }
@@ -73,10 +69,6 @@ class PTG_Dashboard {
                         }
                     }
                 }, 10);
-
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log('[PTG Dashboard] API::boot() missing, fallback hook registered');
-                }
             }
         } else {
             if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -92,6 +84,69 @@ class PTG_Dashboard {
         // 혹시 다른 곳에서 로드되는 CSS를 방지하기 위해 dequeue
         wp_dequeue_style('ptg-dashboard-style');
         wp_deregister_style('ptg-dashboard-style');
+    }
+
+    /**
+     * Study 페이지 URL 가져오기
+     * 
+     * @return string Study 페이지 URL
+     */
+    public static function get_study_url() {
+        // 1. 옵션에 저장된 Study 페이지 ID 확인
+        $study_page_id = get_option( 'ptg_study_page_id' );
+        
+        // 2. 옵션에 저장된 ID가 있으면 유효성 검사
+        if ( $study_page_id ) {
+            $page = get_post( $study_page_id );
+            // 페이지가 존재하고 publish 상태이며 숏코드가 있는지 확인
+            if ( $page && $page->post_status === 'publish' && has_shortcode( $page->post_content, 'ptg_study' ) ) {
+                $url = get_permalink( $study_page_id );
+                if ( $url ) {
+                    return rtrim( $url, '/' );
+                }
+            } else {
+                // 유효하지 않은 ID면 옵션 삭제
+                delete_option( 'ptg_study_page_id' );
+                $study_page_id = null;
+            }
+        }
+        
+        // 3. 옵션이 없거나 유효하지 않으면 [ptg_study] 숏코드가 있는 페이지 찾기
+        if ( ! $study_page_id ) {
+            // WP_Query를 사용하여 더 확실하게 찾기
+            $query = new \WP_Query( array(
+                'post_type'      => 'page',
+                'post_status'    => 'publish',
+                'posts_per_page' => -1, // 모든 페이지
+                'fields'         => 'ids', // ID만 가져오기 (성능 최적화)
+            ) );
+            
+            if ( $query->have_posts() ) {
+                foreach ( $query->posts as $page_id ) {
+                    $page = get_post( $page_id );
+                    if ( $page && has_shortcode( $page->post_content, 'ptg_study' ) ) {
+                        $study_page_id = $page_id;
+                        // 찾은 페이지 ID를 옵션에 저장 (캐시)
+                        update_option( 'ptg_study_page_id', $study_page_id );
+                        break;
+                    }
+                }
+            }
+            wp_reset_postdata();
+        }
+        
+        // 4. 페이지 ID가 있으면 URL 반환
+        if ( $study_page_id ) {
+            $url = get_permalink( $study_page_id );
+            if ( $url ) {
+                // trailing slash 제거 (쿼리 파라미터 추가 시 문제 방지)
+                return rtrim( $url, '/' );
+            }
+        }
+        
+        // 5. 찾지 못한 경우 fallback URL 반환
+        // 실제 Study 페이지 URL이 /ptg_study/인 경우를 대비
+        return home_url( '/ptg_study/' );
     }
 
     public function render_shortcode($atts) {

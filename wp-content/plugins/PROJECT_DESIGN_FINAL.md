@@ -32,45 +32,47 @@
 
 ## 1.1 전체 구조
 
-* **WordPress 플러그인 모노레포 구조**
-* 모듈별 독립 플러그인
-* 모든 모듈은 core(0000)만 의존
-* REST API 중심 개발
-* React 필요 없음 (향후 SPA 확장 가능)
+- **WordPress 플러그인 모노레포 구조**
+- 모듈별 독립 플러그인
+- 모든 모듈은 core(0000)만 의존
+- REST API 중심 개발
+- React 필요 없음 (향후 SPA 확장 가능)
 
 ## 1.2 공통 코어
 
 ### 📌 **0000-ptgates-platform**
 
-* 역할: 모든 모듈의 기반
+- 역할: 모든 모듈의 기반
 
-* 제공 기능:
-  * `class Repo` (DB read/write wrapper)
-  * `class Permissions` (free/premium 권한 체크)
-  * `class Rest` (REST base wrapper)
-  * 공통 CSS/JS/아이콘
-  * 공통 숏코드
+- 제공 기능:
 
-* user_meta (프리미엄 관리):
-  * `ptg_premium_status` = `active` | `expired`
-  * `ptg_premium_until` = timestamp
-  * `ptg_premium_plan` = `monthly` | `yearly`
+  - `class Repo` (DB read/write wrapper)
+  - `class Permissions` (free/premium 권한 체크)
+  - `class Rest` (REST base wrapper)
+  - 공통 CSS/JS/아이콘
+  - 공통 숏코드
+
+- user_meta (프리미엄 관리):
+  - `ptg_premium_status` = `active` | `expired`
+  - `ptg_premium_until` = timestamp
+  - `ptg_premium_plan` = `monthly` | `yearly`
 
 ## 1.3 아키텍처 원칙 (Architecture Principles)
 
 ### 🔒 **모듈 독립성 및 변경 격리 원칙**
 
 **핵심 목표:**
-* 각 모듈은 가능한 한 독립적으로 개발/유지/보수/변형/추가
-* 새로운 기능 추가 시 다른 모듈에 큰 영향 없도록 설계
-* 기능 수정/추가에 튼튼한 코드 구조
-* 작은 추가 개발에도 많은 오류 수정이 발생하지 않도록
+
+- 각 모듈은 가능한 한 독립적으로 개발/유지/보수/변형/추가
+- 새로운 기능 추가 시 다른 모듈에 큰 영향 없도록 설계
+- 기능 수정/추가에 튼튼한 코드 구조
+- 작은 추가 개발에도 많은 오류 수정이 발생하지 않도록
 
 ### 원칙 1: 모듈 간 직접 의존 금지
 
-* ❌ **금지**: 모듈 A가 모듈 B의 클래스/함수를 직접 호출
-* ✅ **허용**: 모든 모듈 간 통신은 REST API 또는 플랫폼 코어를 통해서만
-* ✅ **예외**: 플랫폼 코어(0000)만 모든 모듈이 의존 가능
+- ❌ **금지**: 모듈 A가 모듈 B의 클래스/함수를 직접 호출
+- ✅ **허용**: 모든 모듈 간 통신은 REST API 또는 플랫폼 코어를 통해서만
+- ✅ **예외**: 플랫폼 코어(0000)만 모든 모듈이 의존 가능
 
 ```php
 // ❌ 잘못된 예시
@@ -84,9 +86,9 @@ $response = PTGPlatform::post('ptg-flash/v1/cards', $data);
 
 ### 원칙 2: 인터페이스 기반 설계
 
-* 플랫폼 코어는 추상 인터페이스 제공
-* 각 모듈은 인터페이스만 의존
-* 구현체 변경 시에도 인터페이스 유지
+- 플랫폼 코어는 추상 인터페이스 제공
+- 각 모듈은 인터페이스만 의존
+- 구현체 변경 시에도 인터페이스 유지
 
 ```php
 // 플랫폼 코어 인터페이스
@@ -103,10 +105,10 @@ class Quiz_Handler {
 
 ### 원칙 3: 데이터 격리
 
-* 각 모듈은 자체 테이블 사용
-* 공통 테이블(`ptgates_questions` 등)은 읽기 전용 접근
-* 모듈 간 데이터 공유는 REST API 또는 이벤트 시스템
-* **테이블 변경 시**: 각 모듈에 영향을 최소화하여 변형 (3.1 섹션 참조)
+- 각 모듈은 자체 테이블 사용
+- 공통 테이블(`ptgates_questions` 등)은 문제은행 메인
+- 모듈 간 데이터 공유는 REST API 또는 이벤트 시스템
+- **테이블 변경 시**: 각 모듈에 영향을 최소화하여 변형 (3.1 섹션 참조)
 
 ```sql
 -- ✅ 각 모듈 독립 테이블
@@ -122,9 +124,9 @@ ptgates_user_results  -- 모든 모듈 읽기 가능
 
 ### 원칙 4: 버전 관리 및 하위 호환성
 
-* REST API 엔드포인트는 버전 관리 (`/v1/`, `/v2/`)
-* 기존 API 변경 시 새 버전 추가, 기존 버전 유지
-* 플랫폼 코어 변경 시 하위 호환성 보장
+- REST API 엔드포인트는 버전 관리 (`/v1/`, `/v2/`)
+- 기존 API 변경 시 새 버전 추가, 기존 버전 유지
+- 플랫폼 코어 변경 시 하위 호환성 보장
 
 ```php
 // ✅ 버전 관리 예시
@@ -134,11 +136,11 @@ register_rest_route('ptg-quiz/v2', '/questions', ...);  // 새 기능
 
 ### 원칙 5: 옵션/메타 충돌 방지
 
-* 각 모듈은 고유 접두사 사용
-* 옵션명: `ptg_{module}_{key}`
-* user_meta: `ptg_{module}_{key}`
-* 숏코드: `[ptg_{module}]`
-* REST base: `ptg-{module}/v1`
+- 각 모듈은 고유 접두사 사용
+- 옵션명: `ptg_{module}_{key}`
+- user*meta: `ptg*{module}\_{key}`
+- 숏코드: `[ptg_{module}]`
+- REST base: `ptg-{module}/v1`
 
 ```php
 // ✅ 올바른 네이밍
@@ -151,9 +153,9 @@ update_user_meta($user_id, 'last_question', $id);
 
 ### 원칙 6: 에러 처리 및 격리
 
-* 모듈 A의 에러가 모듈 B에 전파되지 않도록
-* try-catch로 모듈 경계에서 에러 격리
-* 플랫폼 코어는 에러 로깅만, 모듈별 에러는 모듈에서 처리
+- 모듈 A의 에러가 모듈 B에 전파되지 않도록
+- try-catch로 모듈 경계에서 에러 격리
+- 플랫폼 코어는 에러 로깅만, 모듈별 에러는 모듈에서 처리
 
 ```php
 // ✅ 에러 격리
@@ -168,21 +170,21 @@ try {
 
 ### 원칙 7: 테스트 가능한 구조
 
-* 각 모듈은 독립적으로 테스트 가능
-* 플랫폼 코어 의존성은 Mock 가능하도록 설계
-* 단위 테스트 작성 권장
+- 각 모듈은 독립적으로 테스트 가능
+- 플랫폼 코어 의존성은 Mock 가능하도록 설계
+- 단위 테스트 작성 권장
 
 ### 원칙 8: 문서화 및 계약 명시
 
-* 각 모듈의 REST API는 명확한 계약(Contract) 정의
-* 요청/응답 스키마 문서화
-* 변경 시 변경 로그 유지
+- 각 모듈의 REST API는 명확한 계약(Contract) 정의
+- 요청/응답 스키마 문서화
+- 변경 시 변경 로그 유지
 
 ### 원칙 9: 점진적 확장
 
-* 새 기능 추가 시 기존 코드 최소 수정
-* 플러그인 방식으로 확장 가능한 구조
-* Hook/Filter 시스템 활용
+- 새 기능 추가 시 기존 코드 최소 수정
+- 플러그인 방식으로 확장 가능한 구조
+- Hook/Filter 시스템 활용
 
 ```php
 // ✅ Hook 시스템 활용
@@ -192,9 +194,9 @@ do_action('ptg_quiz_after_answer_check', $question_id, $is_correct);
 
 ### 원칙 10: 의존성 역전 (Dependency Inversion)
 
-* 상위 모듈이 하위 모듈에 의존하지 않음
-* 모두 플랫폼 코어(추상화)에 의존
-* 플랫폼 코어는 구체적인 모듈에 의존하지 않음
+- 상위 모듈이 하위 모듈에 의존하지 않음
+- 모두 플랫폼 코어(추상화)에 의존
+- 플랫폼 코어는 구체적인 모듈에 의존하지 않음
 
 ### 개발 시 체크리스트
 
@@ -224,99 +226,100 @@ do_action('ptg_quiz_after_answer_check', $question_id, $is_correct);
 
 과목 → 단원 → 개념 로드맵
 
-* 개념 기반 생성문항 (문제 형태 X, 개념 체크용)
-* 단원 요약
-* 단원 테스트 (생성문항 기반)
-* 이론 보기/브라우징
+- 개념 기반 생성문항 (문제 형태 X, 개념 체크용)
+- 단원 요약
+- 단원 테스트 (생성문항 기반)
+- 이론 보기/브라우징
 
 ## **1200-ptgates-quiz**
 
 생성 문제 기반 문제풀이 엔진
 
-* 타이머 (1교시 90분/2교시 75분 기본, 무제한 지원)
-* 드로잉 (문제 카드 내부 오버레이 캔버스)
-* 메모 (패널/바텀시트, 자동 저장 0.8~1.5s 디바운스)
-* 북마크 및 복습 필요 표시
-* 해설 표시
-* "비슷한 유형 다시 풀기"
-* 난이도·유형 기반 자동 문제 추천
-* **기출문제 제외**: `exam_session >= 1000` (생성문항만 노출)
+- 타이머 (1교시 90분/2교시 75분 기본, 무제한 지원)
+- 드로잉 (문제 카드 내부 오버레이 캔버스)
+- 메모 (패널/바텀시트, 자동 저장 0.8~1.5s 디바운스)
+- 북마크 및 복습 필요 표시
+- 해설 표시
+- "비슷한 유형 다시 풀기"
+- 난이도·유형 기반 자동 문제 추천
+- **기출문제 제외**: `exam_session >= 1000` (생성문항만 노출)
 
 ## **2100-ptgates-mynote**
 
 문제/개념/메모 통합 저장 허브
 
-* 탭: 문제 / 이론·개념 / 암기카드 / 메모 / 노트
-* 필터: 전체/오답/북마크, 정렬: 최신순
-* 태그 자동 생성
-* 모듈 간 연동
+- 탭: 문제 / 이론·개념 / 암기카드 / 메모 / 노트
+- 필터: 전체/오답/북마크, 정렬: 최신순
+- 태그 자동 생성
+- 모듈 간 연동
 
 ## **2200-ptgates-flashcards**
 
 문제 참조 방식 암기카드
 
-* 카드 세트 관리
-* 복습 due 날짜 관리
-* 자동 반복 알고리즘 (SM-lite)
-* **참조 방식**: `source_id`로 `question_id` 참조
-  * 앞면 기본값: `ptgates_questions.content`
-  * 뒷면 기본값: `ptgates_questions.explanation`
-  * 사용자 편집 시: `front_custom`, `back_custom`에 저장
+- 카드 세트 관리
+- 복습 due 날짜 관리
+- 자동 반복 알고리즘 (SM-lite)
+- **참조 방식**: `source_id`로 `question_id` 참조
+  - 앞면 기본값: `ptgates_questions.content`
+  - 뒷면 기본값: `ptgates_questions.explanation`
+  - 사용자 편집 시: `front_custom`, `back_custom`에 저장
 
 ## **3100-ptgates-selftest**
 
 셀프 모의고사 생성기
 
-* 1교시/2교시 구성 자동 조합
-* 단원·카테고리 가중치 반영
-* 실전 모드 (스크린 락, 타이머)
-* 생성문항 기반
+- 1교시/2교시 구성 자동 조합
+- 단원·카테고리 가중치 반영
+- 실전 모드 (스크린 락, 타이머)
+- 생성문항 기반
 
 ## **3200-ptgates-analytics**
 
 학습 분석 엔진
 
-* 취약 단원 분석
-* 속도 분석
-* 정답률/난이도 통계
-* 사용자별 실전 점수 예측
+- 취약 단원 분석
+- 속도 분석
+- 정답률/난이도 통계
+- 사용자별 실전 점수 예측
 
 ## **4100-ptgates-reviewer**
 
 오늘의 학습/복습 스케줄러
 
-* 오답/북마크/취약개념 기반 추천
-* SM 반복 알고리즘
-* "오늘 풀 문제" 자동 생성
-* 난이도 기반 스케줄: 쉽다=+5일, 보통=+3일, 어렵다=+1일
+- 오답/북마크/취약개념 기반 추천
+- SM 반복 알고리즘
+- "오늘 풀 문제" 자동 생성
+- 난이도 기반 스케줄: 쉽다=+5일, 보통=+3일, 어렵다=+1일
 
 ## **5100-ptgates-dashboard**
 
 개인 학습 허브
 
-* 오늘의 할 일
-* 진도율
-* 남은 학습
-* 모의고사 기록
-* 프리미엄 상태 표시
+- 오늘의 할 일
+- 진도율
+- 남은 학습
+- 모의고사 기록
+- 프리미엄 상태 표시
 
 ## **6000-ptgates-admin**
 
 문제은행 관리 모듈 (관리자 전용)
 
-* CSV 일괄 삽입 (기존 `/bk/import_exam` 기능)
-* 문제 편집/삭제
-* 문제 검색/필터링
-* 문제 통계 (총 문제 수, 과목별 분포 등)
-* 문제 미리보기
-* REST API (`ptg-admin/v1/`)
+- CSV 일괄 삽입 (기존 `/bk/import_exam` 기능)
+- 문제 편집/삭제
+- 문제 검색/필터링
+- 문제 통계 (총 문제 수, 과목별 분포 등)
+- 문제 미리보기
+- REST API (`ptg-admin/v1/`)
 
 **특징:**
-* 관리자 권한 필수 (`current_user_can('manage_options')`)
-* 숏코드: `[ptg_admin]` 또는 `[ptg_admin type="import"]`
-  * `type`: `import` (CSV 일괄 삽입, 기본값), `list` (문제 목록), `stats` (통계)
-* WordPress 관리자 메뉴에서도 접근 가능
-* 플랫폼 코어 의존 (`class Repo` 사용)
+
+- 관리자 권한 필수 (`current_user_can('manage_options')`)
+- 숏코드: `[ptg_admin]` 또는 `[ptg_admin type="import"]`
+  - `type`: `import` (CSV 일괄 삽입, 기본값), `list` (문제 목록), `stats` (통계)
+- WordPress 관리자 메뉴에서도 접근 가능
+- 플랫폼 코어 의존 (`class Repo` 사용)
 
 ---
 
@@ -327,12 +330,14 @@ do_action('ptg_quiz_after_answer_check', $question_id, $is_correct);
 ### 테이블 변경 정책
 
 **원칙:**
-* 필요한 테이블 추가와 변경은 언제든지 가능
-* **단, 각 모듈에 영향을 최소화해서 변형해야 함**
-* 변경 전 모든 모듈의 영향도 분석 필수
-* 하위 호환성 유지 (기존 컬럼은 삭제하지 않고 deprecated 처리)
+
+- 필요한 테이블 추가와 변경은 언제든지 가능
+- **단, 각 모듈에 영향을 최소화해서 변형해야 함**
+- 변경 전 모든 모듈의 영향도 분석 필수
+- 하위 호환성 유지 (기존 컬럼은 삭제하지 않고 deprecated 처리)
 
 **변경 시 체크리스트:**
+
 - [ ] 변경 사항이 모든 모듈에 미치는 영향 분석 완료
 - [ ] 기존 데이터 마이그레이션 계획 수립
 - [ ] 하위 호환성 유지 (기존 컬럼 유지 또는 deprecated 처리)
@@ -340,55 +345,62 @@ do_action('ptg_quiz_after_answer_check', $question_id, $is_correct);
 - [ ] 테스트 계획 수립 (모든 모듈 테스트)
 
 ### `ptgates_questions`
-* `question_id` (PK)
-* `content` (생성문항 텍스트)
-* `answer`
-* `explanation`
-* `difficulty`
-* `type`, `tags`, `meta`
-* `is_active`
-* `created_at`, `updated_at`
+
+- `question_id` (PK)
+- `content` (생성문항 텍스트)
+- `answer`
+- `explanation`
+- `difficulty`
+- `type`, `tags`, `meta`
+- `is_active`
+- `created_at`, `updated_at`
 
 **변경 시 주의사항:**
-* `question_id`는 모든 모듈에서 FK로 사용되므로 변경 불가
-* `content`, `answer`, `explanation`은 여러 모듈에서 참조하므로 변경 시 영향도 분석 필수
+
+- `question_id`는 모든 모듈에서 FK로 사용되므로 변경 불가
+- `content`, `answer`, `explanation`은 여러 모듈에서 참조하므로 변경 시 영향도 분석 필수
 
 ### `ptgates_categories`
-* `category_id` (PK)
-* `question_id` (FK → ptgates_questions)
-* `subject`
-* `topic`
-* `exam_year` (기출문제 연도, NULL 가능)
-* `exam_session` (기출문제 회차, NULL 또는 < 1000: 기출, >= 1000: 생성문항)
-* `exam_course` (교시 정보)
+
+- `category_id` (PK)
+- `question_id` (FK → ptgates_questions)
+- `subject`
+- `topic`
+- `exam_year` (기출문제 연도, NULL 가능)
+- `exam_session` (기출문제 회차, NULL 또는 < 1000: 기출, >= 1000: 생성문항)
+- `exam_course` (교시 정보)
 
 **변경 시 주의사항:**
-* `question_id` FK는 변경 불가
-* `exam_session` 필터링 로직이 여러 모듈에 있으므로 변경 시 모든 모듈 확인 필수
+
+- `question_id` FK는 변경 불가
+- `exam_session` 필터링 로직이 여러 모듈에 있으므로 변경 시 모든 모듈 확인 필수
 
 ### `ptgates_user_results`
-* `result_id` (PK)
-* `user_id`
-* `question_id` (FK → ptgates_questions)
-* `user_answer`
-* `is_correct`
-* `time_spent`
-* `created_at`
+
+- `result_id` (PK)
+- `user_id`
+- `question_id` (FK → ptgates_questions)
+- `user_answer`
+- `is_correct`
+- `time_spent`
+- `created_at`
 
 **변경 시 주의사항:**
-* `question_id` FK는 변경 불가
-* 통계/분석 모듈에서 집계에 사용되므로 변경 시 영향도 분석 필수
+
+- `question_id` FK는 변경 불가
+- 통계/분석 모듈에서 집계에 사용되므로 변경 시 영향도 분석 필수
 
 ## 3.2 기출문제 정책
 
-* **DB에는 기출문제 유지** (`exam_session < 1000`)
-* **사용자에게는 생성문항만 노출** (`exam_session >= 1000`)
-* 기출문제는 내부 분석용으로만 사용 (출제 경향 분석)
-* `ptgates-engine` 플러그인은 기출문제 전용 (별도 운영)
+- **DB에는 기출문제 유지** (`exam_session < 1000`)
+- **사용자에게는 생성문항만 노출** (`exam_session >= 1000`)
+- 기출문제는 내부 분석용으로만 사용 (출제 경향 분석)
+- `ptgates-engine` 플러그인은 기출문제 전용 (별도 운영)
 
 ## 3.3 새로 추가될 테이블 (모듈별)
 
 ### 2200-ptgates-flashcards
+
 ```sql
 ptgates_flashcard_sets
 ├── set_id (PK)
@@ -410,6 +422,7 @@ ptgates_flashcards
 ```
 
 ### 2100-ptgates-mynote
+
 ```sql
 ptgates_user_notes
 ├── note_id (PK)
@@ -422,6 +435,7 @@ ptgates_user_notes
 ```
 
 ### 4100-ptgates-reviewer
+
 ```sql
 ptgates_user_states
 ├── state_id (PK)
@@ -439,15 +453,15 @@ ptgates_user_states
 # 4. 학습자 중심 UX Flow (User Journey)
 
 ```
-문제풀이 (1200) 
+문제풀이 (1200)
   ↓
-해설 확인 
+해설 확인
   ↓
-북마크/메모 (1200) 
+북마크/메모 (1200)
   ↓
-복습 스케줄러 (4100) 
+복습 스케줄러 (4100)
   ↓
-분석 (3200) 
+분석 (3200)
   ↓
 취약 단원 재학습 (1100)
 ```
@@ -460,23 +474,23 @@ ptgates_user_states
 
 ## 원칙
 
-* 기출문제 **원문/선택지** 사용자에게 절대 노출 없음
-* 기출의 **출제 경향만 분석** (내부용)
-* 모든 사용자 노출 문항은 **ptGates 자체 생성문항**
+- 기출문제 **원문/선택지** 사용자에게 절대 노출 없음
+- 기출의 **출제 경향만 분석** (내부용)
+- 모든 사용자 노출 문항은 **ptGates 자체 생성문항**
 
 ## 제공 방식
 
-* 생성문항 기반 문제풀이
-* 생성문항 기반 단원 테스트
-* 생성문항 기반 모의고사
-* 생성문항 기반 개념학습
+- 생성문항 기반 문제풀이
+- 생성문항 기반 단원 테스트
+- 생성문항 기반 모의고사
+- 생성문항 기반 개념학습
 
 ## 장점
 
-* 저작권 0%
-* 확장성 무한
-* 자체 문제은행 점점 고도화 가능
-* B2C/B2B 가격 책정에 유리
+- 저작권 0%
+- 확장성 무한
+- 자체 문제은행 점점 고도화 가능
+- B2C/B2B 가격 책정에 유리
 
 ---
 
@@ -486,34 +500,34 @@ ptgates_user_states
 
 ## Free
 
-* 생성문항 맛보기 5문제/과목
-* 모의고사 1회 무료
-* 개념 로드맵 30% 공개
-* 분석 기능 제한
-* 복습 기능 제한
-* 광고 포함
-* 직접 업그레이드 CTA 표시
+- 생성문항 맛보기 5문제/과목
+- 모의고사 1회 무료
+- 개념 로드맵 30% 공개
+- 분석 기능 제한
+- 복습 기능 제한
+- 광고 포함
+- 직접 업그레이드 CTA 표시
 
 ## Premium
 
 ### 가격
 
-* **1개월: 24,000원**
-* **3개월: 59,000원 (D-100 패스)**
-* **12개월: 129,000원 (정가)**
-* 런칭가 79,000원 가능
+- **1개월: 24,000원**
+- **3개월: 59,000원 (D-100 패스)**
+- **12개월: 129,000원 (정가)**
+- 런칭가 79,000원 가능
 
 ### 제공 기능
 
-* 생성 문제 전체
-* 모의고사 무제한
-* 과목 학습 전체
-* 분석 전체
-* 복습 스케줄러 전체
-* 대시보드 전체
-* 광고 제거
-* 인쇄/제출용 PDF 리포트
-* 점수 예측/커트라인 시뮬레이터
+- 생성 문제 전체
+- 모의고사 무제한
+- 과목 학습 전체
+- 분석 전체
+- 복습 스케줄러 전체
+- 대시보드 전체
+- 광고 제거
+- 인쇄/제출용 PDF 리포트
+- 점수 예측/커트라인 시뮬레이터
 
 ---
 
@@ -521,28 +535,28 @@ ptgates_user_states
 
 ## `/ptg/v1/payment/start`
 
-* PG 결제 토큰 생성
-* 결제 금액, 플랜 정보 전달
+- PG 결제 토큰 생성
+- 결제 금액, 플랜 정보 전달
 
 ## `/ptg/v1/payment/approve`
 
-* 결제 성공 처리
-* `user_meta` 업데이트:
-  * `ptg_premium_status` = `active`
-  * `ptg_premium_until` = 만료일 timestamp
-  * `ptg_premium_plan` = `monthly` | `yearly`
-* premium 활성화 이벤트 발동
+- 결제 성공 처리
+- `user_meta` 업데이트:
+  - `ptg_premium_status` = `active`
+  - `ptg_premium_until` = 만료일 timestamp
+  - `ptg_premium_plan` = `monthly` | `yearly`
+- premium 활성화 이벤트 발동
 
 ## `/ptg/v1/payment/cancel`
 
-* 정기결제 해지
-* `ptg_premium_status` = `expired`
-* 만료일까지는 기능 유지
+- 정기결제 해지
+- `ptg_premium_status` = `expired`
+- 만료일까지는 기능 유지
 
 ## `/ptg/v1/payment/status`
 
-* 현재 사용자 프리미엄 상태 조회
-* 만료일 확인
+- 현재 사용자 프리미엄 상태 조회
+- 만료일 확인
 
 ---
 
@@ -550,25 +564,25 @@ ptgates_user_states
 
 ## 8.1 B2C 매출 전략
 
-* 응시자 5,000명
-* 학생 풀 10,000명
-* 전환 목표 8~12%
-* 연 1억 ~ 1.5억 가능
+- 응시자 5,000명
+- 학생 풀 10,000명
+- 전환 목표 8~12%
+- 연 1억 ~ 1.5억 가능
 
 ## 8.2 B2B 확장 (학과/학원)
 
-* 관리자 대시보드
-* 단체 분석 리포트
-* 그룹코드 기반 학생 등록
-* 1개 학과 150만~300만
-* 10개 학과만 확보해도 1.5억 추가 가능
+- 관리자 대시보드
+- 단체 분석 리포트
+- 그룹코드 기반 학생 등록
+- 1개 학과 150만~300만
+- 10개 학과만 확보해도 1.5억 추가 가능
 
 ## 8.3 향후 직종 확장
 
-* 작업치료사
-* 임상병리사
-* 방사선사
-* 치위생사
+- 작업치료사
+- 임상병리사
+- 방사선사
+- 치위생사
 
 → 엔진은 그대로 사용, 문제/카테고리만 추가
 
@@ -577,23 +591,28 @@ ptgates_user_states
 # 9. 개발 우선순위 (Sprint Roadmap)
 
 ## Phase 1: 핵심 엔진
+
 1. **0000-ptgates-platform** (DB/REST 유틸/공통)
 2. **1200-ptgates-quiz** (문제 풀이 엔진)
 3. **4100-ptgates-reviewer** (복습 스케줄러)
 
 ## Phase 2: 학습 관리
+
 4. **2100-ptgates-mynote** (마이노트 허브)
 5. **2200-ptgates-flashcards** (암기카드)
 
 ## Phase 3: 고급 기능
+
 6. **3100-ptgates-selftest** (셀프 모의고사)
 7. **3200-ptgates-analytics** (성적 분석)
 
 ## Phase 4: 완성
+
 8. **1100-ptgates-study** (이론 보기/단원 테스트)
 9. **5100-ptgates-dashboard** (개인 대시보드)
 
 ## Phase 5: 관리자 도구
+
 10. **6000-ptgates-admin** (문제은행 관리 모듈)
 
 ---
@@ -604,10 +623,10 @@ ptgates_user_states
 
 ### 참조 방식 (Reference-based)
 
-* `source_type`: `'question'` | `'theory'` | `'custom'`
-* `source_id`: `question_id` 또는 `theory_id` (NULL 가능)
-* `front_custom`: NULL 또는 사용자 편집본
-* `back_custom`: NULL 또는 사용자 편집본
+- `source_type`: `'question'` | `'theory'` | `'custom'`
+- `source_id`: `question_id` 또는 `theory_id` (NULL 가능)
+- `front_custom`: NULL 또는 사용자 편집본
+- `back_custom`: NULL 또는 사용자 편집본
 
 ### 표시 로직
 
@@ -630,129 +649,144 @@ if (card.back_custom) {
 ## 10.2 생성 흐름
 
 ### 1200-ptgates-quiz에서 생성
+
 1. 문제 풀이 중 🃏 버튼 클릭
 2. 암기카드 생성 모달 표시
-   * 앞면: `ptgates_questions.content` (자동 채워짐, 수정 가능)
-   * 뒷면: `ptgates_questions.explanation` (자동 채워짐, 수정 가능)
-   * 세트 선택
+   - 앞면: `ptgates_questions.content` (자동 채워짐, 수정 가능)
+   - 뒷면: `ptgates_questions.explanation` (자동 채워짐, 수정 가능)
+   - 세트 선택
 3. 저장
-   * `source_type = 'question'`
-   * `source_id = question_id`
-   * `front_custom = NULL` (수정 안 했으면)
-   * `back_custom = NULL` (수정 안 했으면)
+   - `source_type = 'question'`
+   - `source_id = question_id`
+   - `front_custom = NULL` (수정 안 했으면)
+   - `back_custom = NULL` (수정 안 했으면)
 
 ### 1100-ptgates-study에서 생성
+
 1. 이론 보기 중 "암기카드 만들기" 클릭
 2. 선택한 텍스트 또는 전체 내용이 앞면/뒷면으로 채워짐
 3. 세트 선택 후 저장
 
 ## 10.3 복습 스케줄링
 
-* 난이도 선택에 따른 `next_due_date` 갱신:
-  * 쉽다: +5일
-  * 보통: +3일
-  * 어렵다: +1일
-* 환경설정으로 일수 조절 가능
+- 난이도 선택에 따른 `next_due_date` 갱신:
+  - 쉽다: +5일
+  - 보통: +3일
+  - 어렵다: +1일
+- 환경설정으로 일수 조절 가능
 
 ---
 
 # 11. 네이밍 규칙
 
 ## PHP Namespace
-* `PTG\Platform`
-* `PTG\Study`
-* `PTG\Quiz`
-* `PTG\MyNote`
-* `PTG\Flashcards`
-* `PTG\SelfTest`
-* `PTG\Analytics`
-* `PTG\Reviewer`
-* `PTG\Dashboard`
+
+- `PTG\Platform`
+- `PTG\Study`
+- `PTG\Quiz`
+- `PTG\MyNote`
+- `PTG\Flashcards`
+- `PTG\SelfTest`
+- `PTG\Analytics`
+- `PTG\Reviewer`
+- `PTG\Dashboard`
 
 ## 함수 접두사
-* `ptg_` (플랫폼)
-* `ptg_study_`
-* `ptg_quiz_`
-* `ptg_mynote_`
-* `ptg_flash_`
-* `ptg_selftest_`
-* `ptg_analytics_`
-* `ptg_review_`
-* `ptg_dash_`
+
+- `ptg_` (플랫폼)
+- `ptg_study_`
+- `ptg_quiz_`
+- `ptg_mynote_`
+- `ptg_flash_`
+- `ptg_selftest_`
+- `ptg_analytics_`
+- `ptg_review_`
+- `ptg_dash_`
 
 ## REST 네임스페이스
-* `ptg/v1` (플랫폼)
-* `ptg-study/v1`
-* `ptg-quiz/v1`
-* `ptg-mynote/v1`
-* `ptg-flash/v1`
-* `ptg-selftest/v1`
-* `ptg-analytics/v1`
-* `ptg-review/v1`
-* `ptg-dash/v1`
+
+- `ptg/v1` (플랫폼)
+- `ptg-study/v1`
+- `ptg-quiz/v1`
+- `ptg-mynote/v1`
+- `ptg-flash/v1`
+- `ptg-selftest/v1`
+- `ptg-analytics/v1`
+- `ptg-review/v1`
+- `ptg-dash/v1`
 
 ## 숏코드
-* `[ptg_study]`
-* `[ptg_quiz]`
-* `[ptg_mynote]`
-* `[ptg_flash]`
-* `[ptg_selftest]`
-* `[ptg_analytics]`
-* `[ptg_review]`
-* `[ptg_dashboard]`
-* `[ptg_admin]` (관리자 전용)
+
+- `[ptg_study]`
+- `[ptg_quiz]`
+- `[ptg_mynote]`
+- `[ptg_flash]`
+- `[ptg_selftest]`
+- `[ptg_analytics]`
+- `[ptg_review]`
+- `[ptg_dashboard]`
+- `[ptg_admin]` (관리자 전용)
 
 ---
 
 # 12. 보안/권한/성능
 
 ## 보안
-* 모든 write는 로그인 사용자 + nonce
-* 서버에서 `user_id` 강제 (`get_current_user_id()`)
-* `$wpdb->prepare` 사용
+
+- 모든 write는 로그인 사용자 + nonce
+- 서버에서 `user_id` 강제 (`get_current_user_id()`)
+- `$wpdb->prepare` 사용
 
 ## 권한 체크
-* `class Permissions`에서 free/premium 체크
-* 프리미엄 기능은 `ptg_premium_status === 'active'` 확인
+
+- `class Permissions`에서 free/premium 체크
+- 프리미엄 기능은 `ptg_premium_status === 'active'` 확인
 
 ## 성능
-* 인덱스 활용
-* 대용량 목록은 cursor 기반 페이지네이션
-* 타임존: DB는 UTC / 앱은 Asia/Seoul
+
+- 인덱스 활용
+- 대용량 목록은 cursor 기반 페이지네이션
+- 타임존: DB는 UTC / 앱은 Asia/Seoul
 
 ## 파일/옵션 충돌 방지
-* 각 모듈 접두사로 등록 (옵션명, 숏코드, REST base)
+
+- 각 모듈 접두사로 등록 (옵션명, 숏코드, REST base)
 
 ---
 
 # 13. UI/UX 공통 실무 팁
 
 ## 드로잉 영역
-* 문제 카드 내부에만 오버레이 캔버스
-* 좌표 정규화 (0~1)
-* 지우개는 destination-out
-* Undo/Redo
+
+- 문제 카드 내부에만 오버레이 캔버스
+- 좌표 정규화 (0~1)
+- 지우개는 destination-out
+- Undo/Redo
 
 ## 메모
-* 카드 고정영역 두지 말고 패널/바텀시트로 열기
-* 열려있을 땐 드로잉 잠시 비활성
+
+- 카드 고정영역 두지 말고 패널/바텀시트로 열기
+- 열려있을 땐 드로잉 잠시 비활성
 
 ## 아이콘 순서 (우상단)
-* ☆ (북마크)
-* 🔁 (복습)
-* 📝 (메모)
-* ✏️ (드로잉)
-* 🃏 (암기카드) - 향후 추가
-* 📓 (노트) - 향후 추가
+
+- ☆ (북마크)
+- 🔁 (복습)
+- 📝 (메모)
+- ✏️ (드로잉)
+- 🃏 (암기카드) - 향후 추가
+- 📓 (노트) - 향후 추가
 
 ## 반응형
-* PC (최대폭 960~1000px)
-* 모바일 폭 100%
-* 캔버스 자동 스케일
+
+- PC (최대폭 960~1000px)
+- 모바일 폭 100%
+- 캔버스 자동 스케일
 
 ## 접근성
-* 키보드 단축키 (저장/닫기)
-* 포커스 트랩
+
+- 키보드 단축키 (저장/닫기)
+- 포커스 트랩
 
 ---
 
@@ -773,23 +807,25 @@ if (card.back_custom) {
 ```
 
 ## 플러그인 헤더
-* `Requires Plugins: 0000-ptgates-platform` 명시
+
+- `Requires Plugins: 0000-ptgates-platform` 명시
 
 ## Uninstall
-* 플랫폼 코어: 플랫폼 전용 테이블만 삭제 옵션
-* 기존 3개 테이블 (`ptgates_questions`, `ptgates_categories`, `ptgates_user_results`)은 신중하게 관리
-  * 삭제 전 모든 모듈의 영향도 분석 필수
-  * 데이터 백업 필수
-  * 마이그레이션 계획 수립 필수
-* 각 모듈: uninstall 없음 (데이터 유지)
+
+- 플랫폼 코어: 플랫폼 전용 테이블만 삭제 옵션
+- 기존 3개 테이블 (`ptgates_questions`, `ptgates_categories`, `ptgates_user_results`)은 신중하게 관리
+  - 삭제 전 모든 모듈의 영향도 분석 필수
+  - 데이터 백업 필수
+  - 마이그레이션 계획 수립 필수
+- 각 모듈: uninstall 없음 (데이터 유지)
 
 ---
 
 # 15. 타임존 처리
 
-* DB는 UTC
-* 앱은 Asia/Seoul 기준
-* `due_date`는 KST로 계산해 date로 저장
+- DB는 UTC
+- 앱은 Asia/Seoul 기준
+- `due_date`는 KST로 계산해 date로 저장
 
 ---
 
@@ -799,22 +835,66 @@ if (card.back_custom) {
 
 ### ❌ 사용하지 않는 이유
 
+- WordPress의 `wp_enqueue_script`는 전역 스코프에 스크립트를 로드하므로, 특정 페이지나 컴포넌트에서만 필요한 스크립트를 제어하기 어렵습니다.
+- 모듈 간 의존성 관리가 복잡해질 수 있습니다.
+- 불필요한 스크립트 로드로 인한 성능 저하를 방지해야 합니다.
+
+### ✅ 권장 방식: 동적 로드 (Dynamic Import)
+
+- 필요한 시점에 필요한 스크립트만 로드합니다.
+- `import()` 문법을 사용하여 모듈을 동적으로 가져옵니다.
+- ES6 모듈 시스템을 적극 활용합니다.
+
+```javascript
+// 예시: 클릭 시 모듈 로드
+button.addEventListener("click", async () => {
+  const module = await import("./module.js");
+  module.init();
+});
+```
+
+---
+
+# 17. 개발 및 유지보수 가이드라인 (Lessons Learned)
+
+## 17.1 HTML 구조 및 DOM 조작
+
+- **엄격한 HTML 구조 준수**: 폼 필드 생성 시 반드시 닫는 태그와 컨테이너 구조를 확인해야 합니다. 특히 `div` 태그 누락은 DOM 트리 파싱 오류를 일으켜 JS 선택자(`closest` 등)가 오작동하는 주원인이 됩니다.
+- **템플릿/헬퍼 함수 사용 권장**: 반복되는 HTML 구조(예: 폼 필드)는 PHP 함수나 템플릿으로 분리하여 구조적 일관성을 유지하고 실수를 방지합니다.
+- **견고한 DOM 선택자 사용**:
+  - 계층 구조(`parent`, `closest`)에만 의존하기보다 `data-` 속성(예: `data-question-id`)을 활용하여 요소를 명확히 식별합니다.
+  - JS에서 ID나 중요 데이터를 가져올 때는 여러 방법(data 속성, input value 등)으로 교차 검증하거나 fallback 로직을 구현합니다.
+
+## 17.2 데이터베이스 및 쿼리
+
+- **정확한 컬럼명 확인**: 쿼리 작성 전 반드시 실제 DB 스키마를 확인합니다. (예: `id` vs `category_id`). 추측에 의한 컬럼명 사용은 런타임 에러의 원인이 됩니다.
+- **안전한 존재 여부 확인**: 특정 레코드의 존재 여부를 확인할 때는 `SELECT *`나 특정 컬럼(`SELECT id`) 대신 `SELECT COUNT(*)`를 사용하는 것이 안전합니다. 이는 컬럼명 변경에 영향을 받지 않으며 성능상으로도 유리할 수 있습니다.
+- **스키마 문서화 및 동기화**: `class-migration.php` 등 스키마 정의 파일을 최신 상태로 유지하고, 개발 시 이를 참조하는 습관을 들입니다.
+
+## 17.3 디버깅 및 로깅
+
+- **상세한 에러 로깅**: AJAX 요청 처리 시 단순한 성공/실패 여부뿐만 아니라, 실패 시 `$_POST` 데이터나 구체적인 에러 메시지를 `error_log`로 남겨 서버 측 원인을 빠르게 파악할 수 있도록 합니다.
+- **프론트엔드 방어적 코딩**: JS에서 서버로 데이터를 전송하기 전, 필수 값(예: ID)의 유효성을 검증하고, 누락 시 사용자에게 명확한 피드백을 제공하거나 전송을 중단합니다.
+
 1. **의존성 체인 문제**
-   * 복잡한 의존성 구조에서 로드 순서가 꼬일 수 있음
-   * 순환 참조 시 예측 불가능한 동작
+
+   - 복잡한 의존성 구조에서 로드 순서가 꼬일 수 있음
+   - 순환 참조 시 예측 불가능한 동작
 
 2. **타이밍 이슈**
-   * `wp_enqueue_scripts` 훅은 페이지 로드 초기 실행
-   * 숏코드가 나중에 렌더링되면 스크립트가 이미 출력된 후일 수 있음
-   * 조건부 로드(`has_shortcode` 체크)가 정확하지 않을 수 있음
+
+   - `wp_enqueue_scripts` 훅은 페이지 로드 초기 실행
+   - 숏코드가 나중에 렌더링되면 스크립트가 이미 출력된 후일 수 있음
+   - 조건부 로드(`has_shortcode` 체크)가 정확하지 않을 수 있음
 
 3. **캐싱/최적화 플러그인과의 충돌**
-   * 캐싱 플러그인이 스크립트를 합치거나 지연 로드하면 의존성 체인 깨짐
-   * 버전 파라미터(`?ver=`)가 제거되거나 변경될 수 있음
+
+   - 캐싱 플러그인이 스크립트를 합치거나 지연 로드하면 의존성 체인 깨짐
+   - 버전 파라미터(`?ver=`)가 제거되거나 변경될 수 있음
 
 4. **모듈 독립성 저해**
-   * WordPress 큐에 전역 등록되면 모듈 간 간섭 발생
-   * 다른 플러그인과 핸들명 충돌 가능성
+   - WordPress 큐에 전역 등록되면 모듈 간 간섭 발생
+   - 다른 플러그인과 핸들명 충돌 가능성
 
 ## 16.2 JavaScript 직접 로드 방식 (권장)
 
@@ -831,30 +911,30 @@ $loader_script = sprintf(
             cfg.ptgModule = cfg.ptgModule || {};
             cfg.ptgModule.restUrl = %1$s;
             cfg.ptgModule.nonce = %2$s;
-            
+
             var queue = [
                 {check: function(){return typeof cfg.PTGPlatform !== "undefined";}, url: %3$s},
                 {check: function(){return typeof cfg.PTGModuleUI !== "undefined";}, url: %4$s},
                 {check: function(){return typeof cfg.PTGModule !== "undefined";}, url: %5$s}
             ];
-            
+
             function load(i) {
                 if (i >= queue.length) return;
                 var item = queue[i];
-                
+
                 // 이미 로드되었는지 확인
                 if (item.check && item.check()) {
                     load(i + 1);
                     return;
                 }
-                
+
                 // 중복 로드 방지
                 var existing = d.querySelector(\'script[data-ptg-src="\' + item.url + \'"]\');
                 if (existing) {
                     existing.addEventListener("load", function(){load(i + 1);});
                     return;
                 }
-                
+
                 // 스크립트 생성 및 로드
                 var s = d.createElement("script");
                 s.src = item.url + (item.url.indexOf("?") === -1 ? "?ver=1.0.0" : "");
@@ -867,7 +947,7 @@ $loader_script = sprintf(
                 };
                 (d.head || d.body || d.documentElement).appendChild(s);
             }
-            
+
             if (d.readyState === "loading") {
                 d.addEventListener("DOMContentLoaded", function(){load(0);});
             } else {
@@ -927,64 +1007,74 @@ public function enqueue_assets() {
 
 ```javascript
 // 0000-ptgates-platform/assets/js/loader.js
-(function() {
-    'use strict';
-    
-    window.PTGLoader = window.PTGLoader || {
-        loadScripts: function(queue, config, onComplete) {
-            let index = 0;
-            
-            // 전역 설정 주입
-            if (config) {
-                var cfg = window;
-                Object.keys(config).forEach(function(key) {
-                    cfg[key] = config[key];
-                });
-            }
-            
-            function loadNext() {
-                if (index >= queue.length) {
-                    if (onComplete) onComplete();
-                    return;
-                }
-                
-                const item = queue[index++];
-                
-                // 이미 로드되었는지 확인
-                if (item.check && item.check()) {
-                    loadNext();
-                    return;
-                }
-                
-                // 중복 로드 방지
-                const existing = document.querySelector(`script[data-ptg-src="${item.url}"]`);
-                if (existing) {
-                    existing.addEventListener('load', loadNext);
-                    return;
-                }
-                
-                // 스크립트 생성 및 로드
-                const script = document.createElement('script');
-                script.src = item.url + (item.url.indexOf('?') === -1 ? '?ver=' + (item.version || Date.now()) : '');
-                script.async = false;
-                script.setAttribute('data-ptg-src', item.url);
-                
-                script.onload = loadNext;
-                script.onerror = function() {
-                    console.error('[PTG Loader] Failed to load:', item.url);
-                    loadNext(); // 에러가 나도 다음 스크립트 계속 로드
-                };
-                
-                (document.head || document.body || document.documentElement).appendChild(script);
-            }
-            
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadNext);
-            } else {
-                loadNext();
-            }
+(function () {
+  "use strict";
+
+  window.PTGLoader = window.PTGLoader || {
+    loadScripts: function (queue, config, onComplete) {
+      let index = 0;
+
+      // 전역 설정 주입
+      if (config) {
+        var cfg = window;
+        Object.keys(config).forEach(function (key) {
+          cfg[key] = config[key];
+        });
+      }
+
+      function loadNext() {
+        if (index >= queue.length) {
+          if (onComplete) onComplete();
+          return;
         }
-    };
+
+        const item = queue[index++];
+
+        // 이미 로드되었는지 확인
+        if (item.check && item.check()) {
+          loadNext();
+          return;
+        }
+
+        // 중복 로드 방지
+        const existing = document.querySelector(
+          `script[data-ptg-src="${item.url}"]`
+        );
+        if (existing) {
+          existing.addEventListener("load", loadNext);
+          return;
+        }
+
+        // 스크립트 생성 및 로드
+        const script = document.createElement("script");
+        script.src =
+          item.url +
+          (item.url.indexOf("?") === -1
+            ? "?ver=" + (item.version || Date.now())
+            : "");
+        script.async = false;
+        script.setAttribute("data-ptg-src", item.url);
+
+        script.onload = loadNext;
+        script.onerror = function () {
+          console.error("[PTG Loader] Failed to load:", item.url);
+          loadNext(); // 에러가 나도 다음 스크립트 계속 로드
+        };
+
+        (
+          document.head ||
+          document.body ||
+          document.documentElement
+        ).appendChild(script);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", loadNext);
+      } else {
+        loadNext();
+      }
+    },
+  };
 })();
 ```
 
@@ -1004,19 +1094,19 @@ JavaScript 로드 구현 시 확인:
 
 # 📌 이 문서가 포함하는 내용
 
-* 전체 모듈 구조
-* 기능 흐름
-* 생성문항 기반 운영 전략
-* Free/Premium 결제 모델
-* REST 결제 시스템
-* 매출 목표 구조
-* B2C/B2B 확장 전략
-* 로드맵
-* 암기카드 상세 설계
-* 네이밍 규칙
-* 보안/성능 가이드
-* **아키텍처 원칙 (모듈 독립성 및 변경 격리)** ⭐
-* **JavaScript 로드 방식 가이드라인** ⭐
+- 전체 모듈 구조
+- 기능 흐름
+- 생성문항 기반 운영 전략
+- Free/Premium 결제 모델
+- REST 결제 시스템
+- 매출 목표 구조
+- B2C/B2B 확장 전략
+- 로드맵
+- 암기카드 상세 설계
+- 네이밍 규칙
+- 보안/성능 가이드
+- **아키텍처 원칙 (모듈 독립성 및 변경 격리)** ⭐
+- **JavaScript 로드 방식 가이드라인** ⭐
 
 **→ ptGates의 기술/기획/운영을 모두 아우르는 통합 스펙 v1.0**
 
@@ -1025,4 +1115,3 @@ JavaScript 로드 구현 시 확인:
 **최종 업데이트:** 2024년
 **버전:** 1.0.0
 **상태:** 통합 완료 (사용자 결정 사항 반영)
-

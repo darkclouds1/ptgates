@@ -181,10 +181,6 @@ class PTG_API {
         try {
             $years = PTG_DB::get_available_years();
             
-            // 디버깅: API 응답 확인 (개발 환경에서만)
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('PTGates API get_years response: ' . print_r($years, true));
-            }
             
             $response = rest_ensure_response($years);
             
@@ -212,7 +208,7 @@ class PTG_API {
     public static function get_subjects($request) {
         try {
             $year = $request->get_param('year');
-            $subjects = PTG_DB::get_available_subjects($year);
+            $subjects = \PTG\Platform\LegacyRepo::get_available_subjects($year);
             return rest_ensure_response($subjects);
         } catch (\Throwable $e) {
             if (defined('WP_DEBUG') && WP_DEBUG) {

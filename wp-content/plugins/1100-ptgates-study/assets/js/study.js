@@ -3,6 +3,8 @@
 
     // 전역 디버그 플래그(기본 off). 필요 시 콘솔에서 window.PTG_STUDY_DEBUG=true로 켜서 상세 로그 확인.
     let PTG_STUDY_DEBUG = false;
+    // sessionStorage를 사용하여 페이지 세션 동안 로그된 question_id 추적
+    const STORAGE_KEY = 'ptg_study_logged_questions';
 
     let categoryMap = {};
     let initialCoursesHTML = null;
@@ -123,6 +125,38 @@
         // JS에서는 클릭 이벤트만 처리한다.
 
         setupStudyTipHandlers();
+
+        // URL 파라미터에서 세부과목 자동 열기 (대시보드에서 링크로 이동한 경우)
+        const urlParams = new URLSearchParams(window.location.search);
+        const subjectParam = urlParams.get('subject');
+        if (subjectParam) {
+            try {
+                const subjectId = decodeURIComponent(subjectParam);
+                const subjectLabel = subjectId;
+                // 해당 세부과목이 있는 카테고리 찾기
+                const $targetItem = studyContainer.find('.ptg-subject-item').filter(function() {
+                    const itemId = $(this).data('subject-id');
+                    if (!itemId) return false;
+                    try {
+                        return decodeURIComponent(itemId) === subjectId;
+                    } catch (e) {
+                        return itemId === subjectId;
+                    }
+                });
+                
+                if ($targetItem.length > 0) {
+                    const $category = $targetItem.closest('.ptg-category');
+                    const categoryLabel = $category.find('.ptg-category-title').text().trim();
+                    // 약간의 지연 후 자동으로 클릭 (DOM이 완전히 준비된 후)
+                    setTimeout(function() {
+                        studyContainer.html(`<p>${escapeHtml(subjectLabel)} 과목의 학습 내용을 불러오는 중...</p>`);
+                        fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel);
+                    }, 100);
+                }
+            } catch (e) {
+                console.warn('PTG Study: Failed to parse subject parameter', e);
+            }
+        }
 
         // 카테고리(과목 카드) 클릭 → 해당 과목의 모든 세부과목을 한 번에 학습
         studyContainer.off('click', '.ptg-category');
@@ -284,6 +318,76 @@
 	}
 
     /**
+     * Study 진행 기록을 서버에 전송
+     */
+    function logStudyProgress(questionId) {
+        if (!questionId) {
+            return;
+        }
+
+        // sessionStorage에서 이미 로그된 question_id 목록 가져오기
+        let loggedQuestions = [];
+        try {
+            const stored = sessionStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                loggedQuestions = JSON.parse(stored);
+            }
+        } catch (e) {
+            if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to read sessionStorage', e);
+        }
+
+        // 이미 이 세션에서 로그된 question_id인지 확인
+        if (loggedQuestions.includes(questionId)) {
+            if (PTG_STUDY_DEBUG) console.log('PTG Study: Already logged in this session, ignoring', questionId);
+            return;
+        }
+
+        const rest = getRestConfig();
+        if (!rest || !rest.baseUrl) {
+            return;
+        }
+
+        // 요청 시작 전에 sessionStorage에 추가 (중복 요청 방지)
+        loggedQuestions.push(questionId);
+        try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(loggedQuestions));
+        } catch (e) {
+            if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to write sessionStorage', e);
+        }
+
+        $.ajax({
+            url: rest.baseUrl + 'study-progress',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ question_id: questionId }),
+            processData: false,
+            beforeSend: function(xhr) {
+                if (rest.nonce) {
+                    xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
+                }
+            }
+        }).done(function() {
+            // 성공 시 sessionStorage에 그대로 유지 (페이지 새로고침 시에만 초기화됨)
+            if (PTG_STUDY_DEBUG) console.log('PTG Study: Progress logged successfully', questionId);
+        }).fail(function() {
+            // 실패 시 sessionStorage에서 제거하여 재시도 가능하도록
+            try {
+                const stored = sessionStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const questions = JSON.parse(stored);
+                    const index = questions.indexOf(questionId);
+                    if (index > -1) {
+                        questions.splice(index, 1);
+                        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
+                    }
+                }
+            } catch (e) {
+                if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to remove from sessionStorage', e);
+            }
+        });
+    }
+
+    /**
      * 학습 Tip 모달 열기/닫기 핸들러
      */
     function setupStudyTipHandlers() {
@@ -353,11 +457,10 @@
 
 		let listHtml = '<ul class="ptg-subject-list ptg-subject-list--stack">';
 		subjects.forEach(function(subject) {
-			const countText = typeof subject.count === 'number' ? ` (${subject.count})` : '';
 			const sessText = typeof subject.session === 'number' ? `<span class="ptg-session-badge ptg-session-badge--sm">${subject.session}교시</span>` : '';
 			listHtml += `
 				<li class="ptg-subject-item" data-subject-id="${escapeHtml(subject.id)}">
-					${sessText}${escapeHtml(subject.title)}${countText}
+					${sessText}${escapeHtml(subject.title)}
 				</li>
 			`;
 		});
@@ -626,10 +729,16 @@
             }
         });
         $('.toggle-answer').on('click', function() {
-            $(this).siblings('.answer-content').slideToggle();
+            $(this).closest('.ptg-lesson-answer-area').find('.answer-content').slideToggle();
+
+            const lessonId = $(this).closest('.ptg-lesson-item').data('lesson-id');
+            const questionId = lessonId ? parseInt(lessonId, 10) : 0;
+            if (questionId > 0) {
+                logStudyProgress(questionId);
+            }
         });
         $('.toggle-answer-img').on('click', function() {
-            $(this).siblings('.question-image-content').slideToggle();
+            $(this).closest('.ptg-lesson-answer-area').find('.question-image-content').slideToggle();
         });
 
         // 랜덤 섞기 토글 (단일 세부과목에서만 표시)
@@ -749,7 +858,8 @@
 				html += `<ul class="ptg-question-options">`;
 				options.forEach((opt, idx) => {
 					const mark = getCircledNumber(idx + 1);
-					html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span> ${escapeHtml(opt)}</li>`;
+					const trimmedOpt = String(opt || '').trim();
+					html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(trimmedOpt)}</li>`;
 				});
 				html += `</ul>`;
 			}
@@ -778,7 +888,8 @@
 		html += `<ul class="ptg-question-options">`;
 		options.forEach((option, idx) => {
 			const mark = getCircledNumber(idx + 1);
-			html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span> ${escapeHtml(option)}</li>`;
+			const trimmedOption = String(option || '').trim();
+			html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(trimmedOption)}</li>`;
 		});
 		html += `</ul>`;
 		return html;

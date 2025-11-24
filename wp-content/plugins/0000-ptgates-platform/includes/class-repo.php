@@ -110,16 +110,28 @@ class Repo {
         
         // 디버깅: 실제 실행될 SQL 로그 (prepare 후)
         if (defined('WP_DEBUG') && WP_DEBUG && false) { // 필요시 true로 변경
-            error_log('[PTG Repo] SQL (prepare 후): ' . $sql);
+            if (function_exists('ptg_error_log_kst')) {
+                ptg_error_log_kst('[PTG Repo] SQL (prepare 후): ' . $sql);
+            } else {
+                error_log('[PTG Repo] SQL (prepare 후): ' . $sql);
+            }
         }
         
         $results = $wpdb->get_results($sql, ARRAY_A);
         
         // 디버깅: 결과 로그
         if (defined('WP_DEBUG') && WP_DEBUG && false) { // 필요시 true로 변경
-            error_log('[PTG Repo] SQL 결과 수: ' . (is_array($results) ? count($results) : 0));
+            if (function_exists('ptg_error_log_kst')) {
+                ptg_error_log_kst('[PTG Repo] SQL 결과 수: ' . (is_array($results) ? count($results) : 0));
+            } else {
+                error_log('[PTG Repo] SQL 결과 수: ' . (is_array($results) ? count($results) : 0));
+            }
             if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                error_log('[PTG Repo] SQL 오류: ' . $wpdb->last_error);
+                if (function_exists('ptg_error_log_kst')) {
+                    ptg_error_log_kst('[PTG Repo] SQL 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Repo] SQL 오류: ' . $wpdb->last_error);
+                }
             }
         }
         

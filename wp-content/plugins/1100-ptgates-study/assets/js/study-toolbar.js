@@ -9,15 +9,10 @@
             // Initial check for toolbars
             this.initToolbars();
 
-            // Optional: Set up a safe observer if needed, or rely on external triggers
-            // For now, we'll rely on the existing periodic check but make it safe,
-            // or better, expose initToolbars to be called by the lesson loader.
-            
             // Expose to global scope for external calls (e.g. after AJAX load)
             window.PTGStudyToolbar = this;
 
             // Safe periodic check (polling) as a fallback for AJAX loads
-            // This is safer than MutationObserver if we guard correctly
             setInterval(function() {
                 PTGStudyToolbar.initToolbars();
             }, 1000);
@@ -25,8 +20,6 @@
 
         initToolbars: function() {
             // 1. Find new question containers that haven't been initialized
-            // We look for .ptg-lesson-item or .question-container depending on actual markup
-            // Based on previous file, it was .ptg-lesson-item
             var $newItems = $('.ptg-lesson-item').not('[data-toolbar-init="true"]');
             
             if ($newItems.length === 0) {
@@ -49,23 +42,37 @@
                     return;
                 }
 
-                // Find the question text element
-                var $questionText = $item.find('.ptg-question-text').first();
-                if ($questionText.length === 0) return;
+                // Find the answer area
+                var $answerArea = $item.find('.ptg-lesson-answer-area').first();
+                if ($answerArea.length === 0) return;
 
-                // Wrap question text in a header with action button if not already wrapped
-                if (!$questionText.parent().hasClass('ptg-question-header')) {
-                    $questionText.wrap('<div class="ptg-question-header" style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;"><div style="flex: 1;"></div></div>');
+                // Find or create button container in answer area
+                var $buttonContainer = $answerArea.find('.ptg-answer-buttons-container').first();
+                if ($buttonContainer.length === 0) {
+                    // Find existing buttons in answer area
+                    var $existingButtons = $answerArea.children('button');
+                    if ($existingButtons.length > 0) {
+                        // Create container and wrap existing buttons
+                        $buttonContainer = $('<div class="ptg-answer-buttons-container"></div>');
+                        $existingButtons.first().before($buttonContainer);
+                        $existingButtons.appendTo($buttonContainer);
+                    } else {
+                        // No existing buttons, create empty container
+                        $buttonContainer = $('<div class="ptg-answer-buttons-container"></div>');
+                        $answerArea.prepend($buttonContainer);
+                    }
+                }
 
-                    var $header = $questionText.closest('.ptg-question-header');
-                    $header.append(
-                        '<button class="ptg-contextual-action-btn" data-question-id="' + questionId + '" title="도구 메뉴" aria-label="문제 도구 메뉴 열기">' +
-                        '⋮' +
-                        '</button>'
-                    );
+                // Add contextual action button to button container
+                $buttonContainer.append(
+                    '<button class="ptg-contextual-action-btn" data-question-id="' + questionId + '" title="도구 메뉴" aria-label="문제 도구 메뉴 열기">' +
+                    '⋮' +
+                    '</button>'
+                );
 
-                    // Add toolbar after header
-                    $header.after(
+                // Add toolbar after button container (if not already exists)
+                if ($item.find('.ptg-question-toolbar').length === 0) {
+                    $buttonContainer.after(
                         '<div class="ptg-question-toolbar" style="display: none;">' +
                             '<div class="ptg-toolbar-icons">' +
                                 '<button class="ptg-toolbar-btn ptg-btn-bookmark" data-action="bookmark" data-question-id="' + questionId + '" title="북마크">' +
@@ -83,15 +90,20 @@
                             '</div>' +
                         '</div>'
                     );
-                    
-                    // Initial status fetch
-                    PTGStudyToolbar.updateToolbarStatus(questionId);
                 }
+                
+                // Initial status fetch
+                PTGStudyToolbar.updateToolbarStatus(questionId);
             });
         },
 
         updateToolbarStatus: function(questionId) {
             if (!questionId) return;
+
+            // Check if user is logged in before fetching status
+            if (!this.isUserLoggedIn()) {
+                return;
+            }
             
             $.ajax({
                 url: (window.location.origin || '') + '/wp-json/ptg-quiz/v1/questions/' + questionId + '/user-status',
@@ -100,28 +112,41 @@
                     'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                 },
                 success: function(status) {
+                    console.log('Status response for ' + questionId + ':', status);
+
                     var $item = $('.ptg-lesson-item[data-lesson-id="' + questionId + '"], .ptg-lesson-item[data-question-id="' + questionId + '"]');
                     var $toolbar = $item.find('.ptg-question-toolbar');
                     
-                    if (status.bookmark) {
+                    // API response is wrapped in 'data' property by Rest::success
+                    var data = status.data || status;
+                    
+                    // Explicitly check for true/truthy values
+                    var isBookmarked = !!data.bookmark;
+                    var isReview = !!data.review;
+                    var isMemo = !!data.memo;
+                    var isFlashcard = !!data.flashcard;
+
+                    console.log('Parsed status for ' + questionId + ':', { isBookmarked, isReview, isMemo, isFlashcard });
+
+                    if (isBookmarked) {
                         $toolbar.find('.ptg-btn-bookmark').addClass('is-active');
                     } else {
                         $toolbar.find('.ptg-btn-bookmark').removeClass('is-active');
                     }
                     
-                    if (status.review) {
+                    if (isReview) {
                         $toolbar.find('.ptg-btn-review').addClass('is-active');
                     } else {
                         $toolbar.find('.ptg-btn-review').removeClass('is-active');
                     }
                     
-                    if (status.memo) {
+                    if (isMemo) {
                         $toolbar.find('.ptg-btn-notes').addClass('is-active');
                     } else {
                         $toolbar.find('.ptg-btn-notes').removeClass('is-active');
                     }
                     
-                    if (status.flashcard) {
+                    if (isFlashcard) {
                         $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
                     } else {
                         $toolbar.find('.ptg-btn-flashcard').removeClass('is-active');
@@ -159,6 +184,12 @@
                             'border-color': '#4a90e2',
                             'color': 'white'
                         });
+                        
+                        // Refresh status when opening toolbar
+                        var questionId = $btn.data('question-id');
+                        if (questionId) {
+                            PTGStudyToolbar.updateToolbarStatus(questionId);
+                        }
                     } else {
                         $btn.css({
                             'background': 'transparent',
@@ -173,6 +204,14 @@
             $(document).off('click', '.ptg-btn-bookmark').on('click', '.ptg-btn-bookmark', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
+
+                console.log('Bookmark clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
+                if (!window.PTGStudyToolbar.isUserLoggedIn()) {
+                    window.PTGStudyToolbar.showLoginRequiredModal();
+                    return;
+                }
+
                 var $btn = $(this);
                 var questionId = $btn.data('question-id');
                 var isActive = $btn.hasClass('is-active');
@@ -202,6 +241,14 @@
             $(document).off('click', '.ptg-btn-review').on('click', '.ptg-btn-review', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
+
+                console.log('Review clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
+                if (!window.PTGStudyToolbar.isUserLoggedIn()) {
+                    window.PTGStudyToolbar.showLoginRequiredModal();
+                    return;
+                }
+
                 var $btn = $(this);
                 var questionId = $btn.data('question-id');
                 var isActive = $btn.hasClass('is-active');
@@ -231,6 +278,14 @@
             $(document).off('click', '.ptg-btn-notes').on('click', '.ptg-btn-notes', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
+
+                console.log('Memo clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
+                if (!window.PTGStudyToolbar.isUserLoggedIn()) {
+                    window.PTGStudyToolbar.showLoginRequiredModal();
+                    return;
+                }
+
                 var $btn = $(this);
                 var questionId = $btn.data('question-id');
                 var $lessonItem = $btn.closest('.ptg-lesson-item');
@@ -251,11 +306,17 @@
                         'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                     },
                     success: function (response) {
-                        var currentContent = response && response.content ? response.content : '';
-                        PTGStudyToolbar.showInlineMemo($lessonItem, questionId, currentContent);
+                        // API response might be wrapped in 'data' property by Rest::success
+                        var content = '';
+                        if (response && response.data && response.data.content) {
+                            content = response.data.content;
+                        } else if (response && response.content) {
+                            content = response.content;
+                        }
+                        window.PTGStudyToolbar.showInlineMemo($lessonItem, questionId, content);
                     },
                     error: function () {
-                        PTGStudyToolbar.showInlineMemo($lessonItem, questionId, '');
+                        window.PTGStudyToolbar.showInlineMemo($lessonItem, questionId, '');
                     }
                 });
             });
@@ -264,6 +325,14 @@
             $(document).off('click', '.ptg-btn-flashcard').on('click', '.ptg-btn-flashcard', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
+
+                console.log('Flashcard clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
+                if (!window.PTGStudyToolbar.isUserLoggedIn()) {
+                    window.PTGStudyToolbar.showLoginRequiredModal();
+                    return;
+                }
+
                 var questionId = $(this).data('question-id');
                 var $lessonItem = $(this).closest('.ptg-lesson-item');
 
@@ -322,8 +391,40 @@
                     }
                 }
 
-                PTGStudyToolbar.showFlashcardModal(questionId, questionText, answerText);
+                window.PTGStudyToolbar.showFlashcardModal(questionId, questionText, answerText);
             });
+        },
+
+        showLoginRequiredModal: function() {
+            var loginUrl = (window.ptgStudy && window.ptgStudy.login_url) || '/login';
+            
+            if ($('#ptg-login-required-modal').length === 0) {
+                var modalHtml = 
+                    '<div id="ptg-login-required-modal" class="ptg-modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%;">' +
+                        '<div class="ptg-modal-overlay" style="position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.5);"></div>' +
+                        '<div class="ptg-modal-content" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                            '<div class="ptg-modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">' +
+                                '<h3 style="margin: 0; font-size: 18px; font-weight: 600;">로그인 필요</h3>' +
+                                '<button class="ptg-modal-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>' +
+                            '</div>' +
+                            '<div class="ptg-modal-body" style="margin-bottom: 20px;">' +
+                                '<p style="margin: 0; color: #4a5568;">이 기능을 사용하려면 로그인이 필요합니다.</p>' +
+                            '</div>' +
+                            '<div class="ptg-modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">' +
+                                '<button class="ptg-btn ptg-btn-secondary ptg-modal-close-btn" style="padding: 8px 16px; border-radius: 4px; border: 1px solid #cbd5e0; background: #fff; cursor: pointer;">닫기</button>' +
+                                '<a href="' + loginUrl + '" class="ptg-btn ptg-btn-primary" style="padding: 8px 16px; border-radius: 4px; background: #4a90e2; color: #fff; text-decoration: none; border: none; cursor: pointer;">로그인</a>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                $('body').append(modalHtml);
+
+                // Bind close events
+                $('#ptg-login-required-modal').on('click', '.ptg-modal-close, .ptg-modal-close-btn, .ptg-modal-overlay', function() {
+                    $('#ptg-login-required-modal').fadeOut(200);
+                });
+            }
+            
+            $('#ptg-login-required-modal').fadeIn(200);
         },
 
         showInlineMemo: function($lessonItem, questionId, initialContent) {
@@ -334,7 +435,7 @@
                         '<strong style="font-size: 14px; color: #333;">📝 메모</strong>' +
                         '<button class="ptg-memo-close-btn" style="background: transparent; border: none; color: #666; cursor: pointer; font-size: 20px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">&times;</button>' +
                     '</div>' +
-                    '<textarea class="ptg-memo-textarea" data-question-id="' + questionId + '" placeholder="메모를 입력하세요... (포커스를 잃으면 자동 저장됩니다)" style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-family: inherit; font-size: 14px; line-height: 1.6; resize: vertical; box-sizing: border-box;">' + 
+                    '<textarea class="ptg-memo-textarea" data-question-id="' + questionId + '" placeholder="메모를 입력하세요... (포커스를 잃으면 자동 저장됩니다)" style="width: 100%; min-height: 200px; padding: 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-family: inherit; font-size: 14px; line-height: 1.6; resize: none; overflow: hidden; box-sizing: border-box;">' + 
                         (initialContent || '') + 
                     '</textarea>' +
                     '<div class="ptg-memo-status" style="margin-top: 8px; font-size: 12px; color: #666; min-height: 18px;"></div>' +
@@ -347,7 +448,8 @@
             var $textarea = $memoArea.find('.ptg-memo-textarea');
             var $status = $memoArea.find('.ptg-memo-status');
             
-            // Focus on textarea
+            // Adjust height based on content, focus textarea
+            PTGStudyToolbar.autoResizeTextarea($textarea, true);
             $textarea.focus();
             
             // Close button handler
@@ -357,6 +459,10 @@
                 });
             });
             
+            $textarea.on('input', function() {
+                PTGStudyToolbar.autoResizeTextarea($(this), false);
+            });
+
             // Auto-save on blur
             $textarea.on('blur', function() {
                 var content = $(this).val();
@@ -395,6 +501,18 @@
                     }
                 });
             });
+        },
+
+        autoResizeTextarea: function($field, allowLargeDefault) {
+            if (!$field || !$field.length) {
+                return;
+            }
+            var el = $field[0];
+            el.style.height = 'auto';
+
+            var minHeight = allowLargeDefault ? 200 : 120;
+            var targetHeight = Math.max(el.scrollHeight, minHeight);
+            el.style.height = targetHeight + 'px';
         },
 
 
@@ -498,6 +616,32 @@
                                     }, 1500);
                                 },
                                 error: function (xhr, status, error) {
+                                    // Try to recover from JSON parse error (mixed HTML)
+                                    if (status === 'parsererror' && xhr.responseText) {
+                                        var jsonMatch = xhr.responseText.match(/\{.*"card_id".*\}/);
+                                        if (jsonMatch) {
+                                            try {
+                                                var response = JSON.parse(jsonMatch[0]);
+                                                // Manually trigger success logic
+                                                console.log('Recovered from JSON error:', response);
+                                                $status.text('✓ 저장되었습니다').css('color', '#10b981');
+                                                
+                                                var $item = $('.ptg-lesson-item[data-lesson-id="' + qId + '"], .ptg-lesson-item[data-question-id="' + qId + '"]');
+                                                var $toolbar = $item.find('.ptg-question-toolbar');
+                                                $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
+
+                                                setTimeout(function() {
+                                                    $('#ptg-study-flashcard-modal').fadeOut(200, function() {
+                                                        $status.text('').css('color', '#666');
+                                                    });
+                                                }, 1500);
+                                                return;
+                                            } catch (e) {
+                                                console.error('Failed to recover JSON', e);
+                                            }
+                                        }
+                                    }
+
                                     console.error('Flashcard save failed:', {
                                         status: xhr.status,
                                         statusText: xhr.statusText,
@@ -535,6 +679,20 @@
             // Clear status message when opening modal
             $('#ptg-study-flashcard-modal .ptg-flashcard-status').text('').css('color', '#666');
             $('#ptg-study-flashcard-modal').data('question-id', questionId).fadeIn(200);
+        },
+
+        isUserLoggedIn: function() {
+            // Check Study Plugin context
+            if (window.ptgStudy && typeof window.ptgStudy.is_user_logged_in !== 'undefined') {
+                // Handle both boolean and string 'true'/'false'
+                return String(window.ptgStudy.is_user_logged_in) === 'true';
+            }
+            // Check Quiz Plugin / Platform context
+            if (window.ptgPlatform && typeof window.ptgPlatform.userId !== 'undefined') {
+                return parseInt(window.ptgPlatform.userId) > 0;
+            }
+            // Fallback: if we can't determine, assume false to be safe
+            return false;
         }
     };
 

@@ -113,11 +113,6 @@ class PTG_Platform {
         // Ultimate Member 커스텀 로그인/로그아웃 페이지 적용 (인증 UI 일관성)
         add_filter('login_url', array($this, 'custom_login_url'), 10, 2);
         add_filter('logout_url', array($this, 'custom_logout_url'), 10, 2);
-        
-        // 디버깅: 플러그인 초기화 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Platform] 플러그인 초기화 완료 - 훅 등록됨');
-        }
     }
     
     /**
@@ -135,11 +130,6 @@ class PTG_Platform {
      * 스타일 및 스크립트 로드 (프론트엔드)
      */
     public function enqueue_scripts() {
-        // 디버깅: 스크립트 로드 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Platform] enqueue_scripts 호출됨');
-        }
-        
         // 플랫폼 공통 CSS
         wp_enqueue_style(
             'ptg-platform-style',
@@ -152,6 +142,14 @@ class PTG_Platform {
         wp_enqueue_style(
             'ptg-quiz-ui-style',
             PTG_PLATFORM_PLUGIN_URL . 'assets/css/quiz-ui.css',
+            array('ptg-platform-style'),
+            PTG_PLATFORM_VERSION
+        );
+        
+        // 공통 문제 보기 컴포넌트 CSS
+        wp_enqueue_style(
+            'ptg-question-viewer-style',
+            PTG_PLATFORM_PLUGIN_URL . 'assets/css/question-viewer.css',
             array('ptg-platform-style'),
             PTG_PLATFORM_VERSION
         );
@@ -173,7 +171,11 @@ class PTG_Platform {
         // 파일 존재 확인
         if (!file_exists($quiz_ui_js_path)) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[PTG Platform] ⚠️ quiz-ui.js 파일이 존재하지 않음: ' . $quiz_ui_js_path);
+                if (function_exists('ptg_error_log_kst')) {
+                    ptg_error_log_kst('[PTG Platform] ⚠️ quiz-ui.js 파일이 존재하지 않음: ' . $quiz_ui_js_path);
+                } else {
+                    error_log('[PTG Platform] ⚠️ quiz-ui.js 파일이 존재하지 않음: ' . $quiz_ui_js_path);
+                }
             }
         } else {
             wp_enqueue_script(
@@ -183,10 +185,20 @@ class PTG_Platform {
                 PTG_PLATFORM_VERSION,
                 true
             );
-            
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('[PTG Platform] quiz-ui.js 등록 완료: ' . $quiz_ui_js_url);
-            }
+        }
+        
+        // 공통 문제 보기 컴포넌트 JavaScript
+        $question_viewer_js_url = PTG_PLATFORM_PLUGIN_URL . 'assets/js/question-viewer.js';
+        $question_viewer_js_path = PTG_PLATFORM_PLUGIN_DIR . 'assets/js/question-viewer.js';
+        
+        if (file_exists($question_viewer_js_path)) {
+            wp_enqueue_script(
+                'ptg-question-viewer-script',
+                $question_viewer_js_url,
+                array('ptg-platform-script', 'jquery'),
+                PTG_PLATFORM_VERSION,
+                true
+            );
         }
         
         // REST API 엔드포인트 정보를 JS에 전달
@@ -196,12 +208,6 @@ class PTG_Platform {
             'userId' => get_current_user_id(),
             'timezone' => wp_timezone_string() // Asia/Seoul
         ));
-        
-        // 디버깅: 스크립트 등록 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Platform] 스크립트 등록 완료: ptg-platform-script, ptg-quiz-ui-script');
-            error_log('[PTG Platform] quiz-ui.js URL: ' . PTG_PLATFORM_PLUGIN_URL . 'assets/js/quiz-ui.js');
-        }
     }
     
     /**
@@ -260,7 +266,6 @@ class PTG_Platform {
 
         $required_tables = array(
             'ptgates_user_states',
-            'ptgates_user_notes',
             'ptgates_user_drawings',
             'ptgates_user_member',
             'ptgates_billing_history',
@@ -285,14 +290,21 @@ class PTG_Platform {
             foreach ($required_tables as $table_name) {
                 $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name));
                 if ($existing === $table_name) {
-                    if (defined('WP_DEBUG') && WP_DEBUG) {
-                        error_log('[PTG Platform] ✓ 테이블 생성 성공: ' . $table_name);
-                    }
+                    // 정상 케이스는 로그를 남기지 않음
                 } else {
-                    error_log('[PTG Platform] ⚠️ 필수 테이블이 생성되지 않음: ' . $table_name);
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst('[PTG Platform] ⚠️ 필수 테이블이 생성되지 않음: ' . $table_name);
+                    } else {
+                        error_log('[PTG Platform] ⚠️ 필수 테이블이 생성되지 않음: ' . $table_name);
+                    }
                     if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                        error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
-                        error_log('[PTG Platform] 마지막 쿼리: ' . $wpdb->last_query);
+                        if (function_exists('ptg_error_log_kst')) {
+                            ptg_error_log_kst('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                            ptg_error_log_kst('[PTG Platform] 마지막 쿼리: ' . $wpdb->last_query);
+                        } else {
+                            error_log('[PTG Platform] SQL 오류: ' . $wpdb->last_error);
+                            error_log('[PTG Platform] 마지막 쿼리: ' . $wpdb->last_query);
+                        }
                     }
                 }
             }
@@ -342,9 +354,17 @@ class PTG_Platform {
 
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 if ($result) {
-                    error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드가 자동 생성되었습니다.");
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드가 자동 생성되었습니다.");
+                    } else {
+                        error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드가 자동 생성되었습니다.");
+                    }
                 } else {
-                    error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드 생성 실패.");
+                    if (function_exists('ptg_error_log_kst')) {
+                        ptg_error_log_kst("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드 생성 실패.");
+                    } else {
+                        error_log("[PTG Platform] 사용자(ID: {$user_id})의 멤버십 레코드 생성 실패.");
+                    }
                 }
             }
         } else {
@@ -374,9 +394,7 @@ class PTG_Platform {
                 
         $result = $wpdb->query($sql);
         
-        if (defined('WP_DEBUG') && WP_DEBUG && $result !== false) {
-            error_log("[PTG Platform] Trial 만료 체크 완료. {$result}명의 사용자가 Basic으로 전환되었습니다.");
-        }
+        // 정상 케이스는 로그를 남기지 않음
     }
 
     /**
@@ -468,6 +486,10 @@ function ptg_quiz_ui_template($args = array()) {
     if (file_exists($template_path)) {
         include $template_path;
     } else {
-        error_log('[PTG Platform] 퀴즈 UI 템플릿을 찾을 수 없음: ' . $template_path);
+        if (function_exists('ptg_error_log_kst')) {
+            ptg_error_log_kst('[PTG Platform] 퀴즈 UI 템플릿을 찾을 수 없음: ' . $template_path);
+        } else {
+            error_log('[PTG Platform] 퀴즈 UI 템플릿을 찾을 수 없음: ' . $template_path);
+        }
     }
 }

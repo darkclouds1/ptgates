@@ -1,0 +1,348 @@
+/**
+ * PTGates Question Viewer Component CSS
+ * 
+ * 1100 study의 문제 보기 관련 스타일을 공통 컴포넌트로 제공
+ * 모든 플러그인에서 동일한 스타일로 문제를 표시할 수 있도록 함
+ */
+
+/* 문제 카드 기본 스타일 */
+.ptg-lesson-item {
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ptg-lesson-list .ptg-quiz-card {
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 20px;
+}
+
+.ptg-quiz-card {
+  width: 100%;
+}
+
+/* 문제 텍스트 스타일 (1100 study와 동일) */
+/* 우선순위를 높이기 위해 더 구체적인 선택자 사용 */
+.ptg-lesson-item .ptg-question-text,
+.ptg-quiz-card .ptg-question-text,
+.ptg-mynote-detail .ptg-question-text {
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+  margin-bottom: 12px !important;
+}
+
+.ptg-lesson-item .ptg-question-number,
+.ptg-quiz-card .ptg-question-number,
+.ptg-mynote-detail .ptg-question-number {
+  font-weight: 700 !important;
+  margin-right: 6px !important;
+}
+
+/* 문제 보기 옵션 스타일 (1100 study와 동일) */
+/* 우선순위를 높이기 위해 더 구체적인 선택자 사용 */
+.ptg-lesson-item .ptg-question-options,
+.ptg-quiz-card .ptg-question-options,
+.ptg-mynote-detail .ptg-question-options {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 0 16px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.ptg-lesson-item .ptg-question-option,
+.ptg-quiz-card .ptg-question-option,
+.ptg-mynote-detail .ptg-question-option {
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 2px 0 !important;
+  font-size: 0.95rem !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.ptg-lesson-item .ptg-option-index,
+.ptg-quiz-card .ptg-option-index,
+.ptg-mynote-detail .ptg-option-index {
+  font-weight: 600 !important;
+  color: inherit !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  display: inline !important;
+  line-height: inherit !important;
+}
+
+/* 답변 영역 스타일 */
+.ptg-lesson-answer-area {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.ptg-answer-buttons-container {
+  display: flex;
+  align-items: center;
+  padding-bottom: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ptg-lesson-answer-area .answer-content {
+  margin-top: 16px !important;
+  padding: 16px 20px !important;
+  background-color: #f8f9fa !important;
+  border-radius: 8px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.ptg-lesson-answer-area .answer-content p {
+  margin: 0 0 12px 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.ptg-lesson-answer-area .answer-content hr {
+  margin: 12px 0 !important;
+  border: none !important;
+  border-top: 1px solid #dee2e6 !important;
+}
+
+.question-image-content {
+  margin-top: 15px;
+}
+
+.question-image-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Contextual Action Button (도구 메뉴 토글 버튼) */
+.ptg-contextual-action-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #666;
+  font-size: 20px;
+  margin-left: 0;
+}
+
+.ptg-contextual-action-btn:hover {
+  background: #f5f5f5;
+  border-color: #999;
+  color: #333;
+}
+
+/* Question Toolbar - Modern Glassmorphism Design */
+.ptg-question-toolbar {
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  display: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  animation: toolbar-slide-in 0.3s ease-out;
+}
+
+@keyframes toolbar-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ptg-question-toolbar .ptg-toolbar-icons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* Toolbar Icon Buttons */
+.ptg-toolbar-btn {
+  position: relative;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.ptg-toolbar-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(74, 144, 226, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.ptg-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(74, 144, 226, 0.3);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.15);
+  transform: translateY(-2px);
+}
+
+.ptg-toolbar-btn:hover::before {
+  width: 100%;
+  height: 100%;
+}
+
+.ptg-toolbar-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.ptg-toolbar-btn .ptg-toolbar-icon {
+  display: inline-block;
+  font-size: 18px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: grayscale(0.3);
+  position: relative;
+  z-index: 1;
+}
+
+.ptg-toolbar-btn:hover .ptg-toolbar-icon {
+  filter: grayscale(0);
+  transform: scale(1.1) rotate(5deg);
+}
+
+.ptg-toolbar-btn.is-active {
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.15) 0%, rgba(99, 179, 237, 0.15) 100%);
+  border: 2px solid #4a90e2;
+  width: 36px;
+  height: 36px;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1), 0 4px 12px rgba(74, 144, 226, 0.2);
+}
+
+.ptg-toolbar-btn.is-active .ptg-toolbar-icon {
+  filter: grayscale(0) drop-shadow(0 2px 4px rgba(74, 144, 226, 0.3));
+  transform: scale(1.15);
+  animation: icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes icon-pulse {
+  0%, 100% {
+    transform: scale(1.15);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.ptg-toolbar-btn.is-active:hover {
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.2) 0%, rgba(99, 179, 237, 0.2) 100%);
+  transform: translateY(-2px);
+}
+
+/* Specific icon color enhancements on hover */
+.ptg-btn-bookmark:hover .ptg-toolbar-icon {
+  filter: grayscale(0) hue-rotate(-10deg) brightness(1.1);
+}
+
+.ptg-btn-review:hover .ptg-toolbar-icon {
+  filter: grayscale(0) hue-rotate(200deg) brightness(1.1);
+}
+
+/* 문제 목록 뷰 */
+.ptg-lesson-view {
+  padding: 0px;
+}
+
+.ptg-lesson-header {
+  padding-bottom: 20px;
+  font-size: 1.2rem;
+}
+
+.ptg-lesson-header h3 {
+  margin: 0;
+}
+
+/* 메모 표시 영역 (마이노트 등에서 사용) */
+.ptg-mynote-memo-display {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  border-left: 4px solid #4299e1;
+}
+
+.ptg-mynote-memo-display h4 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  color: #2d3748;
+}
+
+.ptg-memo-content {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #4a5568;
+  white-space: pre-wrap;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .ptg-lesson-item {
+    padding: 15px;
+  }
+
+  .ptg-question-text {
+    font-size: 0.95rem;
+  }
+
+  .ptg-question-option {
+    font-size: 0.9rem;
+    padding: 3px 8px;
+  }
+
+  .ptg-answer-buttons-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ptg-answer-buttons-container .ptg-btn {
+    width: 100%;
+  }
+}
+

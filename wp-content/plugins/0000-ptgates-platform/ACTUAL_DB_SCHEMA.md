@@ -76,6 +76,25 @@ CREATE TABLE `ptgates_user_results` (
 - `ptgates_user_drawings`
 - `ptgates_review_schedule`
 
+## ptgates_user_states
+```sql
+CREATE TABLE `ptgates_user_states` (
+  `user_id` bigint(20) unsigned NOT NULL,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+  `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+  `study_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '과목/Study 해설 보기 횟수',
+  `quiz_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '학습/Quiz 진행 횟수',
+  `last_result` enum('correct','wrong') DEFAULT NULL,
+  `last_answer` varchar(255) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `last_study_date` datetime DEFAULT NULL COMMENT '마지막 과목/Study 진행 일시',
+  `last_quiz_date` datetime DEFAULT NULL COMMENT '마지막 학습/Quiz 진행 일시',
+  PRIMARY KEY (`user_id`,`question_id`),
+  KEY `idx_flags` (`bookmarked`,`needs_review`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+```
+
 ## 개발 시 주의사항
 
 1. **ptgates_categories 접근 시:**

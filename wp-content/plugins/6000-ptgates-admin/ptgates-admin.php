@@ -224,6 +224,18 @@ final class PTG_Admin_Plugin {
 					true
 				);
 			}
+			
+			// 문제 생성 페이지 스크립트
+			if ( $current_page === 'ptgates-admin-create' ) {
+				wp_enqueue_script(
+					'ptg-admin-create',
+					plugin_dir_url( __FILE__ ) . 'assets/js/admin-create.js',
+					['jquery'],
+					file_exists(plugin_dir_path(__FILE__) . 'assets/js/admin-create.js') ? filemtime(plugin_dir_path(__FILE__) . 'assets/js/admin-create.js') : '1.0.0',
+					true
+				);
+				wp_localize_script('ptg-admin-create', 'ptgAdmin', $script_data);
+			}
 		}
 	}
 
@@ -259,6 +271,16 @@ final class PTG_Admin_Plugin {
 			'manage_options',
 			'ptgates-admin-list',
 			[ $this, 'render_list_page' ]
+		);
+
+		// 세 번째 서브메뉴: 문제 등록 & 9999 (신규 등록)
+		add_submenu_page(
+			'ptgates-admin',
+			'문제 등록 & 9999',
+			'문제 등록 & 9999',
+			'manage_options',
+			'ptgates-admin-create',
+			[ $this, 'render_create_page' ]
 		);
 
 		// 세 번째 서브메뉴: 통계 대시보드
@@ -302,6 +324,7 @@ final class PTG_Admin_Plugin {
 			<p>문제은행 관리 도구에 오신 것을 환영합니다.</p>
 			<ul>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-list' ); ?>">문제 목록</a></li>
+				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-create' ); ?>">문제 등록 & 9999</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-import' ); ?>">CSV 일괄 삽입</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-stats' ); ?>">통계 대시보드</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-members' ); ?>">멤버십 관리</a></li>
@@ -322,6 +345,90 @@ final class PTG_Admin_Plugin {
 		echo '<div class="wrap">';
 		$this->render_question_list();
 		echo '</div>';
+	}
+
+	/**
+	 * 문제 생성 페이지 렌더링 (문제 등록 & 9999)
+	 */
+	public function render_create_page() {
+		// ptGates 관리자 권한 확인
+		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
+		}
+
+		?>
+		<div class="wrap">
+			<div class="ptg-admin-create-container">
+				<div class="ptg-create-header">
+					<h2><span class="dashicons dashicons-edit"></span> 문제 등록 & 9999</h2>
+					<div class="ptg-create-meta">
+						<span class="ptg-meta-badge"><?php echo date('Y'); ?>년</span>
+						<span class="ptg-meta-badge">9999회차</span>
+					</div>
+				</div>
+
+				<form id="ptg-create-question-form" class="ptg-form">
+					<input type="hidden" name="exam_year" value="<?php echo date('Y'); ?>" />
+					<input type="hidden" name="exam_session" value="9999" />
+
+					<div class="ptg-form-row">
+						<div class="ptg-form-group">
+							<select id="ptg-create-subject" name="subject" required>
+								<option value="">과목 선택</option>
+								<!-- JS로 로드됨 -->
+							</select>
+						</div>
+						<div class="ptg-form-group">
+							<select id="ptg-create-subsubject" name="subsubject" required>
+								<option value="">세부과목 선택</option>
+								<!-- JS로 로드됨 -->
+							</select>
+						</div>
+					</div>
+
+					<div class="ptg-form-group">
+						<label for="ptg-create-content">지문 (content)</label>
+						<textarea id="ptg-create-content" name="content" rows="10"></textarea>
+					</div>
+
+					<div class="ptg-form-group">
+						<label for="ptg-create-answer">정답 (answer)</label>
+						<input type="text" id="ptg-create-answer" name="answer" />
+					</div>
+
+					<div class="ptg-form-group">
+						<label for="ptg-create-explanation">해설 (explanation)</label>
+						<textarea id="ptg-create-explanation" name="explanation" rows="10"></textarea>
+					</div>
+					
+					<div class="ptg-form-group">
+						<label>이미지 (Image)</label>
+						<input type="file" name="question_image" accept="image/*" />
+					</div>
+
+					<div class="ptg-form-row">
+						<div class="ptg-form-group">
+							<label for="ptg-create-difficulty">난이도</label>
+							<select id="ptg-create-difficulty" name="difficulty">
+								<option value="1">1 (하)</option>
+								<option value="2" selected>2 (중)</option>
+								<option value="3">3 (상)</option>
+							</select>
+						</div>
+						<div class="ptg-form-group checkbox-group">
+							<label>
+								<input type="checkbox" name="is_active" value="1" checked /> 활성화
+							</label>
+						</div>
+					</div>
+
+					<div class="ptg-form-actions">
+						<button type="submit" class="button button-primary button-large">문제 등록</button>
+					</div>
+				</form>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -446,6 +553,7 @@ final class PTG_Admin_Plugin {
 				
 				<!-- 검색 바 -->
 				<div class="ptg-admin-search-box">
+					<input type="number" id="ptg-search-id" placeholder="ID" style="width: 80px; margin-right: 5px;" />
 					<input type="text" id="ptg-search-input" placeholder="지문 또는 해설 검색..." />
 					<button id="ptg-search-btn">🔍 검색</button>
 					<button id="ptg-clear-search">초기화</button>
@@ -638,17 +746,67 @@ final class PTG_Admin_Plugin {
 			wp_send_json_error( '문제를 찾을 수 없습니다.' );
 		}
 
+		// 카테고리 정보 조회 (과목/세부과목)
+		$cat_info = $wpdb->get_row( $wpdb->prepare( "SELECT subject, exam_year, exam_session FROM ptgates_categories WHERE question_id = %d LIMIT 1", $question_id ) );
+		$current_subject = $cat_info ? $cat_info->subject : '';
+		// Note: 현재 DB 구조상 subject 컬럼에 세부과목이 저장되고 있음. 대분류 과목은 별도로 저장되지 않거나 로직으로 처리됨.
+		// 하지만 여기서는 사용자가 '과목'과 '세부과목'을 선택할 수 있게 해야 함.
+		// 기존 데이터가 세부과목만 있다면, 대분류를 역추적해야 함.
+		
+		// Subjects 클래스 로드
+		if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
+			$subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+			if ( file_exists( $subjects_file ) ) {
+				require_once $subjects_file;
+			}
+		}
+
+		$main_subject = '';
+		$sub_subject = $current_subject;
+
+		if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
+			// 세부과목으로 대분류 찾기 (역추적)
+			// 모든 세션(교시)을 뒤져서 해당 세부과목을 포함하는 대분류를 찾음
+			$sessions = \PTG\Quiz\Subjects::get_sessions();
+			foreach ( $sessions as $sess ) {
+				$subjects = \PTG\Quiz\Subjects::get_subjects_for_session( $sess );
+				foreach ( $subjects as $subj ) {
+					$subs = \PTG\Quiz\Subjects::get_subsubjects( $sess, $subj );
+					if ( in_array( $sub_subject, $subs ) ) {
+						$main_subject = $subj;
+						break 2;
+					}
+				}
+			}
+		}
+
 		// 폼 HTML 생성
 		ob_start();
 		?>
-		<div class="ptg-inline-edit-form">
+		<div class="ptg-inline-edit-form" data-question-id="<?php echo esc_attr( $question->question_id ); ?>">
 			<input type="hidden" name="question_id" value="<?php echo esc_attr( $question->question_id ); ?>">
+			
+			<div class="ptg-edit-row">
+				<div class="ptg-edit-field half">
+					<label>과목 (Subject):</label>
+					<select name="subject" class="ptg-edit-input ptg-subject-select" data-selected="<?php echo esc_attr($main_subject); ?>">
+						<option value="">과목 선택</option>
+						<!-- JS로 로드 -->
+					</select>
+				</div>
+				<div class="ptg-edit-field half">
+					<label>세부과목 (Sub-subject):</label>
+					<select name="subsubject" class="ptg-edit-input ptg-subsubject-select" data-selected="<?php echo esc_attr($sub_subject); ?>">
+						<option value="">세부과목 선택</option>
+						<!-- JS로 로드 -->
+					</select>
+				</div>
+			</div>
 			
 			<div class="ptg-edit-field">
 				<label>지문 (content):</label>
 				<textarea name="content" rows="8" class="ptg-edit-input"><?php echo esc_textarea( $question->content ); ?></textarea>
 			</div>
-			
 			<div class="ptg-edit-field">
 				<label>정답 (answer):</label>
 				<input type="text" name="answer" value="<?php echo esc_attr( $question->answer ); ?>" class="ptg-edit-input">
@@ -728,6 +886,7 @@ final class PTG_Admin_Plugin {
 
 		$question_id = isset( $_POST['question_id'] ) ? intval( $_POST['question_id'] ) : 0;
 		if ( ! $question_id ) {
+            error_log('PTGates Admin Update Error: Invalid Question ID. POST data: ' . print_r($_POST, true));
 			wp_send_json_error( '잘못된 문제 ID입니다.' );
 		}
 
@@ -742,9 +901,19 @@ final class PTG_Admin_Plugin {
 		$content = str_replace( array( "\r\n", "\r", "\n" ), '', $content );
 		$content = preg_replace( '/([①-⑳])/u', "\n$1", $content );
 		
-		// 해설은 줄바꿈만 제거하고 (오답해설) 앞에 줄바꿈 추가
-		// $explanation = str_replace( array( "\r\n", "\r", "\n" ), '', $explanation );
-		// $explanation = preg_replace( '/\s*(\(오답\s*해설\))/u', "\n$1", $explanation ); 
+		// (오답 해설), (정답 해설) 앞에 줄바꿈 추가 (이미 줄바꿈 있으면 그대로 둠)
+		$explanation = preg_replace(
+			'/(?<!\n)[^\S\r\n]*(\((?:오답|정답)\s*해설\))/u',
+			"\n$1",
+			$explanation
+		);
+
+		// (보충 자료) 앞에 줄바꿈 추가 (이미 줄바꿈 있으면 그대로 둠)
+		$explanation = preg_replace(
+			'/(?<!\n)[^\S\r\n]*(\(보충\s*자료\))/u',
+			"\n$1",
+			$explanation
+		);
 
 		$data = array(
 			'content'     => $content,
@@ -754,6 +923,43 @@ final class PTG_Admin_Plugin {
 			'is_active'   => isset( $_POST['is_active'] ) ? 1 : 0,
 			'updated_at'  => current_time( 'mysql' )
 		);
+
+		// 과목/세부과목 업데이트
+		$subject_val = isset( $_POST['subject'] ) ? sanitize_text_field( $_POST['subject'] ) : '';
+		$subsubject_val = isset( $_POST['subsubject'] ) ? sanitize_text_field( $_POST['subsubject'] ) : '';
+		
+		// 세부과목이 선택되었다면 그것을 subject 컬럼에 저장 (DB 구조상)
+		// 만약 세부과목이 없고 과목만 있다면 과목을 저장 (예외 처리)
+		$final_subject = $subsubject_val ? $subsubject_val : $subject_val;
+		
+		if ( $final_subject ) {
+			// ptgates_categories 테이블 업데이트
+			// 기존 레코드가 있는지 확인
+			$cat_exists = $wpdb->get_var( $wpdb->prepare( "SELECT category_id FROM ptgates_categories WHERE question_id = %d", $question_id ) );
+			
+			if ( $cat_exists ) {
+				$wpdb->update( 
+					'ptgates_categories', 
+					array( 'subject' => $final_subject ), 
+					array( 'question_id' => $question_id ), 
+					array( '%s' ), 
+					array( '%d' ) 
+				);
+			} else {
+				// 카테고리 정보가 없으면 새로 생성 (기본값 사용)
+				$wpdb->insert(
+					'ptgates_categories',
+					array(
+						'question_id' => $question_id,
+						'subject' => $final_subject,
+						'exam_year' => date('Y'), // 정보가 없으므로 현재 년도
+						'exam_session' => 0,
+						'exam_course' => '1교시' // 기본값
+					),
+					array( '%d', '%s', '%d', '%d', '%s' )
+				);
+			}
+		}
 
 		// 이미지 삭제 처리
 		if ( isset( $_POST['delete_image'] ) && $_POST['delete_image'] === '1' ) {

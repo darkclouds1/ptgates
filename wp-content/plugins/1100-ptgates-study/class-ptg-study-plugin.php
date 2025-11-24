@@ -32,21 +32,13 @@ class PTG_Study_Plugin {
     }
 
     public function enqueue_scripts_styles() {
-        // 진단 로그: 함수 호출 확인
-        error_log('[PTG Study] enqueue_scripts_styles 함수가 호출되었습니다.');
-
         global $post;
         
-        // 진단 로그: $post 객체 상태 확인
         if ( ! is_a( $post, 'WP_Post' ) ) {
-            error_log('[PTG Study] 현재 페이지는 WP_Post 객체가 아닙니다.');
             return;
         }
 
-        // 진단 로그: 숏코드 존재 여부 확인
         if ( has_shortcode( $post->post_content, 'ptg_study' ) ) {
-            error_log('[PTG Study] "[ptg_study]" 숏코드를 발견했습니다. 스크립트를 로드합니다.');
-
             $plugin_dir_url = plugin_dir_url(PTG_STUDY_MAIN_FILE);
             
             // 캐시 방지를 위해 파일 수정 시간을 버전으로 사용합니다.
@@ -62,9 +54,6 @@ class PTG_Study_Plugin {
             );
 
             // JS는 워드프레스 enqueue 대신 숏코드 HTML에서 직접 로드
-
-        } else {
-            error_log('[PTG Study] 현재 페이지의 콘텐츠에서 "[ptg_study]" 숏코드를 찾지 못했습니다. 스크립트를 로드하지 않습니다.');
         }
     }
 
@@ -164,9 +153,6 @@ class PTG_Study_Plugin {
                                             <h4 class="ptg-category-title">
                                                 <span class="ptg-session-badge"><?php echo esc_html( $session ); ?>교시</span>
                                                 <?php echo esc_html( $subject_name ); ?>
-                                                <?php if ( $subject_total > 0 ) : ?>
-                                                    (<?php echo esc_html( $subject_total ); ?>)
-                                                <?php endif; ?>
                                             </h4>
                                             <?php if ( $description ) : ?>
                                                 <p class="ptg-category-desc"><?php echo esc_html( $description ); ?></p>
@@ -175,7 +161,7 @@ class PTG_Study_Plugin {
                                         <ul class="ptg-subject-list ptg-subject-list--stack">
                                             <?php foreach ( $subs as $sub_name => $count ) : ?>
                                                 <li class="ptg-subject-item" data-subject-id="<?php echo rawurlencode( $sub_name ); ?>">
-                                                    <?php echo esc_html( $sub_name ); ?> (<?php echo (int) $count; ?>)
+                                                    <?php echo esc_html( $sub_name ); ?>
                                                 </li>
                                             <?php endforeach; ?>
                                         </ul>
@@ -188,9 +174,10 @@ class PTG_Study_Plugin {
                     <p>교과 정보가 준비되지 않았습니다.</p>
                 <?php endif; ?>
 			</div>
+        </div>
 
-            <!-- 학습 Tip 모달 -->
-            <div id="ptg-study-tip-modal" class="ptg-study-tip-modal" aria-hidden="true">
+        <!-- 학습 Tip 모달 -->
+        <div id="ptg-study-tip-modal" class="ptg-study-tip-modal" aria-hidden="true">
                 <div class="ptg-study-tip-backdrop" data-ptg-tip-close></div>
                 <div class="ptg-study-tip-dialog" role="dialog" aria-modal="true" aria-labelledby="ptg-study-tip-title">
                     <div class="ptg-study-tip-header">
@@ -249,8 +236,6 @@ class PTG_Study_Plugin {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
         <?php if ( ! is_admin() ) : ?>
             <!-- 공용 UI 먼저 로드: PTGQuizUI (플랫폼) -->
             <script src="<?php echo esc_url( $platform_quizui_url ); ?>?ver=<?php echo esc_attr( $platform_quizui_ver ); ?>"></script>

@@ -99,6 +99,64 @@ class API {
                     'sanitize_callback' => 'absint',
                     'default' => 20,
                 ),
+                'question_id' => array(
+                    'required' => false,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
+
+        // 문제 생성
+        register_rest_route(self::NAMESPACE, '/questions', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'create_question'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+            'args' => array(
+                'content' => array(
+                    'required' => false,
+                    'type' => 'string',
+                ),
+                'answer' => array(
+                    'required' => false,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'explanation' => array(
+                    'required' => false,
+                    'type' => 'string',
+                ),
+                'subject' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'subsubject' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'exam_year' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'exam_session' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'difficulty' => array(
+                    'required' => false,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                    'default' => 2,
+                ),
+                'is_active' => array(
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => true,
+                ),
             ),
         ));
         
@@ -153,6 +211,20 @@ class API {
                 'is_active' => array(
                     'required' => false,
                     'type' => 'boolean',
+                ),
+            ),
+        ));
+        
+        // 문제 삭제
+        register_rest_route(self::NAMESPACE, '/questions/(?P<id>\\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array(__CLASS__, 'delete_question'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
                 ),
             ),
         ));
@@ -213,6 +285,7 @@ class API {
             $exam_year = $request->get_param('exam_year');
             $exam_session = $request->get_param('exam_session');
             $exam_course = $request->get_param('exam_course');
+            $question_id = $request->get_param('question_id');
             $page = $request->get_param('page') ?: 1;
             $per_page = $request->get_param('per_page') ?: 20;
             $offset = ($page - 1) * $per_page;
@@ -225,6 +298,7 @@ class API {
                 'exam_year' => $exam_year,
                 'exam_session' => $exam_session,
                 'exam_course' => $exam_course,
+                'question_id' => $question_id,
                 'page' => $page,
                 'per_page' => $per_page,
             );
@@ -300,6 +374,11 @@ class API {
                 }
                 $where[] = "REPLACE(TRIM(c.exam_course), ' ', '') = %s";
                 $where_values[] = str_replace(' ', '', $exam_course);
+            }
+
+            if (!empty($question_id)) {
+                $where[] = "q.question_id = %d";
+                $where_values[] = (int) $question_id;
             }
             
             // 검색 필터 (지문/해설) - 공백 단위 AND 검색
@@ -605,6 +684,177 @@ class API {
         }
         
         // 수정된 문제 반환
+        return self::get_question($request);
+    }
+
+    /**
+     * 문제 삭제
+     */
+    public static function delete_question($request) {
+        global $wpdb;
+        
+        $question_id = $request->get_param('id');
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+        
+        // 기존 문제 확인 및 이미지 정보 가져오기
+        $question = $wpdb->get_row($wpdb->prepare(
+            "SELECT question_id, question_image FROM {$questions_table} WHERE question_id = %d",
+            $question_id
+        ), ARRAY_A);
+        
+        if (!$question) {
+            return Rest::error('not_found', '문제를 찾을 수 없습니다.', 404);
+        }
+        
+        // 카테고리 정보 가져오기 (이미지 경로 확인용)
+        $category = $wpdb->get_row($wpdb->prepare(
+            "SELECT exam_year, exam_session FROM {$categories_table} WHERE question_id = %d LIMIT 1",
+            $question_id
+        ), ARRAY_A);
+        
+        // 1. 카테고리 테이블에서 삭제
+        $cat_result = $wpdb->delete(
+            $categories_table,
+            array('question_id' => $question_id),
+            array('%d')
+        );
+        
+        // 2. 문제 테이블에서 삭제
+        $result = $wpdb->delete(
+            $questions_table,
+            array('question_id' => $question_id),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return Rest::error('delete_failed', '문제 삭제에 실패했습니다.', 500);
+        }
+        
+        // 3. 이미지 파일 삭제 (있는 경우)
+        if (!empty($question['question_image']) && $category) {
+            $upload_dir = wp_upload_dir();
+            $image_path = $upload_dir['basedir'] . '/ptgates-questions/' . 
+                         $category['exam_year'] . '/' . 
+                         $category['exam_session'] . '/' . 
+                         $question['question_image'];
+            
+            if (file_exists($image_path)) {
+                @unlink($image_path);
+            }
+        }
+        
+        // 캐시 삭제
+        wp_cache_delete('ptg_admin_question_' . $question_id, 'ptg_admin');
+        
+        return Rest::success(array(
+            'deleted' => true,
+            'question_id' => $question_id,
+            'message' => '문제가 성공적으로 삭제되었습니다.'
+        ));
+    }
+
+    /**
+     * 문제 생성
+     */
+    public static function create_question($request) {
+        global $wpdb;
+        
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+        
+        $content = $request->get_param('content') ?: '';
+        $answer = $request->get_param('answer') ?: '';
+        $explanation = $request->get_param('explanation') ?: '';
+        $subject = $request->get_param('subject');
+        $subsubject = $request->get_param('subsubject');
+        $exam_year = $request->get_param('exam_year');
+        $exam_session = $request->get_param('exam_session');
+        $difficulty = $request->get_param('difficulty') ?: 2;
+        $is_active = $request->get_param('is_active') !== false ? 1 : 0;
+        
+        // content/explanation 줄바꿈 처리
+        $content = str_replace( array( "\r\n", "\r", "\n" ), '', $content );
+        $content = preg_replace( '/([①-⑳])/u', "\n$1", $content );
+        // $explanation = str_replace( array( "\r\n", "\r", "\n" ), '', $explanation );
+        // $explanation = preg_replace( '/\s*(\(오답\s*해설\))/u', "\n$1", $explanation ); 
+        
+        // 1. 문제 테이블 삽입
+        $result = $wpdb->insert(
+            $questions_table,
+            array(
+                'content' => $content,
+                'answer' => $answer,
+                'explanation' => $explanation,
+                'type' => 'multiple_choice', // 기본값
+                'difficulty' => $difficulty,
+                'is_active' => $is_active,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' )
+        );
+        
+        if ($result === false) {
+            return Rest::error('insert_failed', '문제 생성에 실패했습니다: ' . $wpdb->last_error, 500);
+        }
+        
+        $question_id = $wpdb->insert_id;
+        
+        // 2. 카테고리 테이블 삽입
+        // DB 구조상 subject 컬럼에 세부과목이 저장됨
+        $final_subject = $subsubject ? $subsubject : $subject;
+        
+        $cat_result = $wpdb->insert(
+            $categories_table,
+            array(
+                'question_id' => $question_id,
+                'subject' => $final_subject,
+                'exam_year' => $exam_year,
+                'exam_session' => $exam_session,
+                'exam_course' => '1교시' // 기본값, 필요시 입력받아야 함
+            ),
+            array( '%d', '%s', '%d', '%d', '%s' )
+        );
+        
+        if ($cat_result === false) {
+            // 롤백? (MySQL MyISAM이면 불가, InnoDB면 트랜잭션 필요하지만 여기선 생략)
+            // 에러 로그만 남김
+            error_log('Failed to insert category for question ' . $question_id . ': ' . $wpdb->last_error);
+        }
+        
+        // 이미지 처리 (파일 업로드는 별도 엔드포인트나 multipart/form-data로 처리해야 함)
+        // REST API에서 파일 업로드는 $_FILES로 처리 가능
+        if ( ! empty( $_FILES['question_image']['name'] ) ) {
+            $file = $_FILES['question_image'];
+            $allowed_types = array( 'image/jpeg', 'image/png', 'image/gif' );
+            
+            if ( in_array( $file['type'], $allowed_types ) ) {
+                $upload_dir = wp_upload_dir();
+                $target_dir = $upload_dir['basedir'] . '/ptgates-questions/' . $exam_year . '/' . $exam_session;
+                
+                if ( ! file_exists( $target_dir ) ) {
+                    wp_mkdir_p( $target_dir );
+                }
+                
+                $ext = pathinfo( $file['name'], PATHINFO_EXTENSION );
+                $filename = $question_id . '.' . $ext;
+                $target_file = $target_dir . '/' . $filename;
+                
+                if ( move_uploaded_file( $file['tmp_name'], $target_file ) ) {
+                    $wpdb->update(
+                        $questions_table,
+                        array( 'question_image' => $filename ),
+                        array( 'question_id' => $question_id ),
+                        array( '%s' ),
+                        array( '%d' )
+                    );
+                }
+            }
+        }
+        
+        // 생성된 문제 반환 (ID 포함)
+        $request->set_param('id', $question_id);
         return self::get_question($request);
     }
     

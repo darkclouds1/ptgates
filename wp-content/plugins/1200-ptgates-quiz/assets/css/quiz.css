@@ -4,11 +4,18 @@
  * 문제 풀이 UI 스타일링
  */
 
-/* 컨테이너 */
-.ptg-quiz-container {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 20px;
+/* 컨테이너 - 양옆 마진 없이 중앙 정렬 */
+.ptg-quiz-container,
+#ptg-quiz-container {
+    max-width: 800px !important;
+    width: 800px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    position: relative !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
 }
 
 /* 플러그인 헤더 */
@@ -17,6 +24,7 @@
     color: white;
     padding: 17px 30px;
     border-radius: 8px;
+    margin-top: 5px;
     margin-bottom: 5px;
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
     overflow: hidden;
@@ -90,6 +98,23 @@
     z-index: 1000; /* 드로잉 오버레이보다 높게 설정 */
 }
 
+/* 퀴즈 툴바 내 모든 버튼의 테마 border 제거 (최우선 적용) */
+.ptg-quiz-toolbar button,
+.ptg-quiz-toolbar button[type="button"],
+.ptg-quiz-toolbar [type="button"] {
+    border: none !important;
+    outline: none !important;
+}
+
+.ptg-quiz-toolbar button:hover,
+.ptg-quiz-toolbar button:focus,
+.ptg-quiz-toolbar button:active,
+.ptg-quiz-toolbar button:focus-visible {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 /* 드로잉 툴바 (왼쪽) */
 .ptg-drawing-toolbar {
     flex-shrink: 0; /* 크기 고정 */
@@ -100,87 +125,160 @@
     gap: 8px;
     flex-shrink: 0; /* 크기 고정 */
     margin-left: auto; /* 항상 오른쪽에 고정 */
+    overflow: visible !important; /* 오버플로우 방지 */
+    flex-wrap: nowrap !important; /* 줄바꿈 방지 */
+    min-width: fit-content; /* 버튼이 모두 들어갈 수 있도록 */
 }
 
-/* 암기카드와 노트 버튼 강제 숨김 (제거됨) */
-.ptg-btn-flashcard,
-.ptg-btn-notebook {
-    display: none !important;
-    visibility: hidden !important;
-}
-
+/* 테마 CSS button border 완전히 덮어쓰기 */
+button.ptg-btn-icon,
+.ptg-quiz-toolbar button.ptg-btn-icon,
+.ptg-quiz-toolbar .ptg-toolbar-icons button,
+button[type="button"].ptg-btn-icon,
+[type="button"].ptg-btn-icon,
 .ptg-btn-icon {
     background: transparent;
-    border: none;
+    border: none !important;
     padding: 8px;
     cursor: pointer;
     font-size: 20px;
-    transition: color 0.2s, background-color 0.2s;
-    border-radius: 4px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 8px;
     color: #333;
-    outline: none;
+    outline: none !important;
+    position: relative;
+    transform: scale(1);
+    box-shadow: none !important;
+}
+
+/* 모든 상태에서 border 제거 */
+button.ptg-btn-icon:hover,
+button.ptg-btn-icon:focus,
+button.ptg-btn-icon:active,
+button.ptg-btn-icon:focus-visible,
+.ptg-quiz-toolbar button:hover,
+.ptg-quiz-toolbar button:focus,
+.ptg-quiz-toolbar button:active,
+.ptg-quiz-toolbar .ptg-btn-icon:hover,
+.ptg-quiz-toolbar .ptg-btn-icon:focus,
+.ptg-quiz-toolbar .ptg-btn-icon:active {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 /* 모든 버튼 hover 시에만 색상 변화 (active 상태가 아닐 때) */
 .ptg-btn-icon:not(.active):hover {
     color: #d63638;
     background-color: #fcd5d5;
+    transform: scale(1.05);
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
-/* 선택 기능 (북마크, 복습 필요) - 선택 시 파란색 계통 + 진한 배경색 */
-.ptg-btn-bookmark.active,
-.ptg-btn-review.active {
-    color: #0073aa;
-    background-color: #b3d9e8;
+/* 북마크 활성화 상태 - 심플한 금색 배경 */
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-bookmark.active,
+.ptg-btn-icon.ptg-btn-bookmark.active {
+    color: #ff9800 !important;
+    background-color: #fff3e0 !important;
+    border: 1px solid #ff9800 !important;
 }
 
-.ptg-btn-bookmark.active:hover,
-.ptg-btn-review.active:hover {
-    color: #005a87;
-    background-color: #99cce0;
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-bookmark.active:hover,
+.ptg-btn-icon.ptg-btn-bookmark.active:hover {
+    background-color: #ffe0b2 !important;
+    border-color: #ff9800 !important;
 }
 
-/* 표시 기능 (메모, 드로잉) - 표시 시 파란색 계통 + 진한 배경색 */
-.ptg-btn-notes.active,
-.ptg-btn-drawing.active {
-    color: #0073aa;
-    background-color: #b3d9e8;
+/* 복습 활성화 상태 - 심플한 주황색 배경 */
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-review.active,
+.ptg-btn-icon.ptg-btn-review.active {
+    color: #ff6b35 !important;
+    background-color: #fff3e0 !important;
+    border: 1px solid #ff6b35 !important;
 }
 
-.ptg-btn-notes.active:hover,
-.ptg-btn-drawing.active:hover {
-    color: #005a87;
-    background-color: #99cce0;
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-review.active:hover,
+.ptg-btn-icon.ptg-btn-review.active:hover {
+    background-color: #ffe0b2 !important;
+    border-color: #ff6b35 !important;
 }
 
-/* 포커스 상태 - active 상태가 아닐 때는 outline만, 배경색 없음 */
+/* 메모 활성화 상태 - 심플한 파란색 배경 */
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-notes.active,
+.ptg-btn-icon.ptg-btn-notes.active {
+    color: #4a90e2 !important;
+    background-color: #e3f2fd !important;
+    border: 1px solid #4a90e2 !important;
+}
+
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-notes.active:hover,
+.ptg-btn-icon.ptg-btn-notes.active:hover {
+    background-color: #bbdefb !important;
+    border-color: #4a90e2 !important;
+}
+
+/* 암기카드 활성화 상태 - 심플한 보라색 배경 */
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-flashcard.active,
+.ptg-btn-icon.ptg-btn-flashcard.active {
+    color: #9b59b6 !important;
+    background-color: #f3e5f5 !important;
+    border: 1px solid #9b59b6 !important;
+}
+
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-flashcard.active:hover,
+.ptg-btn-icon.ptg-btn-flashcard.active:hover {
+    background-color: #e1bee7 !important;
+    border-color: #9b59b6 !important;
+}
+
+/* 드로잉 활성화 상태 - 심플한 초록색 배경 */
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-drawing.active,
+.ptg-btn-icon.ptg-btn-drawing.active {
+    color: #2ecc71 !important;
+    background-color: #e8f5e9 !important;
+    border: 1px solid #2ecc71 !important;
+}
+
+.ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-drawing.active:hover,
+.ptg-btn-icon.ptg-btn-drawing.active:hover {
+    background-color: #c8e6c9 !important;
+    border-color: #2ecc71 !important;
+}
+
+/* 포커스 상태 - active 상태가 아닐 때는 outline 제거 */
 .ptg-btn-icon:not(.active):focus,
 .ptg-btn-icon:not(.active):focus-visible {
-    outline: 2px solid #0073aa;
-    outline-offset: 2px;
+    outline: none !important;
+    outline-offset: 0 !important;
     color: #333;
     background-color: transparent;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .ptg-btn-icon:not(.active):focus:hover,
 .ptg-btn-icon:not(.active):focus-visible:hover {
     color: #d63638;
     background-color: #ffe5e5;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
-/* active 상태와 포커스 상태가 함께 있을 때만 배경색 적용 */
+/* active 상태와 포커스 상태가 함께 있을 때 - outline 제거 */
 .ptg-btn-icon.active:focus,
 .ptg-btn-icon.active:focus-visible {
-    outline: 2px solid #005a87;
-    outline-offset: 2px;
-    color: #005a87;
-    background-color: #99cce0;
+    outline: none !important;
+    outline-offset: 0 !important;
+    border: none !important;
 }
 
 .ptg-btn-icon.active:focus:hover,
 .ptg-btn-icon.active:focus-visible:hover {
-    color: #005a87;
-    background-color: #99cce0;
+    outline: none !important;
+    border: none !important;
 }
 
 /* 클릭 시 색상 변화 방지 (:active 의사 클래스 제거) */
@@ -1031,6 +1129,7 @@
 .ptg-quiz-explanation h3 {
     margin-top: 0;
     color: #0073aa;
+    font-size: 17px;
 }
 
 .ptg-explanation-content {
@@ -1138,8 +1237,14 @@
 }
 
 @media (max-width: 767px) {
-    .ptg-quiz-container {
-        padding: 12px;
+    .ptg-quiz-container,
+    #ptg-quiz-container {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        left: 0 !important;
+        transform: none !important;
     }
     
     /* 모바일에서 헤더 padding 줄이기 */
@@ -1242,11 +1347,180 @@
 }
 
 /* 접근성 */
-.ptg-btn-icon:focus-visible,
+.ptg-btn-icon:focus-visible {
+    outline: none !important;
+    outline-offset: 0 !important;
+    border: none !important;
+}
+
 .ptg-btn:focus-visible,
 .ptg-choice-item:focus-visible {
     outline: 2px solid #0073aa;
     outline-offset: 2px;
+}
+
+/* 암기카드 모달 스타일 */
+.ptg-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: none;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.ptg-modal[style*="display: flex"],
+.ptg-modal[style*="display:block"],
+.ptg-modal.show {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 모달 컨텐츠 화면 정중앙 정렬 */
+.ptg-modal-content {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    animation: ptg-modal-fade-in 0.3s ease;
+    z-index: 10001;
+    /* 화면 정중앙 정렬 보장 - flex 컨테이너 내에서 자동 중앙 정렬 */
+    margin: auto;
+    overflow-y: auto;
+}
+
+@keyframes ptg-modal-fade-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.ptg-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: #fff;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.ptg-modal-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.ptg-modal-close {
+    background: #fff;
+    border: none;
+    color: #1d3f7c;
+    font-size: 28px;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ptg-modal-close:hover {
+    background: #f0f4ff;
+    transform: scale(1.1);
+}
+
+.ptg-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.ptg-modal-body textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ptg-modal-body textarea:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.ptg-modal-body .form-group {
+    margin-bottom: 16px;
+}
+
+.ptg-modal-body .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.ptg-modal-body .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.ptg-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.ptg-flashcard-status {
+    flex: 1;
+    font-size: 14px;
+    color: #666;
+}
+
+@media (max-width: 768px) {
+    .ptg-modal-content {
+        width: 95%;
+        max-height: 85vh;
+    }
+
+    .ptg-modal-header,
+    .ptg-modal-body,
+    .ptg-modal-footer {
+        padding: 16px;
+    }
 }
 
 /* 완료 화면 (결과 요약) */

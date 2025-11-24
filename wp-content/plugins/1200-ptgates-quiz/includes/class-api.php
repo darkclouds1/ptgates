@@ -220,9 +220,29 @@ class API {
                     'type' => 'integer',
                     'sanitize_callback' => 'absint',
                 ),
-                'image_data' => array(
-                    'required' => true,
+                'format' => array(
                     'type' => 'string',
+                    'default' => 'json',
+                ),
+                'data' => array(
+                    'required' => false, // 함수에서 empty 체크를 하고 있음
+                    'type' => 'string',
+                ),
+                'width' => array(
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'height' => array(
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'device' => array(
+                    'type' => 'string',
+                ),
+                'is_answered' => array(
+                    'type' => 'integer',
+                    'default' => 0,
+                    'sanitize_callback' => 'absint',
                 ),
                 'device_type' => array(
                     'type' => 'string',
@@ -677,10 +697,6 @@ class API {
         //     return Rest::error('invalid_question_id', '문제 ID가 지정되지 않았습니다. 필터 조건을 사용하거나 유효한 문제 ID를 지정해 주세요.', 400);
         // }
         
-        // 디버깅: 문제 ID 확인
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[PTG Quiz] 문제 조회 요청: question_id=' . $question_id);
-        }
         
         // 먼저 문제가 존재하는지 확인 (카테고리 정보 없이)
         // 레거시 테이블은 prefix 없이 직접 사용
@@ -915,9 +931,13 @@ class API {
                 `question_id` bigint(20) unsigned NOT NULL,
                 `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
                 `needs_review` tinyint(1) NOT NULL DEFAULT 0,
-                `last_result` varchar(10) DEFAULT NULL,
+                `study_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `quiz_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `last_result` enum('correct','wrong') DEFAULT NULL,
                 `last_answer` varchar(255) DEFAULT NULL,
                 `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                `last_study_date` datetime DEFAULT NULL,
+                `last_quiz_date` datetime DEFAULT NULL,
                 PRIMARY KEY (`user_id`,`question_id`),
                 KEY `idx_flags` (`bookmarked`,`needs_review`)
             ) {$charset_collate};";
@@ -984,6 +1004,7 @@ class API {
         $question_id = absint($request->get_param('question_id'));
         $user_answer = $request->get_param('answer');
         $elapsed = absint($request->get_param('elapsed'));
+        $skip_count_update = $request->get_param('skip_count_update') === true || $request->get_param('skip_count_update') === 'true';
 
         // 상태 테이블 보장
         $states_table = 'ptgates_user_states';
@@ -995,9 +1016,13 @@ class API {
                 `question_id` bigint(20) unsigned NOT NULL,
                 `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
                 `needs_review` tinyint(1) NOT NULL DEFAULT 0,
-                `last_result` varchar(10) DEFAULT NULL,
+                `study_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `quiz_count` int(11) unsigned NOT NULL DEFAULT 0,
+                `last_result` enum('correct','wrong') DEFAULT NULL,
                 `last_answer` varchar(255) DEFAULT NULL,
                 `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                `last_study_date` datetime DEFAULT NULL,
+                `last_quiz_date` datetime DEFAULT NULL,
                 PRIMARY KEY (`user_id`,`question_id`),
                 KEY `idx_flags` (`bookmarked`,`needs_review`)
             ) {$charset_collate};";
@@ -1045,20 +1070,127 @@ class API {
             ARRAY_A
         );
         
-        $state_data = array(
-            'user_id' => $user_id,
-            'question_id' => $question_id,
-            'last_result' => $is_correct ? 'correct' : 'wrong',
-            'last_answer' => $user_answer,
-        );
+        $current_time_utc = current_time('mysql', true);
         
-        if ($existing_state) {
-            $wpdb->update($states_table, $state_data, array(
-                'user_id' => $user_id,
-                'question_id' => $question_id
-            ));
+        // skip_count_update가 true이면 quiz_count를 증가시키지 않음
+        if ($skip_count_update) {
+            // quiz_count는 업데이트하지 않고, last_result와 last_answer만 업데이트
+            $state_update = array(
+                'last_result'    => $is_correct ? 'correct' : 'wrong',
+                'last_answer'    => $user_answer,
+                'updated_at'     => $current_time_utc,
+            );
+            
+            if ($existing_state) {
+                // skip_count_update가 true면 quiz_count는 업데이트하지 않음
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE `{$states_table}` 
+                        SET `last_result` = %s, 
+                            `last_answer` = %s 
+                        WHERE `user_id` = %d AND `question_id` = %d",
+                        $is_correct ? 'correct' : 'wrong',
+                        $user_answer,
+                        $user_id,
+                        $question_id
+                    )
+                );
+            } else {
+                // 레코드가 없으면 새로 생성 (quiz_count는 0으로 시작)
+                $state_insert = array_merge(
+                    array(
+                        'user_id'        => $user_id,
+                        'question_id'    => $question_id,
+                        'bookmarked'     => 0,
+                        'needs_review'   => 0,
+                        'study_count'    => 0,
+                        'last_study_date'=> null,
+                        'quiz_count'     => 0,
+                        'last_quiz_date' => null,
+                        'updated_at'     => $current_time_utc,
+                    ),
+                    $state_update
+                );
+                $wpdb->insert(
+                    $states_table, 
+                    $state_insert,
+                    array(
+                        '%d', // user_id
+                        '%d', // question_id
+                        '%d', // bookmarked
+                        '%d', // needs_review
+                        '%d', // study_count
+                        '%s', // last_study_date
+                        '%d', // quiz_count
+                        '%s', // last_quiz_date
+                        '%s', // updated_at
+                        '%s', // last_result
+                        '%s', // last_answer
+                    )
+                );
+            }
         } else {
-            $wpdb->insert($states_table, $state_data);
+            // quiz_count를 증가시킴 (기존 로직)
+            $next_quiz_count  = $existing_state ? ( (int) $existing_state['quiz_count'] + 1 ) : 1;
+
+            // 트리거가 자동으로 last_quiz_date를 업데이트하므로 배열에서 제외
+            $state_update = array(
+                'last_result'    => $is_correct ? 'correct' : 'wrong',
+                'last_answer'    => $user_answer,
+                'quiz_count'     => $next_quiz_count,
+                // last_quiz_date는 트리거가 자동으로 설정하므로 제외
+                // updated_at도 ON UPDATE current_timestamp()로 자동 갱신되므로 제외
+            );
+
+            if ($existing_state) {
+                // 트리거가 자동으로 last_quiz_date를 업데이트하므로 quiz_count만 업데이트
+                $wpdb->query(
+                    $wpdb->prepare(
+                        "UPDATE `{$states_table}` 
+                        SET `last_result` = %s, 
+                            `last_answer` = %s, 
+                            `quiz_count` = %d 
+                        WHERE `user_id` = %d AND `question_id` = %d",
+                        $is_correct ? 'correct' : 'wrong',
+                        $user_answer,
+                        $next_quiz_count,
+                        $user_id,
+                        $question_id
+                    )
+                );
+            } else {
+                // INSERT 시 트리거가 자동으로 last_quiz_date를 설정하므로 명시적으로 설정하지 않음
+                $state_insert = array_merge(
+                    array(
+                        'user_id'        => $user_id,
+                        'question_id'    => $question_id,
+                        'bookmarked'     => 0,
+                        'needs_review'   => 0,
+                        'study_count'    => 0,
+                        'last_study_date'=> null,
+                        // updated_at과 last_quiz_date는 INSERT 트리거가 자동으로 설정
+                    ),
+                    $state_update
+                );
+
+                $wpdb->insert(
+                    $states_table, 
+                    $state_insert,
+                    array(
+                        '%d', // user_id
+                        '%d', // question_id
+                        '%d', // bookmarked
+                        '%d', // needs_review
+                        '%d', // study_count
+                        '%s', // last_study_date
+                        '%s', // updated_at
+                        '%s', // last_result
+                        '%s', // last_answer
+                        '%d', // quiz_count
+                        '%s', // last_quiz_date
+                    )
+                );
+            }
         }
         
         return Rest::success(array(
@@ -1362,15 +1494,6 @@ class API {
                 throw new \Exception('드로잉 삭제 실패');
             }
             
-            // 디버깅: 삭제 성공
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log(sprintf(
-                    '[PTG Quiz] 드로잉 전체 삭제 성공 (DELETE 엔드포인트): user_id=%d, question_id=%d, deleted_count=%d',
-                    $user_id,
-                    $question_id,
-                    $result
-                ));
-            }
             
             return Rest::success(array(
                 'deleted' => true,
@@ -1608,7 +1731,7 @@ class API {
                 (SELECT COUNT(*) FROM {$table_states} WHERE user_id = %d AND question_id = %d AND bookmarked = 1) as bookmarked,
                 (SELECT COUNT(*) FROM {$table_states} WHERE user_id = %d AND question_id = %d AND needs_review = 1) as needs_review,
                 (SELECT COUNT(*) FROM {$table_memos} WHERE user_id = %d AND question_id = %d) as has_memo,
-                (SELECT COUNT(*) FROM {$table_flashcards} WHERE user_id = %d AND source_id = %d AND source_type = 'quiz') as has_flashcard
+                (SELECT COUNT(*) FROM {$table_flashcards} WHERE user_id = %d AND source_id = %d AND source_type = 'question') as has_flashcard
         ", $user_id, $question_id, $user_id, $question_id, $user_id, $question_id, $user_id, $question_id);
         
         $result = $wpdb->get_row($query, ARRAY_A);

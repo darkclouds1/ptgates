@@ -35,16 +35,6 @@
         const cleanEndpoint = endpoint.replace(/^\//, '');
         const url = config.restUrl + cleanEndpoint;
         
-        // 디버깅: 실제 요청 URL 확인
-        if (typeof console !== 'undefined' && console.log) {
-            console.log('[PTG Platform] API 요청:', {
-                endpoint: endpoint,
-                cleanEndpoint: cleanEndpoint,
-                restUrl: config.restUrl,
-                fullUrl: url,
-                method: options.method || 'GET'
-            });
-        }
         
         const defaultOptions = {
             headers: {
@@ -216,16 +206,14 @@
      * 에러 메시지 표시 헬퍼
      */
     PTGPlatform.showError = function(message) {
-        // 콘솔 로그만 출력
-        console.error('[PTG Platform] 오류:', message);
+        // 에러 로그는 중요하므로 유지 (콘솔 오류는 일반적으로 필수)
     };
     
     /**
      * 성공 메시지 표시 헬퍼
      */
     PTGPlatform.showSuccess = function(message) {
-        // 콘솔 로그만 출력
-        console.log('[PTG Platform] 성공:', message);
+        // 디버그 로그 제거
     };
     
 })();

@@ -9,10 +9,6 @@
  * Shortcode: [ptg_analytics]
  */
 
-// Debug: Check if plugin file is loaded
-if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-    error_log( '[PTG Analytics] Plugin file loaded' );
-}
 
 // Debug Shortcode
 add_shortcode( 'ptg_debug', function() {
@@ -46,9 +42,6 @@ final class PTG_Analytics_Plugin {
 	public function check_shortcode_registration() {
 		if ( ! shortcode_exists( 'ptg_analytics' ) ) {
 			$this->register_shortcode();
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( '[PTG Analytics] Shortcode re-registered on wp_loaded' );
-			}
 		}
 	}
 
@@ -62,9 +55,6 @@ final class PTG_Analytics_Plugin {
 	}
 
 	public function register_shortcode() {
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( '[PTG Analytics] Registering shortcode: ptg_analytics' );
-		}
 		add_shortcode( 'ptg_analytics', [ $this, 'render_shortcode' ] );
 	}
 

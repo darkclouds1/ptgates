@@ -33,14 +33,10 @@ class Analyzer {
 				ORDER BY (SUM(CASE WHEN r.is_correct = 1 THEN 1 ELSE 0 END) / COUNT(*)) ASC 
 				LIMIT 5";
 		
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( "[PTG Analytics] Weak Subjects SQL: $sql" );
-		}
-
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $user_id ) );
 		
 		if ( ! empty( $wpdb->last_error ) ) {
-			error_log( '[PTG Analytics] DB Error in get_weak_subjects: ' . $wpdb->last_error );
+			// error_log( '[PTG Analytics] DB Error in get_weak_subjects: ' . $wpdb->last_error );
 			// Return empty array gracefully or throw exception depending on preference.
 			// For now, return empty to avoid breaking the page completely.
 			return [];
@@ -66,15 +62,11 @@ class Analyzer {
 		// Get last 10 quiz sessions (grouped by date or just last N records)
 		// For simplicity, let's take last 50 answers
 		$sql = "SELECT is_correct, attempted_at FROM $table_r WHERE user_id = %d ORDER BY attempted_at DESC LIMIT 50";
-		
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( "[PTG Analytics] Recent Accuracy SQL: $sql" );
-		}
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $user_id ) );
 
 		if ( ! empty( $wpdb->last_error ) ) {
-			error_log( '[PTG Analytics] DB Error in get_recent_accuracy: ' . $wpdb->last_error );
+			// error_log( '[PTG Analytics] DB Error in get_recent_accuracy: ' . $wpdb->last_error );
 			return 0;
 		}
 

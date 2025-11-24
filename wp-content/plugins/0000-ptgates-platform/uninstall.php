@@ -30,7 +30,6 @@ $platform_tables = array(
     'ptgates_exam_sessions',
     'ptgates_exam_session_items',
     'ptgates_user_states',
-    'ptgates_user_notes',
     'ptgates_user_drawings',
     'ptgates_review_schedule',
     'ptgates_highlights',
@@ -45,5 +44,9 @@ foreach ($platform_tables as $table) {
 }
 
 // 삭제된 테이블 로그
-error_log('PTGates Platform: 플랫폼 전용 테이블 삭제 완료');
+if (function_exists('ptg_error_log_kst')) {
+    ptg_error_log_kst('PTGates Platform: 플랫폼 전용 테이블 삭제 완료');
+} else {
+    error_log('PTGates Platform: 플랫폼 전용 테이블 삭제 완료');
+}
 

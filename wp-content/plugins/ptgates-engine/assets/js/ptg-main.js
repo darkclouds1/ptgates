@@ -71,8 +71,6 @@
             const select = document.getElementById('ptgates-filter-year');
             const container = document.getElementById('ptgates-quiz-container');
             
-            // 디버깅: API 응답 확인
-            console.log('PTGates years API response:', years);
             
             if (select && Array.isArray(years) && years.length) {
                 // 숏코드에서 연도 속성 확인

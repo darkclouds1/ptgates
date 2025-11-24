@@ -174,6 +174,61 @@ class Subjects {
 		}
 		return (int) self::MAP[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ];
 	}
+
+	/**
+	 * 세부과목명으로 상위 과목명을 찾아 반환합니다.
+	 *
+	 * @param string $subsubject 세부과목명
+	 * @return string|null 상위 과목명 또는 찾지 못한 경우 null
+	 */
+	public static function get_subject_from_subsubject( string $subsubject ): ?string {
+		$needle = trim( (string) $subsubject );
+		if ( $needle === '' ) {
+			return null;
+		}
+
+		foreach ( self::MAP as $session_data ) {
+			if ( empty( $session_data['subjects'] ) || ! is_array( $session_data['subjects'] ) ) {
+				continue;
+			}
+
+			foreach ( $session_data['subjects'] as $subject_name => $subject_meta ) {
+				if ( empty( $subject_meta['subs'] ) || ! is_array( $subject_meta['subs'] ) ) {
+					continue;
+				}
+
+				foreach ( $subject_meta['subs'] as $sub_name => $count ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable
+					if ( self::is_subsubject_match( $needle, $sub_name ) ) {
+						return $subject_name;
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * 세부과목명이 동일하거나 유사한지 비교합니다.
+	 */
+	private static function is_subsubject_match( string $needle, string $candidate ): bool {
+		if ( $needle === $candidate ) {
+			return true;
+		}
+
+		$normalized_needle    = preg_replace( '/\s+|·/u', '', $needle );
+		$normalized_candidate = preg_replace( '/\s+|·/u', '', $candidate );
+
+		if ( $normalized_needle === $normalized_candidate ) {
+			return true;
+		}
+
+		if ( stripos( $needle, $candidate ) !== false || stripos( $candidate, $needle ) !== false ) {
+			return true;
+		}
+
+		return false;
+	}
 }
 
 
