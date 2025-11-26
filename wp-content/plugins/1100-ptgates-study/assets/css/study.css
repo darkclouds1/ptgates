@@ -1,8 +1,8 @@
 .ptg-study-container {
-  max-width: 800px;
-  width: 800px;
+  max-width: 900px;
+  width: 900px;
   margin: 0;
-  padding: 5px;
+  padding: 10px;
   box-sizing: border-box;
   overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -16,19 +16,6 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-}
-
-@media (max-width: 767px) {
-  .ptg-study-container {
-    max-width: 100%;
-    width: 100%;
-    left: 0;
-    transform: none;
-  }
-
-  .ptg-course-categories {
-    grid-template-columns: 1fr;
-  }
 }
 
 .ptg-category {
@@ -79,13 +66,6 @@
   gap: 12px;
 }
 
-@media (max-width: 768px) {
-  .ptg-subject-list {
-    flex-direction: column;
-    gap: 8px;
-  }
-}
-
 .ptg-subject-item {
   background-color: #f1f5f9;
   padding: 8px 16px;
@@ -94,13 +74,6 @@
   transition: background-color 0.2s, color 0.2s;
   font-size: 0.875rem;
   flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .ptg-subject-item {
-    width: 100%;
-    text-align: center;
-  }
 }
 
 .ptg-subject-item:hover {
@@ -125,7 +98,8 @@
 }
 
 .ptg-lesson-view {
-  padding: 0px;
+  padding: 10px;
+  max-width: 900px;
 }
 
 #back-to-courses {
@@ -507,15 +481,6 @@
   }
 }
 
-@media (max-width: 768px) {
-  .ptg-study-tip-body {
-    padding: 24px 20px;
-  }
-
-  .ptg-study-tip-header {
-    padding: 20px;
-  }
-}
 .ptg-header-row {
   display: flex;
   align-items: center;
@@ -781,7 +746,7 @@
   border-color: #999;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .ptg-modal-content {
     width: 95%;
     max-height: 85vh;
@@ -796,6 +761,36 @@
   .ptg-lesson-item.ptg-quiz-card {
     padding-left: 5px;
     padding-right: 5px;
+  }
+  .ptg-study-tip-body {
+    padding: 24px 20px;
+  }
+
+  .ptg-study-tip-header {
+    padding: 20px;
+  }
+
+  .ptg-lesson-view {
+    max-width: 100%;
+    padding: 0px;
+  }
+
+  .ptg-subject-list {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ptg-subject-item {
+    width: 100%;
+    text-align: center;
+  }
+  .ptg-study-container {
+    max-width: 100%;
+    width: 100%;
+    left: 0;
+    transform: none;
+  }
+  .ptg-course-categories {
+    grid-template-columns: 1fr;
   }
 }
 

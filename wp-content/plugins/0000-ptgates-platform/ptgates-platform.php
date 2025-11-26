@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: PTGates Platform
+ * Plugin Name: 0000-ptgates-platform (PTGates Platform)
  * Plugin URI: https://ptgates.com
  * Description: PTGates 플랫폼 코어 - 공통 DB 스키마, 권한, 유틸리티, 컴포넌트 제공. 모든 모듈의 필수 의존성.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: PTGates
  * Author URI: https://ptgates.com
  * License: GPL v2 or later
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 define('PTG_PLATFORM_VERSION', '1.0.2');
 define('PTG_PLATFORM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PTG_PLATFORM_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('PTG_PLATFORM_PLUGIN_BASENAME', plugin_basename(__FILE__));
+define('PTG_PLATFORM_PLUGIN_BASENAME', plugin_basename(__FILE__)); 
 
 /**
  * 플러그인 활성화 시 실행
@@ -124,6 +124,8 @@ class PTG_Platform {
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-legacy-repo.php'; // 기존 테이블 접근용
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-permissions.php';
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-rest.php';
+        // 교시/과목/세부과목 정적 정의 클래스 (최초 로드 시 자동 메모리에 로드)
+        require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-subjects.php';
     }
     
     /**
@@ -150,6 +152,14 @@ class PTG_Platform {
         wp_enqueue_style(
             'ptg-question-viewer-style',
             PTG_PLATFORM_PLUGIN_URL . 'assets/css/question-viewer.css',
+            array('ptg-platform-style'),
+            PTG_PLATFORM_VERSION
+        );
+        
+        // 공통 팝업(Tips) CSS
+        wp_enqueue_style(
+            'ptg-tips-style',
+            PTG_PLATFORM_PLUGIN_URL . 'assets/css/tips.css',
             array('ptg-platform-style'),
             PTG_PLATFORM_VERSION
         );
@@ -186,6 +196,24 @@ class PTG_Platform {
                 true
             );
         }
+        
+        // 공통 팝업(Tips) 내용 정의 (팝업 유틸리티보다 먼저 로드)
+        wp_enqueue_script(
+            'ptg-tips-content-script',
+            PTG_PLATFORM_PLUGIN_URL . 'assets/js/tips-content.js',
+            array(),
+            PTG_PLATFORM_VERSION,
+            true
+        );
+        
+        // 공통 팝업(Tips) JavaScript (내용 정의 이후 로드)
+        wp_enqueue_script(
+            'ptg-tips-script',
+            PTG_PLATFORM_PLUGIN_URL . 'assets/js/tips.js',
+            array('ptg-tips-content-script'),
+            PTG_PLATFORM_VERSION,
+            true
+        );
         
         // 공통 문제 보기 컴포넌트 JavaScript
         $question_viewer_js_url = PTG_PLATFORM_PLUGIN_URL . 'assets/js/question-viewer.js';
@@ -377,7 +405,7 @@ class PTG_Platform {
         }
     }
 
-    /**
+    /** 
      * Trial 만료 체크 및 Basic 전환 (Cron Job)
      */
     public function check_trial_expiration() {

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates Admin
+ * Plugin Name: 6000-ptgates-admin (PTGates Admin)
  * Description: PTGates 문제은행 관리 모듈 (관리자 전용). CSV 일괄 삽입, 문제 편집/삭제 기능.
  * Version: 1.0.0
  * Author: PTGates
@@ -753,11 +753,19 @@ final class PTG_Admin_Plugin {
 		// 하지만 여기서는 사용자가 '과목'과 '세부과목'을 선택할 수 있게 해야 함.
 		// 기존 데이터가 세부과목만 있다면, 대분류를 역추적해야 함.
 		
-		// Subjects 클래스 로드
+		// Subjects 클래스 로드 (최초 로드는 0000-ptgates-platform에서 수행됨)
 		if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
-			$subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-			if ( file_exists( $subjects_file ) ) {
-				require_once $subjects_file;
+			// 플랫폼 코어를 먼저 시도
+			$platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+			if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
+				require_once $platform_subjects_file;
+			}
+			// 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+			if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
+				$subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+				if ( file_exists( $subjects_file ) && is_readable( $subjects_file ) ) {
+					require_once $subjects_file;
+				}
 			}
 		}
 

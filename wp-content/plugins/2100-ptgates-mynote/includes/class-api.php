@@ -85,11 +85,19 @@ class API {
 		$memo_table = 'ptgates_user_memos';
 		$cat_table  = 'ptgates_categories';
 		
-		// Subjects 클래스 로드
+		// Subjects 클래스 로드 (최초 로드는 0000-ptgates-platform에서 수행됨)
 		if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
-			$subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-			if ( file_exists( $subjects_file ) ) {
-				require_once $subjects_file;
+			// 플랫폼 코어를 먼저 시도
+			$platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+			if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
+				require_once $platform_subjects_file;
+			}
+			// 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+			if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
+				$subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+				if ( file_exists( $subjects_file ) && is_readable( $subjects_file ) ) {
+					require_once $subjects_file;
+				}
 			}
 		}
 

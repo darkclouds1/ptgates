@@ -18,94 +18,156 @@ $study_url = PTG_Dashboard::get_study_url();
 // 인라인 스타일 (간단한 스타일은 여기에 포함, 복잡하면 css 파일로 분리 권장)
 ?>
 <style>
+
     .ptg-dashboard-container {
-        max-width: 1000px;
-        margin: 0 auto;
+        max-width: 900px !important;
+        margin: 10px auto !important;
+        padding: 10px !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
+    
     .ptg-dash-welcome {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: 20px;
-        margin-bottom: 20px;
-        padding: 20px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        gap: 24px;
+        margin-top: 0;
+        margin-bottom: 24px;
+        padding: 20px 24px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
+
     .ptg-dash-welcome h2 {
         margin: 0;
-        font-size: 1.5rem;
-        color: #333;
+        font-size: 18px;
+        color: #1f2937;
+        font-weight: 600;
+    }
+    .ptg-greeting {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ptg-greeting.is-english {
+        cursor: help;
+    }
+    .ptg-greeting.is-english::after {
+        content: attr(data-translation);
+        position: absolute;
+        left: 0;
+        top: calc(100% + 8px);
+        font-size: 12px;
+        line-height: 1.4;
+        color: #374151;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 8px 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        white-space: normal;
+        min-width: 220px;
+        max-width: 360px;
+        opacity: 0;
+        transform: translateY(4px);
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 10;
+    }
+    .ptg-greeting.is-english:hover::after {
+        opacity: 1;
+        transform: translateY(0);
     }
     .ptg-dash-premium-badge {
         padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: bold;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: 1px solid;
     }
     .ptg-dash-premium-badge.is-active {
-        background: #e3f2fd;
-        color: #1976d2;
+        background: #eff6ff;
+        color: #1e40af;
+        border-color: #bfdbfe;
     }
     .ptg-dash-premium-badge.is-free {
-        background: #f5f5f5;
-        color: #616161;
+        background: #f9fafb;
+        color: #6b7280;
+        border-color: #e5e7eb;
+    }
+    .ptg-dash-premium-badge small {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 400;
+        margin-top: 2px;
+        opacity: 0.8;
     }
     
     .ptg-dash-stats {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 20px;
         margin-bottom: 30px;
     }
     .ptg-dash-card {
-        background: #fff;
+        background: #ffffff;
         padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         display: flex;
-        align-items: center;
-        gap: 20px;
+        align-items: flex-start;
+        gap: 16px;
+        border: 1px solid #e5e7eb;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .ptg-dash-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
     .ptg-card-icon {
-        font-size: 2.5rem;
+        font-size: 2rem;
+        flex-shrink: 0;
     }
     .ptg-card-content {
         flex: 1;
+        min-width: 0;
     }
     .ptg-card-content h3 {
-        margin: 0 0 5px 0;
-        font-size: 1rem;
-        color: #666;
+        margin: 0 0 8px 0;
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-weight: 500;
     }
     .ptg-stat-value {
-        font-size: 2rem;
-        font-weight: bold;
-        margin: 0;
-        color: #333;
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin: 0 0 12px 0;
+        color: #111827;
     }
     .ptg-stat-unit {
-        font-size: 1rem;
-        font-weight: normal;
-        color: #888;
+        font-size: 0.875rem;
+        font-weight: 400;
+        color: #6b7280;
     }
     .ptg-progress-bar {
-        height: 8px;
-        background: #eee;
-        border-radius: 4px;
-        margin: 10px 0;
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        margin: 8px 0;
         overflow: hidden;
     }
     .ptg-progress-fill {
         height: 100%;
-        background: #4caf50;
+        background: #3b82f6;
+        transition: width 0.3s ease;
     }
     .ptg-stat-desc {
-        font-size: 0.85rem;
-        color: #888;
-        margin: 0;
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin: 4px 0 0 0;
     }
 
     .ptg-dash-banner {
@@ -161,6 +223,9 @@ $study_url = PTG_Dashboard::get_study_url();
             flex-direction: column;
             gap: 15px;
         }
+        .ptg-dash-stats {
+            grid-template-columns: 1fr;
+        }
 
         .ptg-banner-icon {
             font-size: 2rem;
@@ -185,36 +250,42 @@ $study_url = PTG_Dashboard::get_study_url();
     .ptg-action-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 15px;
+        gap: 16px;
     }
     .ptg-action-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 20px;
-        background: #fff;
-        border: 1px solid #eee;
-        border-radius: 12px;
+        padding: 24px 20px;
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        color: #374151 !important;
     }
     .ptg-action-btn:hover {
         transform: translateY(-4px);
-        border-color: #64b5f6;
-        background: linear-gradient(135deg, #e3f2fd 0%, #c5e2ff 100%);
-        box-shadow: 0 12px 24px rgba(33, 150, 243, 0.25);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-color: #d1d5db;
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #374151 !important;
     }
     .ptg-action-btn:hover .label {
-        color: #0d47a1;
+        color: #374151 !important;
     }
     .ptg-action-btn .icon {
-        font-size: 2rem;
-        margin-bottom: 10px;
+        font-size: 1.75rem;
+        margin-bottom: 8px;
     }
     .ptg-action-btn .label {
-        font-weight: 600;
-        color: #333;
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: #374151;
     }
 
     .ptg-dash-recent {
@@ -376,7 +447,19 @@ $study_url = PTG_Dashboard::get_study_url();
         color: #0f172a;
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 8px;
+    }
+
+    .ptg-category-name {
+        flex: 1;
+    }
+
+    .ptg-category-total {
+        font-size: 14px;
+        font-weight: 600;
+        color: #475569;
+        white-space: nowrap;
     }
 
     .ptg-category-desc {
@@ -421,16 +504,12 @@ $study_url = PTG_Dashboard::get_study_url();
     }
 
     .ptg-subject-item:hover {
-        background-color: #4a5568;
-        color: #fff;
+        background-color: #e2e8f0;
+        color: #0f172a;
     }
 
     .ptg-subject-item:hover .ptg-subject-counts {
-        color: #fff !important;
-    }
-
-    .ptg-subject-item:hover .ptg-subject-counts * {
-        color: #fff !important;
+        color:rgb(197, 214, 250) !important;
     }
 
     @media (max-width: 768px) {
@@ -522,15 +601,42 @@ $study_url = PTG_Dashboard::get_study_url();
     .ptg-learning-day:hover,
     .ptg-learning-day.is-active {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(15,23,42,0.08);
+        box-shadow: 0 8px 20px rgba(130, 151, 202, 0.08);
         border-color: #d1d5db;
+        background: #fdfdff !important;
+    }
+    .ptg-learning-day:focus,
+    .ptg-learning-day:focus-within {
+        background: #fdfdff !important;
+        outline: none;
     }
 
     .ptg-learning-date-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 10px;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+    }
+    .ptg-learning-date-row:hover {
+        background:rgb(248, 250, 252) !important;
+    }
+    .ptg-learning-date-row:focus,
+    .ptg-learning-date-row:focus-visible {
+        background: rgb(248, 250, 252) !important;
+        outline: none;
+        color: inherit !important;
+    }
+    .ptg-learning-date-row:focus .ptg-learning-date,
+    .ptg-learning-date-row:focus-visible .ptg-learning-date {
+        color: #142a63 !important;
     }
 
     .ptg-learning-date {
@@ -546,6 +652,29 @@ $study_url = PTG_Dashboard::get_study_url();
         background: #e8edff;
         padding: 2px 10px;
         border-radius: 999px;
+    }
+
+    .ptg-learning-toggle {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.65);
+        color: #22336b;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 10px;
+        box-shadow: inset 0 1px 3px rgba(15,23,42,0.15);
+        transition: transform 0.2s ease;
+    }
+
+    .ptg-learning-day:not(.is-open) .ptg-learning-toggle {
+        transform: rotate(180deg);
+    }
+
+    .ptg-learning-day-content {
+        margin-top: 12px;
     }
 
     .ptg-learning-lines {
@@ -569,7 +698,7 @@ $study_url = PTG_Dashboard::get_study_url();
     }
 
     .ptg-learning-line-count {
-        font-weight: 700;
+        font-weight: normal;
         color: #1d2f4f;
     }
 
@@ -678,22 +807,28 @@ $study_url = PTG_Dashboard::get_study_url();
     /* 버튼 스타일 */
     .ptg-btn {
         padding: 8px 16px;
-        border: none;
+        border: 1px solid #e5e7eb;
         border-radius: 6px;
         cursor: pointer;
-        font-weight: 600;
-        transition: background 0.2s;
+        font-weight: 500;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        background: #ffffff;
+        color: #374151;
+        width: 100%;
     }
     .ptg-btn-primary {
-        background: #2196f3;
-        color: #fff;
+        background: #ffffff;
+        color: #374151;
+        border-color: #e5e7eb;
     }
     .ptg-btn-primary:hover {
-        background: #1976d2;
+        background: #f9fafb;
+        border-color: #d1d5db;
     }
     .ptg-btn-sm {
         padding: 6px 12px;
-        font-size: 0.9rem;
+        font-size: 0.875rem;
     }
 </style>
 

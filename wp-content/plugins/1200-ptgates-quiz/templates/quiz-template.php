@@ -28,6 +28,12 @@ $needs_review = !empty($atts['needs_review']) && ($atts['needs_review'] === true
 $is_session1 = $timer_minutes === 90;
 $is_session2 = $timer_minutes === 75;
 
+// 대시보드 페이지 URL 가져오기
+$dashboard_url = home_url('/');
+if (class_exists('PTG_Dashboard')) {
+    $dashboard_url = PTG_Dashboard::get_dashboard_url();
+}
+
 ?>
 
 <!-- 디버깅: 템플릿 변수 확인 -->
@@ -49,10 +55,13 @@ $is_session2 = $timer_minutes === 75;
      data-needs-review="<?php echo esc_attr($needs_review ? '1' : '0'); ?>">
     
     <!-- 플러그인 헤더 -->
-    <div id="ptgates-header" class="ptgates-header">
-        <div class="ptgates-header-content">
-            <h1 class="ptgates-header-title">실전 모의 학습</h1>
-            <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습 tip]</a>
+    <div class="ptg-quiz-header">
+        <h1>실전 모의 학습</h1>
+        <div class="ptg-quiz-header-right">
+            <!-- 활성 필터 표시 영역 -->
+            <div id="ptg-quiz-active-filters" class="ptg-quiz-active-filters"></div>
+            <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link" aria-label="대시보드로 돌아가기">대시보드</a>
+            <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습Tip]</a>
         </div>
     </div>
     
@@ -156,7 +165,7 @@ $is_session2 = $timer_minutes === 75;
             <span id="ptgates-question-counter">1 / 10</span>
             <div class="ptgates-progress-right">
                 <span id="ptgates-timer" class="ptgates-timer">00:00</span>
-                <button id="ptgates-time-tip-btn" class="ptgates-time-tip-btn">[시간관리 tip]</button>
+                <button id="ptgates-time-tip-btn" class="ptgates-time-tip-btn">[시간관리]</button>
                 <button id="ptgates-giveup-btn" class="ptgates-btn-giveup-inline">포기하기</button>
             </div>
         </div>
@@ -244,8 +253,12 @@ $is_session2 = $timer_minutes === 75;
             <div class="ptg-quiz-explanation" id="ptg-quiz-explanation" style="display: none;">
                 <!-- 해설이 동적으로 로드됨 -->
             </div>
+            
+            <!-- 드로잉 캔버스 오버레이 (카드 내부에 배치하여 자동으로 카드 크기와 일치) -->
+            <div class="ptg-drawing-overlay" id="ptg-drawing-overlay" style="display: none;">
+                <canvas id="ptg-drawing-canvas"></canvas>
+            </div>
         </div>
-        
     </div>
     
     <!-- 답안 제출 버튼 -->
@@ -256,11 +269,6 @@ $is_session2 = $timer_minutes === 75;
         <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-next-question" style="display: none;">
             다음 문제
         </button>
-    </div>
-    
-    <!-- 드로잉 캔버스 오버레이 (문제 카드 + 해설 영역 포함) -->
-    <div class="ptg-drawing-overlay" id="ptg-drawing-overlay" style="display: none;">
-        <canvas id="ptg-drawing-canvas"></canvas>
     </div>
     
     <!-- 메모 패널 -->
@@ -298,128 +306,8 @@ $is_session2 = $timer_minutes === 75;
         <button id="ptg-quiz-restart-btn" class="ptg-btn ptg-btn-primary">다시 시작</button>
     </div>
     
-    <!-- 시간관리 tip 모달 -->
-    <div id="ptgates-time-tip-modal" class="ptgates-modal" style="display: none;">
-        <div class="ptgates-modal-overlay"></div>
-        <div class="ptgates-modal-content">
-            <div class="ptgates-modal-header">
-                <h3>물리치료사 국가시험 시간관리 가이드</h3>
-                <button class="ptgates-modal-close" id="ptgates-time-tip-close">&times;</button>
-            </div>
-            <div class="ptgates-modal-body">
-                <p>물리치료사 국가시험은 전체 260문항에 총 250분의 시험 시간이 주어지므로, 전체적으로 한 문제당 평균 약 57.7초를 배분하여 풀어야 합니다.</p>
-                
-                <p>하지만 각 교시별로 문항 수와 시간이 다르기 때문에, 실제 시험에서는 각 교시의 할당 시간에 맞춰 문제를 풀어야 합니다.</p>
-                
-                <p>다음은 제48회 국가시험부터 적용된 교시별 평균 소요 시간입니다:</p>
-                
-                <table class="ptgates-time-table">
-                    <thead>
-                        <tr>
-                            <th>교시</th>
-                            <th>시험 과목 (총 문항 수)</th>
-                            <th>시험 시간 (분)</th>
-                            <th>한 문제당 평균 시간 (초)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1교시</td>
-                            <td>물리치료 기초 + 진단평가 (105문항)</td>
-                            <td>90분</td>
-                            <td>약 51.4초</td>
-                        </tr>
-                        <tr>
-                            <td>2교시</td>
-                            <td>물리치료 중재 + 의료관계법규 (85문항)</td>
-                            <td>75분</td>
-                            <td>약 52.9초</td>
-                        </tr>
-                        <tr>
-                            <td>3교시</td>
-                            <td>실기시험 (70문항)</td>
-                            <td>85분</td>
-                            <td>약 72.8초</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div class="ptgates-tip-summary">
-                    <h4>핵심 요약:</h4>
-                    <ul>
-                        <li><strong>필기(1/2교시):</strong> 문제당 약 51~53초로, 1분 이내에 문제를 해결하는 속도가 요구됩니다.</li>
-                        <li><strong>실기(3교시):</strong> 문제당 약 73초로, 필기시험에 비해 상대적으로 시간이 더 많이 주어집니다.</li>
-                    </ul>
-                    <p>물리치료사 국시는 과목 수와 문제 수가 많으므로, 시간 관리가 합격을 좌우하는 중요한 요소입니다. 따라서 실제 시험 시간과 동일하게 모의고사를 치르면서 시간 배분을 철저히 훈련하는 것이 중요합니다.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- 팝업 HTML은 공통 팝업 유틸리티(0000-ptgates-platform)에서 동적으로 생성됨 -->
 </div>
 
-<!-- 실전 모의 학습Tip 모달 -->
-<div id="ptg-quiz-tip-modal" class="ptg-quiz-tip-modal" style="display: none;">
-    <div class="ptg-quiz-tip-modal-overlay"></div>
-    <div class="ptg-quiz-tip-modal-content" role="dialog" aria-modal="true" aria-labelledby="ptg-quiz-tip-title">
-        <div class="ptg-quiz-tip-modal-header">
-            <h2 id="ptg-quiz-tip-title">실전 모의 학습 가이드</h2>
-            <button type="button"
-                    class="ptg-study-tip-close ptg-quiz-tip-modal-close"
-                    data-ptg-tip-close
-                    aria-label="닫기">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        <div class="ptg-quiz-tip-modal-body">
-            <!-- New Section: Exam Trends -->
-            <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
-                <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📊 출제 순서 경향 (ptGates 적용)</h3>
-                <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름. (예: 운동치료학에서 원리 → 기법 → 질환별 적용 순)</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>과목별 배치:</strong> 각 과목(예: 공중보건학) 내에서도 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, <strong>환경/산업보건</strong> 같은 세부 응용 주제가 뒤쪽에 배치되는 경향이 명확함.</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>학습 활용:</strong> ptGates는 이 경향을 반영하여 '세부과목별 묶음 학습'과 '실제 기출 순서 학습' 모드를 모두 지원할 예정임.</li>
-                </ul>
-            </div>
-
-            <!-- Restructured Section: Exam Sessions -->
-            <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
-                <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🎯 교시별 모의고사 구성</h3>
-                <div class="ptg-tip-block" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="margin: 0 0 10px 0; color: #333;">1교시 (105문항)</h4>
-                    <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
-                        <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 기초 (60문항):</strong> 해부생리학(22), 운동학(12), 물리적 인자치료(16), 공중보건학(10)</li>
-                        <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 진단평가 (45문항):</strong> 근골격계(10), 신경계(16), 진단평가 원리(6), 심폐혈관계(4), 기타(2), 임상의사결정(7)</li>
-                    </ul>
-                </div>
-                <div class="ptg-tip-block" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                    <h4 style="margin: 0 0 10px 0; color: #333;">2교시 (85문항)</h4>
-                    <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
-                        <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 중재 (65문항):</strong> 근골격계(28), 신경계(25), 심폐혈관계(5), 림프/피부(2), 문제해결(5)</li>
-                        <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>의료관계법규 (20문항):</strong> 의료법(5), 의료기사법(5), 노인복지법(4), 장애인복지법(3), 국민건강보험법(3)</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <!-- Restructured Section: Key Features -->
-            <div class="ptg-quiz-tip-section" style="margin-bottom: 30px;">
-                <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🔍 주요 기능</h3>
-                <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 퀴즈:</strong> 필터 없이 사용 시 5문제 랜덤 출제</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>교시/과목 선택:</strong> 특정 교시나 과목을 집중적으로 학습 가능</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>문항 수 지정:</strong> 학습 시간에 맞춰 문제 수 조절 가능</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>북마크/복습:</strong> 중요하거나 틀린 문제만 모아서 다시 풀기 (로그인 필요)</li>
-                </ul>
-            </div>
-            
-            <!-- Restructured Section: Notes -->
-            <div class="ptg-quiz-tip-section">
-                <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📌 참고사항</h3>
-                <ul class="ptg-tip-list" style="list-style: none; padding: 0; margin: 0;">
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 기출문제는 자동으로 제외됩니다.</li>
-                    <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 전체 교시 모의고사는 국가시험 문항 구성 비율을 자동 적용합니다.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- 팝업 HTML은 공통 팝업 유틸리티(0000-ptgates-platform)에서 동적으로 생성됨 -->
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates Reviewer
+ * Plugin Name: 4100-ptgates-reviewer (PTGates Reviewer)
  * Description: PTGates 복습 스케줄러 - 오답/북마크/취약개념 기반 자동 복습 추천 및 "오늘의 학습" 생성
  * Version: 1.0.0
  * Author: PTGates

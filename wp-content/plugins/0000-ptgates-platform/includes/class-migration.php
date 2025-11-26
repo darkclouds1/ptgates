@@ -146,17 +146,47 @@ class Migration {
             `question_id` bigint(20) unsigned NOT NULL,
             `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
             `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+            `study_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '과목/Study 해설 보기 횟수',
+            `quiz_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '학습/Quiz 진행 횟수',
+            `review_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '복습(Reviewer) 진행 횟수',
             `last_result` enum('correct','wrong') DEFAULT NULL,
             `last_answer` varchar(255) DEFAULT NULL,
             `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+            `last_study_date` datetime DEFAULT NULL COMMENT '마지막 과목/Study 진행 일시',
+            `last_quiz_date` datetime DEFAULT NULL COMMENT '마지막 학습/Quiz 진행 일시',
+            `last_review_date` datetime DEFAULT NULL COMMENT '마지막 복습(Reviewer) 진행 일시',
             PRIMARY KEY (`user_id`,`question_id`),
             KEY `idx_flags` (`bookmarked`,`needs_review`),
             KEY `idx_last_result` (`last_result`),
+            KEY `idx_user_study_count_date` (`user_id`,`study_count`,`last_study_date`),
+            KEY `idx_user_quiz_count_date` (`user_id`,`quiz_count`,`last_quiz_date`),
+            KEY `idx_user_review_count_date` (`user_id`,`review_count`,`last_review_date`),
             CONSTRAINT `fk_states_question` FOREIGN KEY (`question_id`) REFERENCES `{$questions_table}` (`question_id`) ON DELETE CASCADE
         ) {$charset_collate};";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+
+        // 레거시 설치본에 review_count / last_review_date 추가
+        $columns = $wpdb->get_results(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM `{$table_name}` LIKE %s",
+                'review_count'
+            )
+        );
+
+        if (empty($columns)) {
+            $wpdb->query(
+                "ALTER TABLE `{$table_name}`
+                    ADD COLUMN `review_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '복습(Reviewer) 진행 횟수' AFTER `quiz_count`,
+                    ADD COLUMN `last_review_date` datetime DEFAULT NULL COMMENT '마지막 복습(Reviewer) 진행 일시' AFTER `last_quiz_date`"
+            );
+
+            $wpdb->query(
+                "ALTER TABLE `{$table_name}`
+                    ADD KEY `idx_user_review_count_date` (`user_id`,`review_count`,`last_review_date`)"
+            );
+        }
     }
     
     /**
@@ -693,6 +723,70 @@ class Migration {
                     } else {
                         error_log('[PTG Platform] quiz_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
                     }
+                }
+            }
+        }
+
+        // review_count 변경 시 last_review_date 업데이트 트리거 (UPDATE)
+        $trigger_review_update = 'ptgates_update_last_review_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_review_update
+        ));
+
+        if (!$trigger_exists) {
+            $sql_review_update = "CREATE TRIGGER `{$trigger_review_update}`
+                BEFORE UPDATE ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.review_count != OLD.review_count THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_review_date = NEW.updated_at;
+                    END IF;
+                END";
+
+            $wpdb->query($sql_review_update);
+
+            if (defined('WP_DEBUG') && WP_DEBUG && !empty($wpdb->last_error)) {
+                if (function_exists('ptg_error_log_kst')) {
+                    ptg_error_log_kst('[PTG Platform] review_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] review_count UPDATE 트리거 생성 오류: ' . $wpdb->last_error);
+                }
+            }
+        }
+
+        // review_count 설정 시 last_review_date 업데이트 트리거 (INSERT)
+        $trigger_review_insert = 'ptgates_insert_last_review_date';
+        $trigger_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TRIGGERS 
+            WHERE TRIGGER_SCHEMA = %s 
+            AND TRIGGER_NAME = %s",
+            DB_NAME,
+            $trigger_review_insert
+        ));
+
+        if (!$trigger_exists) {
+            $sql_review_insert = "CREATE TRIGGER `{$trigger_review_insert}`
+                BEFORE INSERT ON `{$table_name}`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.review_count > 0 THEN
+                        SET NEW.updated_at = NOW();
+                        SET NEW.last_review_date = NEW.updated_at;
+                    END IF;
+                END";
+
+            $wpdb->query($sql_review_insert);
+
+            if (defined('WP_DEBUG') && WP_DEBUG && !empty($wpdb->last_error)) {
+                if (function_exists('ptg_error_log_kst')) {
+                    ptg_error_log_kst('[PTG Platform] review_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
+                } else {
+                    error_log('[PTG Platform] review_count INSERT 트리거 생성 오류: ' . $wpdb->last_error);
                 }
             }
         }

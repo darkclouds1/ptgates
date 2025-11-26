@@ -1,13 +1,21 @@
 <?php
 /**
- * PTGates Quiz - 교시 / 과목 / 세부과목 정적 정의
+ * PTGates Platform - 교시 / 과목 / 세부과목 정적 정의
  *
  * - 데이터 출처: 사용자 정의 교과 구조
  * - 용도: 교시/과목/세부과목 셀렉트 옵션, 문항 수 비율 계산 등에서 공통 사용
+ * - 위치: 0000-ptgates-platform (플랫폼 코어) - 최초 로드 시 자동 메모리에 로드
  *
  * 주의:
  * - 이 클래스는 "정적 설정" 역할만 합니다. DB 스키마(ptGates_subject)와
  *   동기화가 필요하면 이 파일을 기준으로 마이그레이션을 작성하세요.
+ * - 원본 위치: 1200-ptgates-quiz/includes/class-subjects.php (호환성 유지)
+ * 
+ * ⚠️ 중요: 과목 및 세부 과목 순서 규칙
+ * - 이 MAP에 정의된 순서는 반드시 UI에 그대로 표시되어야 합니다.
+ * - 교시/과목/세부과목 레벨에서의 순서는 절대 랜덤하지 않습니다.
+ * - 문항(question)만 랜덤하게 섞여야 합니다.
+ * - 자세한 요구사항: docs/subject-question-rules.md 참조
  */
 
 namespace PTG\Quiz;
@@ -16,8 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-// 중복 로드 방지: 플랫폼 코어(0000-ptgates-platform)에서 이미 로드되었으면 중단
-// 주의: 기존 호환성을 위해 이 파일은 유지하지만, 최초 로드는 플랫폼 코어에서 수행됨
+// 중복 로드 방지: 이미 로드되었으면 중단
 if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
 	return;
 }
@@ -236,5 +243,4 @@ class Subjects {
 		return false;
 	}
 }
-
 

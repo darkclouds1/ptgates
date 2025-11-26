@@ -388,42 +388,27 @@
     }
 
     /**
-     * 학습 Tip 모달 열기/닫기 핸들러
+     * 학습 Tip 모달 열기/닫기 핸들러 (공통 팝업 유틸리티 사용)
      */
     function setupStudyTipHandlers() {
-        const $modal    = $('#ptg-study-tip-modal');
-        const $backdrop = $modal.find('.ptg-study-tip-backdrop');
-        const $closeBtn = $modal.find('.ptg-study-tip-close');
-        const $openBtn  = $('[data-ptg-tip-open]');
+        const $openBtn = $('[data-ptg-tip-open]');
 
-        if ($modal.length === 0 || $openBtn.length === 0) {
+        if ($openBtn.length === 0) {
             return;
         }
 
-        function openTip() {
-            $modal.addClass('is-open').attr('aria-hidden', 'false');
-        }
-
-        function closeTip() {
-            $modal.removeClass('is-open').attr('aria-hidden', 'true');
-        }
-
-        $openBtn.on('click', function() {
-            openTip();
-        });
-
-        $backdrop.on('click', function() {
-            closeTip();
-        });
-
-        $closeBtn.on('click', function() {
-            closeTip();
-        });
-
-        $(document).on('keydown.ptgStudyTip', function(e) {
-            if (e.key === 'Escape') {
-                closeTip();
+        // 공통 팝업 유틸리티 사용
+        $openBtn.on('click', function(e) {
+            e.preventDefault();
+            
+            // 공통 팝업 유틸리티가 로드되었는지 확인
+            if (typeof window.PTGTips === 'undefined' || typeof window.PTGTips.show !== 'function') {
+                console.warn('[PTG Study] 공통 팝업 유틸리티가 아직 로드되지 않았습니다.');
+                return;
             }
+            
+            // 공통 팝업 표시 (내용은 중앙 저장소에서 자동 가져옴)
+            window.PTGTips.show('study-tip');
         });
     }
 

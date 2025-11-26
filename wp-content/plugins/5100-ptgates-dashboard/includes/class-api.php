@@ -7,10 +7,20 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// 정적 과목 정의 클래스 로드 (최초 로드는 0000-ptgates-platform에서 수행됨)
+// 주의: 호환성을 위해 이 코드는 유지하지만, 플랫폼 코어가 활성화되면 자동으로 로드됨
 if (!class_exists('\PTG\Quiz\Subjects')) {
-    $subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-    if (file_exists($subjects_file) && is_readable($subjects_file)) {
-        require_once $subjects_file;
+    // 플랫폼 코어에서 로드 시도
+    $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+    if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
+        require_once $platform_subjects_file;
+    }
+    // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+    if (!class_exists('\PTG\Quiz\Subjects')) {
+        $subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+        if (file_exists($subjects_file) && is_readable($subjects_file)) {
+            require_once $subjects_file;
+        }
     }
 }
 
@@ -126,6 +136,17 @@ class API {
             
             // 플래그 조합 인덱스
             $add_index_if_not_exists($states_table, 'idx_user_flags', 'user_id, bookmarked, needs_review');
+
+            // review_count 관련 인덱스
+            $has_review_count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM information_schema.columns 
+                 WHERE table_schema = %s AND table_name = %s AND column_name = 'review_count'",
+                DB_NAME,
+                $states_table
+            ));
+            if ((int)$has_review_count > 0) {
+                $add_index_if_not_exists($states_table, 'idx_user_review_count_date', 'user_id, review_count, last_review_date');
+            }
         }
 
         // 2. ptgates_categories 테이블 인덱스
@@ -164,10 +185,34 @@ class API {
             }
         ]);
         
+        // 북마크 목록 조회
+        $result2 = \register_rest_route(self::REST_NAMESPACE, '/bookmarks', [
+            'methods' => 'GET',
+            'callback' => [__CLASS__, 'get_bookmarks'],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+            'args' => [
+                'page' => [
+                    'type' => 'integer',
+                    'default' => 1,
+                    'sanitize_callback' => 'absint',
+                ],
+                'per_page' => [
+                    'type' => 'integer',
+                    'default' => 20,
+                    'sanitize_callback' => 'absint',
+                ],
+            ],
+        ]);
+        
         // 정상 로그는 debug.log에 기록하지 않음 (성공 시 로그 제거)
         // 실패 시에만 로그 기록
         if (!$result && defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[PTG Dashboard] REST route 등록 실패: ptg-dash/v1/summary');
+        }
+        if (!$result2 && defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[PTG Dashboard] REST route 등록 실패: ptg-dash/v1/bookmarks');
         }
     }
 
@@ -398,8 +443,8 @@ class API {
     private static function fetch_learning_rows($user_id, $count_column, $date_column) {
         global $wpdb;
 
-        $allowed_counts = ['study_count', 'quiz_count'];
-        $allowed_dates  = ['last_study_date', 'last_quiz_date'];
+        $allowed_counts = ['study_count', 'quiz_count', 'review_count'];
+        $allowed_dates  = ['last_study_date', 'last_quiz_date', 'last_review_date'];
 
         if (!in_array($count_column, $allowed_counts, true) || !in_array($date_column, $allowed_dates, true)) {
             return [];
@@ -519,7 +564,7 @@ class API {
     private static function fetch_subject_totals($user_id, $count_column) {
         global $wpdb;
 
-        $allowed_counts = ['study_count', 'quiz_count'];
+        $allowed_counts = ['study_count', 'quiz_count', 'review_count'];
         if (!in_array($count_column, $allowed_counts, true)) {
             return [];
         }
@@ -693,6 +738,574 @@ class API {
                 'description' => '의료법 · 의료기사법 · 노인복지법 · 장애인복지법 · 건보법',
             ],
         ];
+    }
+
+    /**
+     * 북마크 목록 조회
+     * 
+     * 정렬 기준:
+     * 1. 북마크 설정 시점 최신순 (updated_at DESC)
+     * 2. 과목은 공통 MAP 순서
+     * 3. 동일 과목 내 랜덤
+     */
+    public static function get_bookmarks($request) {
+        global $wpdb;
+        
+        ob_start();
+        
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new \WP_Error(
+                    'unauthorized',
+                    '로그인이 필요합니다.',
+                    ['status' => 401]
+                );
+            }
+
+            $page = absint($request->get_param('page')) ?: 1;
+            $per_page = absint($request->get_param('per_page')) ?: 20;
+            $offset = ($page - 1) * $per_page;
+
+            // 테이블 이름 확인 (prefix 유무 고려)
+            $states_table = self::get_table_name('ptgates_user_states');
+            $questions_table = self::get_table_name('ptgates_questions');
+            $categories_table = self::get_table_name('ptgates_categories');
+
+            // 디버깅: 테이블 이름 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 테이블 이름 - states: ' . $states_table . ', questions: ' . $questions_table . ', categories: ' . $categories_table);
+            }
+
+            if (!self::table_exists($states_table) || !self::table_exists($questions_table) || !self::table_exists($categories_table)) {
+                ob_end_clean();
+                return rest_ensure_response([
+                    'items' => [],
+                    'total' => 0,
+                    'page' => $page,
+                    'per_page' => $per_page,
+                    'total_pages' => 0,
+                ]);
+            }
+
+            $wpdb->suppress_errors(true);
+
+            // 1. 전체 북마크 수 조회 (bookmarked = 1 또는 bookmarked = '1' 모두 확인)
+            $total = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$states_table} s
+                 INNER JOIN {$questions_table} q ON s.question_id = q.question_id
+                 WHERE s.user_id = %d AND (s.bookmarked = 1 OR s.bookmarked = '1') AND q.is_active = 1",
+                $user_id
+            ));
+
+            // 디버깅: 북마크 개수 로그
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 북마크 총 개수: ' . $total . ', 사용자 ID: ' . $user_id);
+            }
+
+            if ($total === 0) {
+                ob_end_clean();
+                return rest_ensure_response([
+                    'items' => [],
+                    'total' => 0,
+                    'page' => $page,
+                    'per_page' => $per_page,
+                    'total_pages' => 0,
+                ]);
+            }
+
+            // 2. 공통 MAP 순서 가져오기
+            $subject_order = [];
+            if (class_exists('\PTG\Quiz\Subjects')) {
+                $map = \PTG\Quiz\Subjects::MAP;
+                foreach ($map as $session => $session_data) {
+                    if (isset($session_data['subjects']) && is_array($session_data['subjects'])) {
+                        foreach (array_keys($session_data['subjects']) as $subject) {
+                            if (!in_array($subject, $subject_order, true)) {
+                                $subject_order[] = $subject;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. 북마크 문제 ID와 북마크 일자, 과목 조회 (과목별로 그룹화하기 위해)
+            $bookmarked_questions = $wpdb->get_results($wpdb->prepare(
+                "SELECT DISTINCT
+                    s.question_id,
+                    s.updated_at as bookmarked_at,
+                    c.subject
+                 FROM {$states_table} s
+                 INNER JOIN {$questions_table} q ON s.question_id = q.question_id
+                 LEFT JOIN {$categories_table} c ON s.question_id = c.question_id
+                 WHERE s.user_id = %d AND (s.bookmarked = 1 OR s.bookmarked = '1') AND q.is_active = 1
+                 ORDER BY s.updated_at DESC",
+                $user_id
+            ), ARRAY_A);
+
+            // 디버깅: 조회된 북마크 문제 개수 로그
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 조회된 북마크 문제 개수: ' . count($bookmarked_questions));
+            }
+
+            // 4. 과목별로 그룹화하고 MAP 순서대로 정렬
+            // 주의: DB의 c.subject는 실제로는 세부과목, MAP에서 상위 과목을 찾아야 함
+            $grouped_by_subject = [];
+            foreach ($bookmarked_questions as $item) {
+                $subsubject_name = !empty($item['subject']) ? trim($item['subject']) : '';
+                
+                // MAP에서 세부과목명으로 상위 과목 찾기
+                $subject_name = '기타';
+                if (!empty($subsubject_name) && class_exists('\PTG\Quiz\Subjects')) {
+                    $found_subject = \PTG\Quiz\Subjects::get_subject_from_subsubject($subsubject_name);
+                    if (!empty($found_subject)) {
+                        $subject_name = $found_subject;
+                    }
+                }
+                
+                if (!isset($grouped_by_subject[$subject_name])) {
+                    $grouped_by_subject[$subject_name] = [];
+                }
+                $grouped_by_subject[$subject_name][] = [
+                    'question_id' => (int) $item['question_id'],
+                    'bookmarked_at' => $item['bookmarked_at'],
+                    'subsubject' => $subsubject_name, // 세부과목 저장
+                ];
+            }
+
+            // 디버깅: 그룹화 결과 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 그룹화된 과목 개수: ' . count($grouped_by_subject));
+                foreach ($grouped_by_subject as $subj => $q_list) {
+                    error_log('[PTG Dashboard] 과목 "' . $subj . '": ' . count($q_list) . '개 문제');
+                }
+            }
+
+            // 5. 과목 순서에 따라 정렬하고, 동일 과목 내에서는 북마크 최신순 유지하되, 문제는 나중에 랜덤화
+            $ordered_question_ids = [];
+            
+            // MAP 순서에 따라 처리
+            if (!empty($subject_order)) {
+                foreach ($subject_order as $subject) {
+                    if (isset($grouped_by_subject[$subject])) {
+                        // 동일 과목 내에서 랜덤 섞기 (페이지네이션을 위해 시드 고정)
+                        $questions = $grouped_by_subject[$subject];
+                        // 랜덤 섞기 (페이지네이션을 위해 시드 고정)
+                        mt_srand($page); // 페이지별로 다른 랜덤 순서
+                        shuffle($questions);
+                        foreach ($questions as $q) {
+                            $ordered_question_ids[] = $q['question_id'];
+                        }
+                    }
+                }
+            }
+            
+            // MAP에 없는 과목도 추가
+            foreach ($grouped_by_subject as $subject => $questions) {
+                if (empty($subject_order) || !in_array($subject, $subject_order, true)) {
+                    mt_srand($page);
+                    shuffle($questions);
+                    foreach ($questions as $q) {
+                        $ordered_question_ids[] = $q['question_id'];
+                    }
+                }
+            }
+
+            // ordered_question_ids가 비어있으면 북마크된 모든 문제 ID를 직접 사용 (fallback)
+            if (empty($ordered_question_ids)) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] ordered_question_ids가 비어있어 bookmarked_questions에서 직접 사용');
+                }
+                // 북마크된 모든 문제 ID를 최신순으로 정렬
+                foreach ($bookmarked_questions as $item) {
+                    $ordered_question_ids[] = (int) $item['question_id'];
+                }
+            }
+
+            // 디버깅: 정렬된 question_id 개수 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 정렬된 question_id 개수: ' . count($ordered_question_ids) . ', offset: ' . $offset . ', per_page: ' . $per_page);
+                if (!empty($ordered_question_ids)) {
+                    error_log('[PTG Dashboard] 첫 5개 question_id: ' . implode(', ', array_slice($ordered_question_ids, 0, 5)));
+                }
+            }
+
+            // 6. 페이지네이션 적용
+            
+            $paged_question_ids = array_slice($ordered_question_ids, $offset, $per_page);
+
+            // 디버깅: 페이지네이션 후 question_id 개수 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 페이지네이션 후 question_id 개수: ' . count($paged_question_ids));
+                if (!empty($paged_question_ids)) {
+                    error_log('[PTG Dashboard] 페이지네이션된 question_id: ' . implode(', ', array_slice($paged_question_ids, 0, 5)) . (count($paged_question_ids) > 5 ? '...' : ''));
+                }
+            }
+
+            if (empty($paged_question_ids)) {
+                // 디버깅: 왜 빈 배열인지 로그
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] 페이지네이션 결과가 비어있음. ordered_question_ids: ' . count($ordered_question_ids) . ', offset: ' . $offset . ', per_page: ' . $per_page);
+                    error_log('[PTG Dashboard] offset >= count 체크: ' . ($offset >= count($ordered_question_ids) ? 'true' : 'false'));
+                }
+                
+                // offset이 범위를 벗어난 경우에만 빈 배열 반환
+                if (!empty($ordered_question_ids) && $offset >= count($ordered_question_ids)) {
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('[PTG Dashboard] offset이 범위를 벗어남. 빈 배열 반환');
+                    }
+                    ob_end_clean();
+                    return rest_ensure_response([
+                        'items' => [],
+                        'total' => $total,
+                        'page' => $page,
+                        'per_page' => $per_page,
+                        'total_pages' => (int) ceil($total / $per_page),
+                    ]);
+                }
+                
+                // 그 외의 경우 (ordered_question_ids가 비어있거나 다른 이유로 비어있는 경우) fallback 사용
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] fallback 쿼리 실행. ordered_question_ids: ' . count($ordered_question_ids) . ', offset: ' . $offset);
+                }
+                
+                // 북마크된 모든 문제를 최신순으로 직접 조회 (페이지네이션 적용)
+                $fallback_query = $wpdb->prepare(
+                    "SELECT 
+                        q.question_id,
+                        q.content,
+                        q.answer,
+                        q.explanation,
+                        q.type,
+                        q.difficulty,
+                        c.exam_year,
+                        c.exam_session,
+                        c.exam_course,
+                        c.subject,
+                        s.updated_at as bookmarked_at
+                     FROM {$questions_table} q
+                     LEFT JOIN {$categories_table} c ON q.question_id = c.question_id
+                     INNER JOIN {$states_table} s ON q.question_id = s.question_id AND s.user_id = %d
+                     WHERE (s.bookmarked = 1 OR s.bookmarked = '1') AND q.is_active = 1
+                     ORDER BY s.updated_at DESC
+                     LIMIT %d OFFSET %d",
+                    $user_id,
+                    $per_page,
+                    $offset
+                );
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] Fallback 쿼리 실행: ' . $fallback_query);
+                }
+                
+                $questions = $wpdb->get_results($fallback_query, ARRAY_A);
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] Fallback 쿼리 결과 개수: ' . count($questions));
+                    if ($wpdb->last_error) {
+                        error_log('[PTG Dashboard] Fallback 쿼리 에러: ' . $wpdb->last_error);
+                    }
+                }
+                
+                // 문제 데이터 포맷팅
+                $items = [];
+                foreach ($questions as $q) {
+                    // 문제 지문과 선택지 분리
+                    $content = $q['content'] ?? '';
+                    $content = str_replace('_x000D_', '', $content);
+                    $content = str_replace("\r\n", "\n", $content);
+                    $content = str_replace("\r", "\n", $content);
+                    
+                    // 선택지 추출
+                    $options = [];
+                    $question_text = $content;
+                    
+                    if (preg_match_all('/([①-⑳])/u', $content, $number_matches, PREG_OFFSET_CAPTURE)) {
+                        $option_ranges = [];
+                        for ($idx = 0; $idx < count($number_matches[0]); $idx++) {
+                            $start_pos = $number_matches[0][$idx][1];
+                            $end_pos = ($idx < count($number_matches[0]) - 1) 
+                                ? $number_matches[0][$idx + 1][1] 
+                                : strlen($content);
+                            
+                            $option_text = trim(substr($content, $start_pos, $end_pos - $start_pos));
+                            $option_text = preg_replace('/\n{2,}/', ' ', $option_text);
+                            $option_text = preg_replace('/\n/', ' ', $option_text);
+                            
+                            if (!empty($option_text)) {
+                                $options[] = $option_text;
+                                $option_ranges[] = ['start' => $start_pos, 'end' => $end_pos];
+                            }
+                        }
+                        
+                        // 문제 본문에서 선택지 제거
+                        if (!empty($option_ranges)) {
+                            $question_parts = [];
+                            $last_pos = 0;
+                            foreach ($option_ranges as $range) {
+                                if ($range['start'] > $last_pos) {
+                                    $question_parts[] = substr($content, $last_pos, $range['start'] - $last_pos);
+                                }
+                                $last_pos = $range['end'];
+                            }
+                            if ($last_pos < strlen($content)) {
+                                $question_parts[] = substr($content, $last_pos);
+                            }
+                            $question_text = trim(implode('', $question_parts));
+                        }
+                    }
+
+                    // 해설 정리
+                    $explanation = $q['explanation'] ?? '';
+                    if (!empty($explanation)) {
+                        $explanation = str_replace('_x000D_', '', $explanation);
+                        $explanation = str_replace("\r\n", "\n", $explanation);
+                        $explanation = str_replace("\r", "\n", $explanation);
+                        $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
+                    }
+
+                    // 문제 ID 포맷 (간단하게 id-{question_id})
+                    $question_id_display = 'id-' . $q['question_id'];
+                    
+                    // DB의 c.subject는 실제로는 세부과목, MAP에서 상위 과목 찾기
+                    $subsubject_name = !empty($q['subject']) ? trim($q['subject']) : '';
+                    $subject_name = '';
+                    if (!empty($subsubject_name) && class_exists('\PTG\Quiz\Subjects')) {
+                        $found_subject = \PTG\Quiz\Subjects::get_subject_from_subsubject($subsubject_name);
+                        if (!empty($found_subject)) {
+                            $subject_name = $found_subject;
+                        }
+                    }
+
+                    $items[] = [
+                        'question_id' => (int) $q['question_id'],
+                        'question_id_display' => $question_id_display,
+                        'bookmarked_at' => $q['bookmarked_at'],
+                        'question_text' => $question_text,
+                        'options' => $options,
+                        'answer' => $q['answer'] ?? '',
+                        'explanation' => $explanation,
+                        'subject' => $subject_name, // MAP에서 찾은 상위 과목
+                        'subsubject' => $subsubject_name, // DB의 c.subject (세부과목)
+                        'exam_year' => $q['exam_year'] ? (int) $q['exam_year'] : null,
+                        'exam_session' => $q['exam_session'] ? (int) $q['exam_session'] : null,
+                    ];
+                }
+                
+                $wpdb->suppress_errors(false);
+                ob_end_clean();
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] Fallback 결과 반환. items 개수: ' . count($items));
+                }
+                
+                return rest_ensure_response([
+                    'items' => $items,
+                    'total' => $total,
+                    'page' => $page,
+                    'per_page' => $per_page,
+                    'total_pages' => (int) ceil($total / $per_page),
+                ]);
+            }
+
+            // 7. 문제 상세 정보 조회
+            $placeholders = implode(',', array_fill(0, count($paged_question_ids), '%d'));
+            $query = $wpdb->prepare(
+                "SELECT 
+                    q.question_id,
+                    q.content,
+                    q.answer,
+                    q.explanation,
+                    q.type,
+                    q.difficulty,
+                    c.exam_year,
+                    c.exam_session,
+                    c.exam_course,
+                    c.subject,
+                    s.updated_at as bookmarked_at
+                 FROM {$questions_table} q
+                 LEFT JOIN {$categories_table} c ON q.question_id = c.question_id
+                 INNER JOIN {$states_table} s ON q.question_id = s.question_id AND s.user_id = %d
+                 WHERE q.question_id IN ({$placeholders})
+                   AND q.is_active = 1
+                   AND (s.bookmarked = 1 OR s.bookmarked = '1')
+                 ORDER BY FIELD(q.question_id, {$placeholders})",
+                $user_id,
+                ...$paged_question_ids,
+                ...$paged_question_ids
+            );
+
+            $questions = $wpdb->get_results($query, ARRAY_A);
+
+            // 디버깅: 조회된 문제 개수 확인
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Dashboard] 최종 조회된 문제 개수: ' . count($questions));
+                if (!empty($questions)) {
+                    error_log('[PTG Dashboard] 첫 번째 문제 ID: ' . ($questions[0]['question_id'] ?? 'N/A'));
+                } else {
+                    error_log('[PTG Dashboard] 쿼리 결과가 비어있음. paged_question_ids: ' . (empty($paged_question_ids) ? 'empty' : implode(', ', array_slice($paged_question_ids, 0, 5))));
+                    error_log('[PTG Dashboard] 쿼리 에러: ' . ($wpdb->last_error ?: 'none'));
+                }
+            }
+
+            // 쿼리 결과가 비어있으면 fallback 사용
+            if (empty($questions) && !empty($paged_question_ids)) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] 경고: paged_question_ids는 있지만 쿼리 결과가 비어있어 fallback 사용');
+                    error_log('[PTG Dashboard] 쿼리 에러: ' . ($wpdb->last_error ?: 'none'));
+                }
+                
+                // Fallback: 북마크된 모든 문제를 최신순으로 직접 조회
+                $fallback_query = $wpdb->prepare(
+                    "SELECT 
+                        q.question_id,
+                        q.content,
+                        q.answer,
+                        q.explanation,
+                        q.type,
+                        q.difficulty,
+                        c.exam_year,
+                        c.exam_session,
+                        c.exam_course,
+                        c.subject,
+                        s.updated_at as bookmarked_at
+                     FROM {$questions_table} q
+                     LEFT JOIN {$categories_table} c ON q.question_id = c.question_id
+                     INNER JOIN {$states_table} s ON q.question_id = s.question_id AND s.user_id = %d
+                     WHERE (s.bookmarked = 1 OR s.bookmarked = '1') AND q.is_active = 1
+                     ORDER BY s.updated_at DESC
+                     LIMIT %d OFFSET %d",
+                    $user_id,
+                    $per_page,
+                    $offset
+                );
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] Fallback 쿼리 실행 (쿼리 실패 시)');
+                }
+                
+                $questions = $wpdb->get_results($fallback_query, ARRAY_A);
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('[PTG Dashboard] Fallback 쿼리 결과 개수: ' . count($questions));
+                    if ($wpdb->last_error) {
+                        error_log('[PTG Dashboard] Fallback 쿼리 에러: ' . $wpdb->last_error);
+                    }
+                }
+            }
+
+            // 8. 문제 데이터 포맷팅
+            $items = [];
+            foreach ($questions as $q) {
+                // 문제 지문과 선택지 분리
+                $content = $q['content'] ?? '';
+                $content = str_replace('_x000D_', '', $content);
+                $content = str_replace("\r\n", "\n", $content);
+                $content = str_replace("\r", "\n", $content);
+                
+                // 선택지 추출
+                $options = [];
+                $question_text = $content;
+                
+                if (preg_match_all('/([①-⑳])/u', $content, $number_matches, PREG_OFFSET_CAPTURE)) {
+                    $option_ranges = [];
+                    for ($idx = 0; $idx < count($number_matches[0]); $idx++) {
+                        $start_pos = $number_matches[0][$idx][1];
+                        $end_pos = ($idx < count($number_matches[0]) - 1) 
+                            ? $number_matches[0][$idx + 1][1] 
+                            : strlen($content);
+                        
+                        $option_text = trim(substr($content, $start_pos, $end_pos - $start_pos));
+                        $option_text = preg_replace('/\n{2,}/', ' ', $option_text);
+                        $option_text = preg_replace('/\n/', ' ', $option_text);
+                        
+                        if (!empty($option_text)) {
+                            $options[] = $option_text;
+                            $option_ranges[] = ['start' => $start_pos, 'end' => $end_pos];
+                        }
+                    }
+                    
+                    // 문제 본문에서 선택지 제거
+                    if (!empty($option_ranges)) {
+                        $question_parts = [];
+                        $last_pos = 0;
+                        foreach ($option_ranges as $range) {
+                            if ($range['start'] > $last_pos) {
+                                $question_parts[] = substr($content, $last_pos, $range['start'] - $last_pos);
+                            }
+                            $last_pos = $range['end'];
+                        }
+                        if ($last_pos < strlen($content)) {
+                            $question_parts[] = substr($content, $last_pos);
+                        }
+                        $question_text = trim(implode('', $question_parts));
+                    }
+                }
+
+                // 해설 정리
+                $explanation = $q['explanation'] ?? '';
+                if (!empty($explanation)) {
+                    $explanation = str_replace('_x000D_', '', $explanation);
+                    $explanation = str_replace("\r\n", "\n", $explanation);
+                    $explanation = str_replace("\r", "\n", $explanation);
+                    $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
+                }
+
+                // 문제 ID 포맷 (간단하게 id-{question_id})
+                $question_id_display = 'id-' . $q['question_id'];
+                
+                // DB의 c.subject는 실제로는 세부과목, MAP에서 상위 과목 찾기
+                $subsubject_name = !empty($q['subject']) ? trim($q['subject']) : '';
+                $subject_name = '';
+                if (!empty($subsubject_name) && class_exists('\PTG\Quiz\Subjects')) {
+                    $found_subject = \PTG\Quiz\Subjects::get_subject_from_subsubject($subsubject_name);
+                    if (!empty($found_subject)) {
+                        $subject_name = $found_subject;
+                    }
+                }
+
+                $items[] = [
+                    'question_id' => (int) $q['question_id'],
+                    'question_id_display' => $question_id_display,
+                    'bookmarked_at' => $q['bookmarked_at'],
+                    'question_text' => $question_text,
+                    'options' => $options,
+                    'answer' => $q['answer'] ?? '',
+                    'explanation' => $explanation,
+                    'subject' => $subject_name, // MAP에서 찾은 상위 과목
+                    'subsubject' => $subsubject_name, // DB의 c.subject (세부과목)
+                    'exam_year' => $q['exam_year'] ? (int) $q['exam_year'] : null,
+                    'exam_session' => $q['exam_session'] ? (int) $q['exam_session'] : null,
+                ];
+            }
+
+            $wpdb->suppress_errors(false);
+            ob_end_clean();
+
+            return rest_ensure_response([
+                'items' => $items,
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $per_page,
+                'total_pages' => (int) ceil($total / $per_page),
+            ]);
+
+        } catch (\Throwable $e) {
+            ob_end_clean();
+            $wpdb->suppress_errors(false);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Bookmarks API Error: ' . $e->getMessage());
+                error_log($e->getTraceAsString());
+            }
+            
+            return new \WP_Error(
+                'server_error',
+                '서버 오류가 발생했습니다: ' . $e->getMessage(),
+                ['status' => 500]
+            );
+        }
     }
 }
 

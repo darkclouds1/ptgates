@@ -395,7 +395,7 @@ do_action('ptg_quiz_after_answer_check', $question_id, $is_correct);
 - **DB에는 기출문제 유지** (`exam_session < 1000`)
 - **사용자에게는 생성문항만 노출** (`exam_session >= 1000`)
 - 기출문제는 내부 분석용으로만 사용 (출제 경향 분석)
-- `ptgates-engine` 플러그인은 기출문제 전용 (별도 운영)
+- `9000-ptgates-exam-questions` 플러그인은 기출문제 참조용 (Admin 전용)
 
 ## 3.3 새로 추가될 테이블 (모듈별)
 

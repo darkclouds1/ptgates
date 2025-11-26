@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates MyNote
+ * Plugin Name: 2100-ptgates-mynote (PTGates MyNote)
  * Description: PTGates 마이노트 - 문제, 이론, 메모 통합 저장 및 관리 허브
  * Version: 1.0.0
  * Author: PTGates

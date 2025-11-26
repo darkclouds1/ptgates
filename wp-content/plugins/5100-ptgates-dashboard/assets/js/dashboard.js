@@ -2,6 +2,7 @@
     'use strict';
 
     const Dashboard = {
+        greetingCycleIndex: 0,
         init: function () {
             this.$container = $('#ptg-dashboard-app');
             if (this.$container.length === 0) return;
@@ -148,10 +149,13 @@
             const learningRecords = learning_records || { study: [], quiz: [] };
 
             // 1. Welcome Section
-            const randomGreeting = this.getRandomGreeting();
+            const greeting = this.getGreeting();
+            const greetingText = this.escapeHtml(greeting.text);
+            const greetingAttr = greeting.translation ? ` data-translation="${this.escapeHtml(greeting.translation)}"` : '';
+            const greetingHtml = `<span class="ptg-greeting ${greeting.isEnglish ? 'is-english' : ''}"${greetingAttr}>${greetingText}</span>`;
             const welcomeHtml = `
                 <div class="ptg-dash-welcome">
-                    <h2>${this.formatName(user_name)}님, ${randomGreeting}</h2>
+                    <h2>${this.formatName(user_name)}님, ${greetingHtml}</h2>
                     <div class="ptg-dash-premium-badge ${premium.status === 'active' ? 'is-active' : 'is-free'}">
                         ${premium.status === 'active' ? 'Premium 멤버십' : 'Free 멤버십'}
                         ${premium.expiry ? `<small>(${premium.expiry} 만료)</small>` : ''}
@@ -304,17 +308,30 @@
 
             const subList = Array.isArray(subject.subsubjects) ? subject.subsubjects : [];
             const description = subject.description ? `<p class="ptg-category-desc">${this.escapeHtml(subject.description)}</p>` : '';
+            
+            // 세부과목별 study와 quiz 총계 계산
+            let totalStudy = 0;
+            let totalQuiz = 0;
+            if (subList.length > 0) {
+                subList.forEach(sub => {
+                    totalStudy += typeof sub.study === 'number' ? sub.study : 0;
+                    totalQuiz += typeof sub.quiz === 'number' ? sub.quiz : 0;
+                });
+            }
+            
+            // 헤더 오른쪽 끝에 총계 표시
+            const totalCountsHtml = `<span class="ptg-category-total">Study(${totalStudy}) / Quiz(${totalQuiz})</span>`;
+            
             const subsHtml = subList.length
                 ? subList.map(sub => {
                     // 1100 Study 플러그인과 동일하게 rawurlencode (encodeURIComponent)로 인코딩해서 저장
                     const encodedSubjectId = encodeURIComponent(sub.name);
+                    const studyCount = typeof sub.study === 'number' ? sub.study : 0;
+                    const quizCount = typeof sub.quiz === 'number' ? sub.quiz : 0;
                     return `
                         <li class="ptg-subject-item" data-subject-id="${this.escapeHtml(encodedSubjectId)}">
                             <span class="ptg-subject-name">${this.escapeHtml(sub.name)}</span>
-                            <span class="ptg-subject-counts">
-                                Study(${this.escapeHtml(typeof sub.study === 'number' ? sub.study : 0)}) /
-                                Quiz(${this.escapeHtml(typeof sub.quiz === 'number' ? sub.quiz : 0)})
-                            </span>
+                            <span class="ptg-subject-counts">(${studyCount}/${quizCount})</span>
                         </li>
                     `;
                 }).join('')
@@ -325,7 +342,8 @@
                     <header class="ptg-category-header">
                         <h4 class="ptg-category-title">
                             <span class="ptg-session-badge">${this.escapeHtml(session)}교시</span>
-                            ${this.escapeHtml(subject.name)}
+                            <span class="ptg-category-name">${this.escapeHtml(subject.name)}</span>
+                            ${totalCountsHtml}
                         </h4>
                         ${description}
                     </header>
@@ -348,15 +366,19 @@
                 return html;
             }
 
-            entries.slice(0, 7).forEach(day => {
+            entries.slice(0, 7).forEach((day, index) => {
+                const isOpen = index === 0;
                 const total = this.getDayTotal(day.subjects);
                 html += `
-                    <div class="ptg-learning-day">
-                        <div class="ptg-learning-date-row">
+                    <div class="ptg-learning-day ${isOpen ? 'is-open' : ''}">
+                        <button class="ptg-learning-date-row" type="button" aria-expanded="${isOpen}">
                             <span class="ptg-learning-date">${this.escapeHtml(day.date)}</span>
                             <span class="ptg-learning-total">${this.escapeHtml(total)}회</span>
+                            <span class="ptg-learning-toggle" aria-hidden="true">⌃</span>
+                        </button>
+                        <div class="ptg-learning-day-content" style="display:${isOpen ? 'block' : 'none'};">
+                            ${this.buildDayLines(day.subjects)}
                         </div>
-                        ${this.buildDayLines(day.subjects)}
                     </div>
                 `;
             });
@@ -394,7 +416,7 @@
                     lines.push(`
                         <div class="ptg-learning-line">
                             <span class="ptg-learning-line-label">${this.escapeHtml(subject.subject)} &gt; ${this.escapeHtml(sub.name)}</span>
-                            <span class="ptg-learning-line-count">${this.escapeHtml(count)}회</span>
+                            <span class="ptg-learning-line-count">${this.escapeHtml(count)}</span>
                         </div>
                     `);
                 });
@@ -452,6 +474,19 @@
                 e.preventDefault();
                 $modal.removeClass('is-open').attr('aria-hidden', 'true');
             });
+
+            this.$container.off('click.dashboardDayToggle', '.ptg-learning-date-row');
+            this.$container.on('click.dashboardDayToggle', '.ptg-learning-date-row', function(e) {
+                e.preventDefault();
+                const $row = $(this);
+                const $day = $row.closest('.ptg-learning-day');
+                const $content = $day.find('.ptg-learning-day-content');
+                const isOpen = $day.hasClass('is-open');
+
+                $day.toggleClass('is-open');
+                $row.attr('aria-expanded', !isOpen);
+                $content.stop(true, true).slideToggle(160);
+            });
         },
 
         escapeHtml: function (text) {
@@ -470,32 +505,51 @@
             const parts = safe.trim().split(/\s+/).filter(Boolean);
 
             if (parts.length === 2) {
-                return `${parts[1]} ${parts[0]}`;
+                return `${parts[1]}${parts[0]}`;
             }
             return safe || '학습자';
         },
 
-        getRandomGreeting: function() {
-            const greetings = [
-                '학습을 이어가볼까요? 👋',
-                '오늘도 화이팅입니다! 💪',
-                '새로운 도전을 시작해볼까요? 🚀',
-                '꾸준한 학습이 답입니다! 📚',
-                '한 걸음씩 나아가요! 🎯',
-                '오늘의 목표를 달성해봐요! ⭐',
-                '지금이 바로 시작할 때입니다! 🌟',
-                '작은 실천이 큰 변화를 만듭니다! ✨',
-                '오늘도 성장하는 하루가 되길! 🌱',
-                '포기하지 않는 당신이 멋져요! 💎',
-                '매일 조금씩, 꾸준히! 📖',
-                '도전하는 모습이 아름답습니다! 🌈',
-                '오늘도 한 문제씩 풀어봐요! 🎓',
-                '노력하는 당신을 응원합니다! 👏',
-                '작은 시작이 큰 성과를 만듭니다! 🎁'
+        getGreeting: function() {
+            const englishGreetings = [
+                { text: '✨ BE THE LIGHT. KEEP GOING.', translation: '빛이 되어라. 멈추지 말고 계속 나아가라.' },
+                { text: '🧭 LIFE IS A JOURNEY, NOT THE DESTINATION.', translation: '인생은 여정이지, 목적지가 아니다.' },
+                { text: '⏰ "If you want to make your dream come true, the first thing you have to do is to wake up."', translation: '꿈을 이루고 싶다면, 가장 먼저 해야 할 일은 잠에서 깨어나는 것이다.' },
+                { text: '🔥 "If you plant fire in your heart, it will burn against the wind."', translation: '당신의 가슴 속에 불꽃을 심는다면, 그 불꽃은 바람에 맞서 타오를 것이다.' },
+                { text: '💖 "Give up worrying about what others think of you. What they think isn\'t important. What is important is how you feel about yourself."', translation: '남들이 당신을 어떻게 생각할지 걱정하는 것을 멈추세요. 중요한 것은 당신이 자신에 대해 어떻게 느끼느냐입니다.' },
+                { text: '🌌 "Something to accept the face of the arrogance you have to lose to recognize own fantasy."', translation: '자신의 환상을 깨닫기 위해 버려야 할 오만함의 민낯을 받아들이세요.' }
             ];
-            
-            const randomIndex = Math.floor(Math.random() * greetings.length);
-            return greetings[randomIndex];
+
+            const koreanGreetings = [
+                { text: '학습을 이어가볼까요? 👋' },
+                { text: '오늘도 화이팅입니다! 💪' },
+                { text: '새로운 도전을 시작해볼까요? 🚀' },
+                { text: '꾸준한 학습이 답입니다! 📚' },
+                { text: '한 걸음씩 나아가요! 🎯' },
+                { text: '오늘의 목표를 달성해봐요! ⭐' },
+                { text: '지금이 바로 시작할 때입니다! 🌟' },
+                { text: '작은 실천이 큰 변화를 만듭니다! ✨' },
+                { text: '오늘도 성장하는 하루가 되길! 🌱' },
+                { text: '포기하지 않는 당신이 멋져요! 💎' },
+                { text: '매일 조금씩, 꾸준히! 📖' },
+                { text: '도전하는 모습이 아름답습니다! 🌈' },
+                { text: '오늘도 한 문제씩 풀어봐요! 🎓' },
+                { text: '노력하는 당신을 응원합니다! 👏' },
+                { text: '작은 시작이 큰 성과를 만듭니다! 🎁' }
+            ];
+
+            const isEnglishTurn = this.greetingCycleIndex % 3 === 0;
+            this.greetingCycleIndex = (this.greetingCycleIndex + 1) % 3;
+
+            const pool = isEnglishTurn ? englishGreetings : koreanGreetings;
+            const randomIndex = Math.floor(Math.random() * pool.length);
+            const selection = pool[randomIndex];
+
+            return {
+                text: selection.text,
+                translation: selection.translation || '',
+                isEnglish: Boolean(selection.translation)
+            };
         }
     };
 

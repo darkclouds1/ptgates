@@ -8,6 +8,8 @@ DROP TRIGGER IF EXISTS `ptgates_update_last_study_date`$$
 DROP TRIGGER IF EXISTS `ptgates_insert_last_study_date`$$
 DROP TRIGGER IF EXISTS `ptgates_update_last_quiz_date`$$
 DROP TRIGGER IF EXISTS `ptgates_insert_last_quiz_date`$$
+DROP TRIGGER IF EXISTS `ptgates_update_last_review_date`$$
+DROP TRIGGER IF EXISTS `ptgates_insert_last_review_date`$$
 
 -- study_count 변경 시 last_study_date 자동 설정 (UPDATE)
 CREATE TRIGGER `ptgates_update_last_study_date`
@@ -50,6 +52,28 @@ BEGIN
     IF NEW.quiz_count > 0 THEN
         SET NEW.updated_at = NOW();
         SET NEW.last_quiz_date = NEW.updated_at;
+    END IF;
+END$$
+
+-- review_count 변경 시 last_review_date 자동 설정 (UPDATE)
+CREATE TRIGGER `ptgates_update_last_review_date`
+BEFORE UPDATE ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.review_count != OLD.review_count THEN
+        SET NEW.updated_at = NOW();
+        SET NEW.last_review_date = NEW.updated_at;
+    END IF;
+END$$
+
+-- review_count가 0보다 클 때 last_review_date 자동 설정 (INSERT)
+CREATE TRIGGER `ptgates_insert_last_review_date`
+BEFORE INSERT ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.review_count > 0 THEN
+        SET NEW.updated_at = NOW();
+        SET NEW.last_review_date = NEW.updated_at;
     END IF;
 END$$
 

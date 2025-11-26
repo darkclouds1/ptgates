@@ -346,6 +346,46 @@
                 toolbar.style.display = 'flex';
             }
 
+            // body 스크롤 막기 (드로잉 중 스크롤 방지) - 강력한 방법
+            const body = document.body;
+            const html = document.documentElement;
+            
+            // 현재 스크롤 위치 저장
+            QuizState.scrollX = window.pageXOffset || window.scrollX || 0;
+            QuizState.scrollY = window.pageYOffset || window.scrollY || 0;
+            
+            // 원래 스타일 저장
+            QuizState.originalBodyOverflow = body.style.overflow;
+            QuizState.originalHtmlOverflow = html.style.overflow;
+            QuizState.originalBodyPosition = body.style.position;
+            QuizState.originalHtmlPosition = html.style.position;
+            QuizState.originalBodyWidth = body.style.width;
+            QuizState.originalBodyHeight = body.style.height;
+            
+            // body와 html에 클래스 추가하여 CSS로 완전 차단
+            body.classList.add('drawing-active');
+            html.classList.add('drawing-active');
+            
+            // 컨테이너에도 클래스 추가
+            const container = document.getElementById('ptg-quiz-container');
+            const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
+            if (container) {
+                container.classList.add('drawing-active');
+            }
+            if (cardWrapper) {
+                cardWrapper.classList.add('drawing-active');
+            }
+            
+            // 추가 스타일 설정
+            body.style.overflow = 'hidden';
+            html.style.overflow = 'hidden';
+            body.style.position = 'fixed';
+            html.style.position = 'fixed';
+            body.style.width = '100%';
+            body.style.height = '100%';
+            body.style.top = `-${QuizState.scrollY}px`;
+            body.style.left = `-${QuizState.scrollX}px`;
+
             // 드로잉 캔버스 초기화
             initDrawingCanvas();
         } else {
@@ -368,7 +408,126 @@
             if (btnDrawing) {
                 btnDrawing.classList.remove('active');
             }
+
+            // ResizeObserver 정리
+            if (QuizState.cardResizeObserver) {
+                QuizState.cardResizeObserver.disconnect();
+                QuizState.cardResizeObserver = null;
+            }
+
+            // MutationObserver 정리
+            if (QuizState.explanationObserver) {
+                QuizState.explanationObserver.disconnect();
+                QuizState.explanationObserver = null;
+            }
+
+            // 주기적 위치 확인 인터벌 정리
+            if (QuizState.canvasPositionCheckInterval) {
+                clearInterval(QuizState.canvasPositionCheckInterval);
+                QuizState.canvasPositionCheckInterval = null;
+            }
+
+            // body 스크롤 복원 - 강력한 방법
+            const body = document.body;
+            const html = document.documentElement;
+            
+            // 클래스 제거
+            body.classList.remove('drawing-active');
+            html.classList.remove('drawing-active');
+            
+            // 컨테이너에서도 클래스 제거
+            const container = document.getElementById('ptg-quiz-container');
+            const cardWrapper = document.querySelector('.ptg-quiz-card-wrapper');
+            if (container) {
+                container.classList.remove('drawing-active');
+            }
+            if (cardWrapper) {
+                cardWrapper.classList.remove('drawing-active');
+            }
+            
+            // 원래 스타일 복원
+            body.style.overflow = QuizState.originalBodyOverflow !== undefined ? QuizState.originalBodyOverflow : '';
+            html.style.overflow = QuizState.originalHtmlOverflow !== undefined ? QuizState.originalHtmlOverflow : '';
+            body.style.position = QuizState.originalBodyPosition !== undefined ? QuizState.originalBodyPosition : '';
+            html.style.position = QuizState.originalHtmlPosition !== undefined ? QuizState.originalHtmlPosition : '';
+            body.style.width = QuizState.originalBodyWidth !== undefined ? QuizState.originalBodyWidth : '';
+            body.style.height = QuizState.originalBodyHeight !== undefined ? QuizState.originalBodyHeight : '';
+            body.style.top = '';
+            body.style.left = '';
+            
+            // 스크롤 위치 복원
+            if (QuizState.scrollX !== undefined || QuizState.scrollY !== undefined) {
+                window.scrollTo(QuizState.scrollX || 0, QuizState.scrollY || 0);
+            }
         }
+    }
+
+    /**
+     * 드로잉 캔버스 크기와 위치 업데이트 (CSS 기반 안정적인 방법)
+     */
+    function updateCanvasPositionAndSize() {
+        const QuizState = getQuizState();
+        if (!QuizState) return;
+
+        const canvas = document.getElementById('ptg-drawing-canvas');
+        const card = document.getElementById('ptg-quiz-card');
+        if (!canvas || !card) return;
+
+        // requestAnimationFrame으로 정확한 타이밍에 크기 계산
+        requestAnimationFrame(() => {
+            // 문제 카드의 크기 계산 (해설 포함)
+            // 위치는 CSS absolute로 자동 처리되므로 크기만 계산
+            const cardRect = card.getBoundingClientRect();
+            const width = Math.round(cardRect.width);
+            const height = Math.round(cardRect.height);
+
+            // 이전 크기와 비교하여 변경된 경우에만 업데이트 (성능 최적화)
+            if (QuizState.lastCanvasSize) {
+                const lastSize = QuizState.lastCanvasSize;
+                if (lastSize.width === width && lastSize.height === height) {
+                    // 크기가 변경되지 않았으면 업데이트 생략
+                    return;
+                }
+            }
+
+            // 현재 크기 저장
+            QuizState.lastCanvasSize = {
+                width: width,
+                height: height
+            };
+
+            // 캔버스 실제 크기 설정 (고해상도 디스플레이 지원)
+            const dpr = window.devicePixelRatio || 1;
+            const currentWidth = canvas.width / (QuizState.lastDPR || dpr);
+            const currentHeight = canvas.height / (QuizState.lastDPR || dpr);
+
+            // 크기가 변경된 경우에만 캔버스 크기 재설정
+            if (Math.abs(currentWidth - width) > 0.5 || Math.abs(currentHeight - height) > 0.5 || QuizState.lastDPR !== dpr) {
+                // 새 크기로 캔버스 재설정
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                QuizState.lastDPR = dpr;
+
+                // 컨텍스트 재설정
+                const newCtx = canvas.getContext('2d');
+                if (newCtx) {
+                    newCtx.scale(dpr, dpr);
+                    newCtx.lineCap = 'round';
+                    newCtx.lineJoin = 'round';
+                    newCtx.lineWidth = QuizState.penWidth;
+                    newCtx.globalAlpha = QuizState.penAlpha;
+                    newCtx.globalCompositeOperation = 'source-over';
+                    newCtx.strokeStyle = QuizState.penColor;
+
+                    QuizState.canvasContext = newCtx;
+
+                    // 기존 드로잉 히스토리에서 다시 그리기 (더 안정적)
+                    if (QuizState.drawingHistory && QuizState.drawingHistory.length > 0) {
+                        loadDrawingHistory();
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -382,59 +541,38 @@
         if (!canvas) return;
 
         const card = document.getElementById('ptg-quiz-card');
-        const toolbar = document.querySelector('.ptg-quiz-toolbar');
-
         if (!card) return;
 
-        // 툴바 위치 확인 (툴바 아래부터 캔버스 시작)
-        let toolbarBottom = 0;
-        if (toolbar) {
-            const toolbarRect = toolbar.getBoundingClientRect();
-            toolbarBottom = toolbarRect.bottom + 5;
+        // 캔버스 위치와 크기 업데이트
+        updateCanvasPositionAndSize();
+
+        // 캔버스 크기 업데이트 (CSS가 위치를 처리하므로 크기만 설정)
+        updateCanvasPositionAndSize();
+
+        // 컨텍스트 설정 (없는 경우에만)
+        if (!QuizState.canvasContext) {
+            const cardRect = card.getBoundingClientRect();
+            const width = Math.round(cardRect.width);
+            const height = Math.round(cardRect.height);
+            const dpr = window.devicePixelRatio || 1;
+            
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            QuizState.lastDPR = dpr;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            ctx.scale(dpr, dpr);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = QuizState.penWidth;
+            ctx.globalAlpha = QuizState.penAlpha;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = QuizState.penColor;
+
+            QuizState.canvasContext = ctx;
         }
-
-        // 문제 카드의 위치와 크기 계산
-        const cardRect = card.getBoundingClientRect();
-
-        // 캔버스는 툴바 아래부터 시작, 카드 전체를 포함
-        let startY = Math.max(cardRect.top, toolbarBottom);
-        let endY = cardRect.bottom;
-
-        // 캔버스 크기와 위치 설정
-        const width = cardRect.width;
-        const height = Math.max(0, endY - startY);
-        const left = cardRect.left;
-        const top = startY;
-
-        // 오버레이 위치 설정
-        const overlay = document.getElementById('ptg-drawing-overlay');
-        if (overlay) {
-            canvas.style.position = 'fixed';
-            canvas.style.left = left + 'px';
-            canvas.style.top = top + 'px';
-            canvas.style.width = width + 'px';
-            canvas.style.height = height + 'px';
-            canvas.style.zIndex = '101';
-        }
-
-        // 캔버스 실제 크기 설정 (고해상도 디스플레이 지원)
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-
-        // 컨텍스트 설정
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.scale(dpr, dpr);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineWidth = QuizState.penWidth;
-        ctx.globalAlpha = QuizState.penAlpha;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = QuizState.penColor;
-
-        QuizState.canvasContext = ctx;
 
         // 드로잉 이벤트 리스너 등록
         setupDrawingEvents(canvas);
@@ -454,21 +592,73 @@
         // 펜 색상/두께 메뉴 초기화
         initializePenMenu();
 
-        // 윈도우 리사이즈 시 캔버스 재조정
-        const resizeHandler = function () {
-            if (QuizState.drawingEnabled) {
-                setTimeout(() => {
-                    initDrawingCanvas();
-                }, 100);
+        // ResizeObserver로 카드 크기 변경 감지 (더 안정적)
+        if (window.ResizeObserver) {
+            // 기존 observer가 있으면 제거
+            if (QuizState.cardResizeObserver) {
+                QuizState.cardResizeObserver.disconnect();
             }
-        };
-
-        // 기존 리사이즈 핸들러 제거 후 재등록 (중복 방지)
-        if (window._ptgDrawingResizeHandler) {
-            window.removeEventListener('resize', window._ptgDrawingResizeHandler);
+            QuizState.cardResizeObserver = new ResizeObserver(() => {
+                if (QuizState.drawingEnabled) {
+                    updateCanvasPositionAndSize();
+                }
+            });
+            QuizState.cardResizeObserver.observe(card);
         }
-        window._ptgDrawingResizeHandler = resizeHandler;
-        window.addEventListener('resize', resizeHandler);
+
+        // MutationObserver로 해설 영역 표시/숨김 감지
+        if (window.MutationObserver) {
+            // 기존 observer가 있으면 제거
+            if (QuizState.explanationObserver) {
+                QuizState.explanationObserver.disconnect();
+            }
+            const explanationEl = document.getElementById('ptg-quiz-explanation');
+            if (explanationEl) {
+                QuizState.explanationObserver = new MutationObserver(() => {
+                    if (QuizState.drawingEnabled) {
+                        // 짧은 지연 후 업데이트 (DOM 업데이트 완료 대기)
+                        setTimeout(() => {
+                            updateCanvasPositionAndSize();
+                        }, 50);
+                    }
+                });
+                QuizState.explanationObserver.observe(explanationEl, {
+                    attributes: true,
+                    attributeFilter: ['style'],
+                    childList: true,
+                    subtree: true
+                });
+            }
+        }
+
+        // 윈도우 리사이즈 시 캔버스 재조정
+        if (!window._ptgDrawingResizeHandler) {
+            window._ptgDrawingResizeHandler = function () {
+                if (QuizState.drawingEnabled) {
+                    updateCanvasPositionAndSize();
+                }
+            };
+            window.addEventListener('resize', window._ptgDrawingResizeHandler);
+        }
+
+        // 스크롤 시에도 업데이트 (카드 위치 변경)
+        if (!window._ptgDrawingScrollHandler) {
+            window._ptgDrawingScrollHandler = function () {
+                if (QuizState.drawingEnabled) {
+                    updateCanvasPositionAndSize();
+                }
+            };
+            window.addEventListener('scroll', window._ptgDrawingScrollHandler, true);
+        }
+
+        // 주기적으로 위치 확인 (안정성 향상) - 1초마다
+        if (!QuizState.canvasPositionCheckInterval) {
+            QuizState.canvasPositionCheckInterval = setInterval(() => {
+                if (QuizState.drawingEnabled) {
+                    updateCanvasPositionAndSize();
+                }
+            }, 1000);
+        }
     }
 
     /**

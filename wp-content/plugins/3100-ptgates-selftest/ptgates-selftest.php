@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates SelfTest
+ * Plugin Name: 3100-ptgates-selftest (PTGates SelfTest)
  * Description: PTGates 셀프 모의고사 - 과목/단원/문항수 선택 기반 모의고사 생성기
  * Version: 1.0.0
  * Author: PTGates

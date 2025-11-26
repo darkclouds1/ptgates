@@ -1,10 +1,10 @@
-# PTGates Learning Engine
+# PTGates 기출문제 참조 플러그인
 
-물리치료사 국가고시 문제 학습 시스템 WordPress 플러그인
+물리치료사 국가고시 기출문제 참조용 WordPress 플러그인 (Admin 전용)
 
 ## 📋 개요
 
-PTGates Learning Engine은 WordPress 기반의 기출문제 학습 시스템입니다. REST API 중심으로 설계되어 향후 React(또는 Next.js) SPA 프론트엔드로 쉽게 전환할 수 있습니다.
+PTGates 기출문제 참조 플러그인은 WordPress 기반의 기출문제 참조 시스템입니다. Admin 전용으로 운영되며, 기출문제 데이터를 참조하는 용도로 사용됩니다. REST API 중심으로 설계되어 향후 React(또는 Next.js) SPA 프론트엔드로 쉽게 전환할 수 있습니다.
 
 ## ✨ 주요 기능
 
@@ -18,8 +18,8 @@ PTGates Learning Engine은 WordPress 기반의 기출문제 학습 시스템입�
 
 ## 🚀 설치 방법
 
-1. `wp-content/plugins/ptgates-engine` 폴더에 플러그인 파일 업로드
-2. WordPress 관리자 → 플러그인 → PTGates Learning Engine 활성화
+1. `wp-content/plugins/9000-ptgates-exam-questions` 폴더에 플러그인 파일 업로드
+2. WordPress 관리자 → 플러그인 → PTGates 기출문제 참조 활성화
 3. 플러그인 활성화 시 `ptgates_user_results` 테이블 자동 생성
 
 ## 📖 사용법
@@ -77,8 +77,8 @@ X-WP-Nonce: {nonce}
 ## 📁 파일 구조
 
 ```
-ptgates-engine/
-├── ptgates-engine.php          # 메인 플러그인 파일
+9000-ptgates-exam-questions/
+├── ptgates-exam-questions.php  # 메인 플러그인 파일
 ├── includes/
 │   ├── class-ptg-db.php        # DB 접근 클래스
 │   ├── class-ptg-api.php       # REST API 엔드포인트
@@ -124,4 +124,4 @@ GPL v2 or later
 ## 🔗 참고
 
 - WordPress REST API 문서: https://developer.wordpress.org/rest-api/
-- 데이터베이스 스키마: `database-schema.md` 참조
+- 데이터베이스 스키마: `0000-ptgates-platform/docs/02-database-schema.md` 또는 `0000-ptgates-platform/docs/ptgates_schema.txt` 참조

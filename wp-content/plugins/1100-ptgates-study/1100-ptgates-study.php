@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates Study
+ * Plugin Name: 1100-ptgates-study (PTGates Study)
  * Plugin URI: https://ptgates.com
  * Description: PTGates 학습 모듈 - 과목/단원 브라우징, 이론 콘텐츠 제공.
  * Version: 0.1.0

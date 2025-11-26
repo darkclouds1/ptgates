@@ -389,7 +389,12 @@ function PTG_quiz_alert(message) {
         // 퀴즈 결과 추적
         answers: [], // 답안 제출 결과 배열 { questionId, isCorrect, userAnswer, correctAnswer }
         startTime: null, // 퀴즈 시작 시간 (타임스탬프)
-        lastBlockingMessage: ''
+        lastBlockingMessage: '',
+        // 영구 필터 (북마크, 복습 등 - URL 파라미터에서 온 필터)
+        persistentFilters: {
+            bookmarked: false,
+            needsReview: false
+        }
     };
 
     /**
@@ -434,6 +439,13 @@ function PTG_quiz_alert(message) {
                 hide(cardWrapper);
                 hide(actions);
                 hide(resultSection);
+                // idle 상태로 돌아왔을 때 활성 필터 표시 업데이트
+                if (QuizState.persistentFilters) {
+                    updateActiveFilters(
+                        QuizState.persistentFilters.bookmarked,
+                        QuizState.persistentFilters.needsReview
+                    );
+                }
                 break;
             case 'running':
                 hide(filterSection);
@@ -615,12 +627,28 @@ function PTG_quiz_alert(message) {
         // 필터 UI 설정
         setupFilterUI();
 
+        // 활성 필터 표시 업데이트
+        updateActiveFilters(bookmarked, needsReview);
+
+        // 영구 필터 상태 저장 (조회 버튼에서 사용)
+        QuizState.persistentFilters = {
+            bookmarked: bookmarked || false,
+            needsReview: needsReview || false
+        };
+
         // 초기 상태 적용
         setState('idle');
 
-        // 필터 조건이 있으면 필터 UI 숨기고 바로 시작
-        if (hasFilters || questionId) {
+        // 북마크/복습만 있고 다른 필터가 없으면 필터 섹션 표시
+        const hasOnlyPersistentFilter = (bookmarked || needsReview) && !year && !subject && !limit && !session;
+        
+        // 필터 조건이 있으면 필터 UI 숨기고 바로 시작 (단, 영구 필터만 있는 경우는 제외)
+        if ((hasFilters || questionId) && !hasOnlyPersistentFilter) {
             setState('running');
+        } else if (hasOnlyPersistentFilter) {
+            // 영구 필터만 있으면 필터 섹션 표시하고 대기
+            showFilterSection();
+            return; // 필터 섹션이 표시되면 여기서 종료
         } else {
             // 필터 섹션이 표시되면 퀴즈는 시작하지 않음 (조회 클릭 시 시작)
             return; // 필터 섹션이 표시되면 여기서 종료
@@ -1155,6 +1183,28 @@ function PTG_quiz_alert(message) {
             return;
         }
 
+        // 영구 필터 읽기 (QuizState에 저장된 값 우선, 없으면 URL/컨테이너에서 읽기)
+        let bookmarked = false;
+        let needsReview = false;
+        
+        if (QuizState.persistentFilters) {
+            // QuizState에 저장된 값 사용 (초기화 시 설정됨)
+            bookmarked = QuizState.persistentFilters.bookmarked || false;
+            needsReview = QuizState.persistentFilters.needsReview || false;
+        } else {
+            // QuizState에 없으면 URL 파라미터나 컨테이너에서 읽기
+            const urlParams = new URLSearchParams(window.location.search);
+            const bookmarkedFromUrl = urlParams.get('bookmarked') === '1' || urlParams.get('bookmarked') === 'true';
+            const needsReviewFromUrl = urlParams.get('needs_review') === '1' || urlParams.get('needs_review') === 'true';
+            
+            const container = document.getElementById('ptg-quiz-container');
+            const bookmarkedFromData = container && container.dataset.bookmarked === '1';
+            const needsReviewFromData = container && container.dataset.needsReview === '1';
+            
+            bookmarked = bookmarkedFromUrl || bookmarkedFromData;
+            needsReview = needsReviewFromUrl || needsReviewFromData;
+        }
+
         const session = sessionSelect.value ? parseInt(sessionSelect.value) : null;
         const subject = subjectSelect.value || null;
         const subsubject = subSubjectSelect ? (subSubjectSelect.value || null) : null;
@@ -1184,6 +1234,14 @@ function PTG_quiz_alert(message) {
             if (subsubject) filters.subsubject = subsubject;
             filters.limit = limit;
             if (fullSession) filters.full_session = true;
+            
+            // 영구 필터 유지 (URL 파라미터에서 온 경우 계속 유지)
+            if (bookmarked) {
+                filters.bookmarked = true;
+            }
+            if (needsReview) {
+                filters.needs_review = true;
+            }
 
             if (startBtn) {
                 startBtn.disabled = true;
@@ -1220,6 +1278,14 @@ function PTG_quiz_alert(message) {
             hideFilterSection();
             // 퀴즈 UI 표시
             showQuizUI();
+            
+            // 활성 필터 표시 업데이트 (조회 후에도 필터 표시 유지)
+            if (QuizState.persistentFilters) {
+                updateActiveFilters(
+                    QuizState.persistentFilters.bookmarked,
+                    QuizState.persistentFilters.needsReview
+                );
+            }
 
             // 타이머 표시 업데이트
             updateTimerDisplay();
@@ -1255,6 +1321,77 @@ function PTG_quiz_alert(message) {
                 startBtn.classList.remove('ptg-btn-loading');
             }
         }
+    }
+
+    /**
+     * 활성 필터 표시 업데이트
+     */
+    function updateActiveFilters(bookmarked, needsReview) {
+        const filtersContainer = document.getElementById('ptg-quiz-active-filters');
+        if (!filtersContainer) return;
+
+        filtersContainer.innerHTML = '';
+
+        const filters = [];
+        if (bookmarked) {
+            filters.push({
+                type: 'bookmarked',
+                label: '북마크 문제만',
+                icon: '🔖'
+            });
+        }
+        if (needsReview) {
+            filters.push({
+                type: 'needs_review',
+                label: '복습 문제만',
+                icon: '🔁'
+            });
+        }
+
+        if (filters.length > 0) {
+            filters.forEach(filter => {
+                const badge = document.createElement('span');
+                badge.className = 'ptg-quiz-filter-badge';
+                badge.setAttribute('data-filter-type', filter.type);
+                badge.innerHTML = `
+                    <span class="ptg-quiz-filter-badge-icon">${filter.icon}</span>
+                    <span class="ptg-quiz-filter-badge-label">${filter.label}</span>
+                    <button type="button" class="ptg-quiz-filter-badge-close" data-filter-type="${filter.type}" aria-label="${filter.label} 필터 해제">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                `;
+                filtersContainer.appendChild(badge);
+            });
+
+            // 필터 해제 버튼 이벤트
+            filtersContainer.querySelectorAll('.ptg-quiz-filter-badge-close').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const filterType = this.getAttribute('data-filter-type');
+                    removeFilter(filterType);
+                });
+            });
+        }
+    }
+
+    /**
+     * 필터 제거 (URL에서 파라미터 제거하고 페이지 새로고침)
+     */
+    function removeFilter(filterType) {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        if (filterType === 'bookmarked') {
+            urlParams.delete('bookmarked');
+        } else if (filterType === 'needs_review') {
+            urlParams.delete('needs_review');
+        }
+
+        // 새로운 URL 생성
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        
+        // 페이지 이동 (replace로 히스토리 교체)
+        window.location.replace(newUrl);
     }
 
     /**
@@ -1333,31 +1470,37 @@ function PTG_quiz_alert(message) {
             });
         }
 
-        // 시간관리 tip 버튼
-        const timeTipBtn = document.getElementById('ptgates-time-tip-btn');
-        const timeTipModal = document.getElementById('ptgates-time-tip-modal');
-        const timeTipClose = document.getElementById('ptgates-time-tip-close');
-
-        if (timeTipBtn && timeTipModal) {
-            timeTipBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                timeTipModal.style.display = 'block';
-            });
-        }
-
-        if (timeTipClose && timeTipModal) {
-            timeTipClose.addEventListener('click', function () {
-                timeTipModal.style.display = 'none';
-            });
-
-            // 오버레이 클릭 시 닫기
-            const overlay = timeTipModal.querySelector('.ptgates-modal-overlay');
-            if (overlay) {
-                overlay.addEventListener('click', function () {
-                    timeTipModal.style.display = 'none';
-                });
+        // 시간관리 tip 버튼 (이벤트 위임 사용 - progress-section이 나중에 표시될 수 있음)
+        // 컨테이너에서 이벤트 위임으로 처리
+        container.addEventListener('click', function(e) {
+            const timeTipBtn = e.target.closest('#ptgates-time-tip-btn');
+            if (!timeTipBtn) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 공통 팝업 유틸리티가 로드되었는지 확인
+            if (typeof window.PTGTips === 'undefined' || typeof window.PTGTips.show !== 'function') {
+                console.warn('[PTG Quiz] 공통 팝업 유틸리티가 아직 로드되지 않았습니다.');
+                // 잠시 후 다시 시도 (최대 3초)
+                let retryCount = 0;
+                const maxRetries = 30;
+                const checkInterval = setInterval(function() {
+                    retryCount++;
+                    if (typeof window.PTGTips !== 'undefined' && typeof window.PTGTips.show === 'function') {
+                        clearInterval(checkInterval);
+                        window.PTGTips.show('timer-tip');
+                    } else if (retryCount >= maxRetries) {
+                        clearInterval(checkInterval);
+                        console.error('[PTG Quiz] 공통 팝업 유틸리티를 로드할 수 없습니다.');
+                    }
+                }, 100);
+                return;
             }
-        }
+            
+            // 공통 팝업 표시 (내용은 중앙 저장소에서 자동 가져옴)
+            window.PTGTips.show('timer-tip');
+        });
 
         // 드로잉 툴바 버튼 이벤트 (닫기 버튼 포함)
         if (window.PTGQuizDrawing && window.PTGQuizDrawing.setupDrawingToolbarEvents) {
@@ -2535,7 +2678,15 @@ function PTG_quiz_alert(message) {
                 }, 200);
 
                 // 답안 제출 후 드로잉 로드 (답안 제출 후 상태로 새로 시작)
+                // 해설이 표시된 후이므로 카드 크기가 변경되었을 수 있음
+                // 드로잉을 로드하기 전에 캔버스 크기를 재조정
                 if (QuizState.canvasContext) {
+                    // 해설이 표시된 후 카드 크기 변경을 반영하기 위해 캔버스 재조정
+                    if (QuizState.drawingEnabled && window.PTGQuizDrawing && window.PTGQuizDrawing.initDrawingCanvas) {
+                        // 먼저 캔버스 크기를 재조정
+                        window.PTGQuizDrawing.initDrawingCanvas();
+                    }
+                    
                     const canvas = document.getElementById('ptg-drawing-canvas');
                     if (canvas) {
                         // 캔버스 초기화 후 답안 제출 후 드로잉 로드
@@ -2548,6 +2699,13 @@ function PTG_quiz_alert(message) {
                     QuizState.currentStrokeId = null;
                     if (window.PTGQuizDrawing && window.PTGQuizDrawing.loadDrawingFromServer) {
                         await window.PTGQuizDrawing.loadDrawingFromServer();
+                        
+                        // 드로잉 로드 후에도 한 번 더 캔버스 재조정 (이미지 로드 등으로 인한 크기 변경 대비)
+                        if (QuizState.drawingEnabled && window.PTGQuizDrawing && window.PTGQuizDrawing.initDrawingCanvas) {
+                            setTimeout(() => {
+                                window.PTGQuizDrawing.initDrawingCanvas();
+                            }, 100);
+                        }
                     }
                 }
             }
@@ -2696,15 +2854,24 @@ function PTG_quiz_alert(message) {
                     if (cardEl) {
                         // 리플로우 강제 (카드 크기 재계산)
                         cardEl.offsetHeight; // 읽기 작업으로 리플로우 트리거
+                        // 해설이 표시된 후 추가 리플로우 보장
+                        void cardEl.offsetWidth;
                     }
 
                     // 드로잉 모드가 활성화되어 있으면 캔버스 재조정 (카드 크기 변경 반영)
                     if (QuizState.drawingEnabled) {
+                        // 여러 단계로 재조정하여 확실하게 반영
                         setTimeout(() => {
                             if (window.PTGQuizDrawing && window.PTGQuizDrawing.initDrawingCanvas) {
-                window.PTGQuizDrawing.initDrawingCanvas();
-            }
-                        }, 150); // DOM 업데이트 대기 (리플로우 포함)
+                                window.PTGQuizDrawing.initDrawingCanvas();
+                            }
+                        }, 100); // 첫 번째 재조정
+                        
+                        setTimeout(() => {
+                            if (window.PTGQuizDrawing && window.PTGQuizDrawing.initDrawingCanvas) {
+                                window.PTGQuizDrawing.initDrawingCanvas();
+                            }
+                        }, 300); // 두 번째 재조정 (더 확실하게)
                     }
                 }
             }
@@ -3057,45 +3224,25 @@ function PTG_quiz_alert(message) {
     }
 
     /**
-     * 실전 모의 학습Tip 모달 설정
+     * 실전 모의 학습Tip 모달 설정 (공통 팝업 유틸리티 사용)
      */
     function setupTipModal() {
         const tipBtn = document.getElementById('ptg-quiz-tip-btn');
-        const modal = document.getElementById('ptg-quiz-tip-modal');
-        const closeBtn = document.querySelector('.ptg-quiz-tip-modal-close');
-        const overlay = document.querySelector('.ptg-quiz-tip-modal-overlay');
+        if (!tipBtn) return;
 
-        if (!tipBtn || !modal) return;
-
-        // 모달 열기
+        // 공통 팝업 유틸리티 사용
         tipBtn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden'; // 스크롤 방지
-        });
-
-        // 모달 닫기 함수
-        function closeModal() {
-            modal.style.display = 'none';
-            document.body.style.overflow = ''; // 스크롤 복원
-        }
-
-        // 닫기 버튼 클릭
-        if (closeBtn) {
-            closeBtn.addEventListener('click', closeModal);
-        }
-
-        // 오버레이 클릭 시 닫기
-        if (overlay) {
-            overlay.addEventListener('click', closeModal);
-        }
-
-        // ESC 키로 닫기
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && modal.style.display === 'flex') {
-                closeModal();
+            
+            // 공통 팝업 유틸리티가 로드되었는지 확인
+            if (typeof window.PTGTips === 'undefined' || typeof window.PTGTips.show !== 'function') {
+                console.warn('[PTG Quiz] 공통 팝업 유틸리티가 아직 로드되지 않았습니다.');
+                return;
             }
+            
+            // 공통 팝업 표시 (내용은 중앙 저장소에서 자동 가져옴)
+            window.PTGTips.show('quiz-tip');
         });
     }
 

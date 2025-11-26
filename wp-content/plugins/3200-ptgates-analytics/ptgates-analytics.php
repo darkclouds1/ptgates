@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates Analytics
+ * Plugin Name: 3200-ptgates-analytics (PTGates Analytics)
  * Description: PTGates 성적 분석 - 취약 단원 분석, 정답률 통계, 예상 점수 시뮬레이션
  * Version: 1.0.0
  * Author: PTGates

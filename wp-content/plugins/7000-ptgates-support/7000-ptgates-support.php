@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: 7000 ptGates Support
+ * Plugin Name: 7000-ptgates-support (PTGates Support)
  * Description: QnA Board and Support features for ptGates.
  * Version: 1.0.0
  * Author: ptGates Team

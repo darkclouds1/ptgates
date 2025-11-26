@@ -87,15 +87,27 @@ class PTG_Study_Plugin {
 		$platform_quizui_ver   = file_exists($platform_quizui_path) ? filemtime($platform_quizui_path) : '1.0.0';
 
         // 교시/과목/세부과목 정의를 quiz 모듈의 Subjects::MAP에서 가져옴
+        // 주의: 최초 로드는 0000-ptgates-platform에서 수행됨
         $subjects_map = [];
         if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
             $subjects_map = \PTG\Quiz\Subjects::MAP;
         } else {
-            $subjects_class_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-            if ( file_exists( $subjects_class_file ) ) {
-                require_once $subjects_class_file;
+            // 플랫폼 코어에서 로드 시도
+            $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+            if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
+                require_once $platform_subjects_file;
                 if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
                     $subjects_map = \PTG\Quiz\Subjects::MAP;
+                }
+            }
+            // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+            if ( empty( $subjects_map ) ) {
+                $subjects_class_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+                if ( file_exists( $subjects_class_file ) && is_readable( $subjects_class_file ) ) {
+                    require_once $subjects_class_file;
+                    if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+                        $subjects_map = \PTG\Quiz\Subjects::MAP;
+                    }
                 }
             }
         }
@@ -121,13 +133,21 @@ class PTG_Study_Plugin {
         ];
 
         ob_start();
+        // 대시보드 페이지 URL 가져오기
+        $dashboard_url = home_url('/');
+        if (class_exists('PTG_Dashboard')) {
+            $dashboard_url = PTG_Dashboard::get_dashboard_url();
+        }
         ?>
 		<div id="ptg-study-app" class="ptg-study-container" data-id="<?php echo esc_attr($atts['id']); ?>">
             <div class="ptg-study-header">
 			    <h2>🗝️학습할 과목을 선택하세요</h2>
-                <button type="button" class="ptg-study-tip-trigger" data-ptg-tip-open>
-                    [학습Tip]
-                </button>
+                <div class="ptg-study-header-right">
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link" aria-label="대시보드로 돌아가기">대시보드</a>
+                    <button type="button" class="ptg-study-tip-trigger" data-ptg-tip-open>
+                        [학습Tip]
+                    </button>
+                </div>
             </div>
 			<div class="ptg-course-categories">
                 <?php if ( ! empty( $subjects_map ) ) : ?>
@@ -176,66 +196,7 @@ class PTG_Study_Plugin {
 			</div>
         </div>
 
-        <!-- 학습 Tip 모달 -->
-        <div id="ptg-study-tip-modal" class="ptg-study-tip-modal" aria-hidden="true">
-                <div class="ptg-study-tip-backdrop" data-ptg-tip-close></div>
-                <div class="ptg-study-tip-dialog" role="dialog" aria-modal="true" aria-labelledby="ptg-study-tip-title">
-                    <div class="ptg-study-tip-header">
-                        <h3 id="ptg-study-tip-title">기출 학습 가이드</h3>
-                        <button type="button" class="ptg-study-tip-close" data-ptg-tip-close aria-label="닫기">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="ptg-study-tip-body">
-                        <section class="ptg-study-tip-section">
-                            <h4>💡 ptGates Study 프로그램 사용 팁</h4>
-                            <ul class="ptg-study-tip-list">
-                                <li><strong>암기카드 활용:</strong> 이해가 어렵거나 외울 부분이 많은 개념은 툴바의 암기카드 기능을 이용해 즉시 저장하고 <strong>간격 반복 학습(SRS)</strong>을 활용할 것.</li>
-                                <li><strong>취약점 분석:</strong> 학습 후에는 <strong>대시보드(ptgates-analytics)</strong>를 확인하여, 연관 개념 중 취약한 단원을 찾아 복습 우선순위를 정할 것.</li>
-                                <li><strong>연속 학습:</strong> 출제 순서 경향을 참조하여 <strong>기초 → 응용</strong> 흐름에 따라 세부 영역 묶음 단위로 끊임없이 학습하는 것을 추천함.</li>
-                            </ul>
-                        </section>
-
-                        <section class="ptg-study-tip-section">
-                            <h4>📌 출제 순서 경향 요약</h4>
-                            <ul class="ptg-study-tip-list">
-                                <li><strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름.</li>
-                                <li><strong>과목별 배치:</strong> 각 과목 내에서 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, 세부 응용/임상 사례가 뒤쪽에 배치되는 경향이 명확함.</li>
-                            </ul>
-                        </section>
-
-                        <section class="ptg-study-tip-section">
-                            <h4>🎯 학습 구조</h4>
-                            <div class="ptg-tip-block">
-                                <h5>교시별 배열</h5>
-                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
-                                    <li><strong>1교시:</strong> 기초(60) → 진단평가(45)</li>
-                                    <li><strong>2교시:</strong> 중재(65) → 법규(20)</li>
-                                </ul>
-                            </div>
-                            <div class="ptg-tip-block">
-                                <h5>세부 영역 순서</h5>
-                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
-                                    <li><strong>기초:</strong> 해부생리 → 운동학 → 물리적 인자 → 공중보건</li>
-                                    <li><strong>중재:</strong> 근골격 → 신경계 → 기타(심폐/피부/문제해결)</li>
-                                </ul>
-                            </div>
-                            <div class="ptg-tip-block">
-                                <h5>학습 전략</h5>
-                                <ul class="ptg-study-tip-list ptg-study-tip-list--sub">
-                                    <li>교시·과목·세부영역 <strong>묶음</strong>으로 연속 학습</li>
-                                    <li>정렬 모드로 <strong>흐름</strong> 익힌 뒤, 랜덤으로 <strong>복습</strong></li>
-                                </ul>
-                            </div>
-                        </section>
-
-                        <div class="ptg-tip-legend">
-                            <span class="ptg-chip">정렬 학습</span>
-                            <span class="ptg-chip">랜덤 복습</span>
-                            <span class="ptg-chip">세부영역 집중</span>
-                        </div>
-                    </div>
-                </div>
+        <!-- 팝업 HTML은 공통 팝업 유틸리티(0000-ptgates-platform)에서 동적으로 생성됨 -->
         <?php if ( ! is_admin() ) : ?>
             <!-- 공용 UI 먼저 로드: PTGQuizUI (플랫폼) -->
             <script src="<?php echo esc_url( $platform_quizui_url ); ?>?ver=<?php echo esc_attr( $platform_quizui_ver ); ?>"></script>
@@ -288,22 +249,44 @@ class PTG_Study_Plugin {
                     border-radius: 12px !important;
                     box-shadow: 0 4px 12px rgba(15,23,42,0.06) !important;
                 }
-                .ptg-study-tip-trigger {
-                    border: 1px solid #dbeafe !important;
-                    background: #eff6ff !important;
-                    color: #1d4ed8 !important;
-                    font-size: 12px !important;
-                    cursor: pointer !important;
+                .ptg-study-header-right {
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 12px !important;
+                    flex-shrink: 0 !important;
+                }
+                .ptg-study-dashboard-link {
+                    font-size: 13px !important;
+                    font-weight: 600 !important;
+                    color: #4a5568 !important;
                     text-decoration: none !important;
-                    padding: 6px 10px !important;
-                    border-radius: 9999px !important;
-                    line-height: 1 !important;
-                    transition: all .18s ease !important;
+                    padding: 6px 12px !important;
+                    border-radius: 6px !important;
+                    transition: all 0.2s ease !important;
+                    white-space: nowrap !important;
+                }
+                .ptg-study-dashboard-link:hover {
+                    background: #f1f5f9 !important;
+                    color: #2d3748 !important;
+                    text-decoration: underline !important;
+                }
+                .ptg-study-tip-trigger {
+                    font-size: 13px !important;
+                    font-weight: 600 !important;
+                    color: #4a5568 !important;
+                    text-decoration: none !important;
+                    padding: 6px 12px !important;
+                    border-radius: 6px !important;
+                    transition: all 0.2s ease !important;
+                    white-space: nowrap !important;
+                    border: none !important;
+                    background: transparent !important;
+                    cursor: pointer !important;
                 }
                 .ptg-study-tip-trigger:hover {
-                    background: #dbeafe !important;
-                    border-color: #bfdbfe !important;
-                    color: #1e40af !important;
+                    background: #f1f5f9 !important;
+                    color: #2d3748 !important;
+                    text-decoration: underline !important;
                 }
                 .ptg-study-header h2 {
                     margin: 0 !important;

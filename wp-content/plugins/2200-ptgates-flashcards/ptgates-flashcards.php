@@ -1,12 +1,10 @@
 <?php
 /**
- * Plugin Name: PTGates Flashcards
+ * Plugin Name: 2200-ptgates-flashcards (PTGates Flashcards)
  * Description: PTGates 암기카드 - 문제 참조 방식의 암기카드 및 SM-lite 반복 학습
  * Version: 1.0.0
  * Author: PTGates
  * Requires Plugins: 0000-ptgates-platform
- * 
- * Shortcode: [ptg_flash]
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

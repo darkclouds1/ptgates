@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: PTGates Learning
+ * Plugin Name: 9000-ptgates-exam-questions (PTGates 기출문제)
  * Plugin URI: https://ptgates.com
- * Description: 물리치료사 기출문제학습 (REST API 기반). 숏코드: [ptgates_quiz] 또는 [ptgates_quiz year="2024" subject="해부학" limit="20"]
+ * Description: 물리치료사 기출문제 참조용 플러그인 (Admin 전용). 숏코드: [ptgates_quiz] 또는 [ptgates_quiz year="2024" subject="해부학" limit="20"]
  * Version: 1.0.21
  * Author: PTGates
  * Author URI: https://ptgates.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: ptgates-engine
+ * Text Domain: ptgates-exam-questions
  * Domain Path: /languages
  */
 
@@ -18,32 +18,32 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('PTGATES_ENGINE_VERSION', '1.0.21');
-define('PTGATES_ENGINE_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PTGATES_ENGINE_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('PTGATES_EXAM_QUESTIONS_VERSION', '1.0.21');
+define('PTGATES_EXAM_QUESTIONS_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('PTGATES_EXAM_QUESTIONS_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 /**
  * 플러그인 활성화 시 실행
  */
-function ptgates_engine_activate() {
-    require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-db.php';
+function ptgates_exam_questions_activate() {
+    require_once PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'includes/class-ptg-db.php';
     PTG_DB::create_tables();
     flush_rewrite_rules();
 }
-register_activation_hook(__FILE__, 'ptgates_engine_activate');
+register_activation_hook(__FILE__, 'ptgates_exam_questions_activate');
 
 /**
  * 플러그인 비활성화 시 실행
  */
-function ptgates_engine_deactivate() {
+function ptgates_exam_questions_deactivate() {
     flush_rewrite_rules();
 }
-register_deactivation_hook(__FILE__, 'ptgates_engine_deactivate');
+register_deactivation_hook(__FILE__, 'ptgates_exam_questions_deactivate');
 
 /**
  * 플러그인 메인 클래스
  */
-class PTGates_Engine {
+class PTGates_Exam_Questions {
     
     /**
      * 싱글톤 인스턴스
@@ -72,16 +72,16 @@ class PTGates_Engine {
      */
     private function init_hooks() {
         // 필수 파일 포함
-        require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-db.php';
-        require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-api.php';
-        require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-ptg-logger.php';
-        require_once PTGATES_ENGINE_PLUGIN_DIR . 'includes/class-access-manager.php';
+        require_once PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'includes/class-ptg-db.php';
+        require_once PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'includes/class-ptg-api.php';
+        require_once PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'includes/class-ptg-logger.php';
+        require_once PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'includes/class-access-manager.php';
         
         // REST API 등록
         add_action('rest_api_init', array('PTG_API', 'register_routes'));
         
         // Shortcode 등록
-        add_shortcode('ptgates_quiz', array($this, 'render_quiz_shortcode'));
+        add_shortcode('ptg_exam_quiz', array($this, 'render_quiz_shortcode'));
         
         // 스타일 및 스크립트 등록
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
@@ -93,39 +93,39 @@ class PTGates_Engine {
     public function enqueue_scripts() {
         // CSS
         wp_enqueue_style(
-            'ptgates-engine-style',
-            PTGATES_ENGINE_PLUGIN_URL . 'assets/css/style.css',
+            'ptgates-exam-questions-style',
+            PTGATES_EXAM_QUESTIONS_PLUGIN_URL . 'assets/css/style.css',
             array(),
-            PTGATES_ENGINE_VERSION
+            PTGATES_EXAM_QUESTIONS_VERSION
         );
         
         // JavaScript (모듈 방식)
         wp_enqueue_script(
-            'ptgates-engine-main',
-            PTGATES_ENGINE_PLUGIN_URL . 'assets/js/ptg-main.js',
+            'ptgates-exam-questions-main',
+            PTGATES_EXAM_QUESTIONS_PLUGIN_URL . 'assets/js/ptg-main.js',
             array(),
-            PTGATES_ENGINE_VERSION,
+            PTGATES_EXAM_QUESTIONS_VERSION,
             true
         );
         
         wp_enqueue_script(
-            'ptgates-engine-ui',
-            PTGATES_ENGINE_PLUGIN_URL . 'assets/js/ptg-ui.js',
+            'ptgates-exam-questions-ui',
+            PTGATES_EXAM_QUESTIONS_PLUGIN_URL . 'assets/js/ptg-ui.js',
             array(),
-            PTGATES_ENGINE_VERSION,
+            PTGATES_EXAM_QUESTIONS_VERSION,
             true
         );
         
         wp_enqueue_script(
-            'ptgates-engine-timer',
-            PTGATES_ENGINE_PLUGIN_URL . 'assets/js/ptg-timer.js',
+            'ptgates-exam-questions-timer',
+            PTGATES_EXAM_QUESTIONS_PLUGIN_URL . 'assets/js/ptg-timer.js',
             array(),
-            PTGATES_ENGINE_VERSION,
+            PTGATES_EXAM_QUESTIONS_VERSION,
             true
         );
         
         // REST API 엔드포인트 정보를 JS에 전달
-        wp_localize_script('ptgates-engine-main', 'ptgatesAPI', array(
+        wp_localize_script('ptgates-exam-questions-main', 'ptgatesAPI', array(
             'restUrl' => rest_url('ptgates/v1/'),
             'nonce' => wp_create_nonce('wp_rest'),
             'userId' => get_current_user_id()
@@ -144,10 +144,11 @@ class PTGates_Engine {
         ), $atts, 'ptgates_quiz');
         
         ob_start();
-        include PTGATES_ENGINE_PLUGIN_DIR . 'templates/quiz-template.php';
+        include PTGATES_EXAM_QUESTIONS_PLUGIN_DIR . 'templates/quiz-template.php';
         return ob_get_clean();
     }
 }
 
 // 플러그인 초기화
-PTGates_Engine::get_instance();
+PTGates_Exam_Questions::get_instance();
+

@@ -19,6 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 정적 과목 정의 클래스가 아직 로드되지 않았다면 현재 디렉터리에서 로드
+// 주의: 최초 로드는 0000-ptgates-platform에서 수행되므로, 이 코드는 호환성을 위해 유지
 if (!class_exists('\PTG\Quiz\Subjects')) {
     $subjects_file = __DIR__ . '/class-subjects.php';
     if (file_exists($subjects_file) && is_readable($subjects_file)) {

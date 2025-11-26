@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: PTGates Quiz
+ * Plugin Name: 1200-ptgates-quiz (PTGates Quiz)
  * Description: PTGates 퀴즈 풀이 기능 플러그인.
  * Version: 1.0.18
  * Author: PTGates
@@ -62,9 +62,12 @@ final class PTG_Quiz_Plugin {
 		$rest_api_file     = plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
 		$subjects_api_file = plugin_dir_path( __FILE__ ) . 'includes/class-subjects.php';
 
-		// 교시/과목/세부과목 정적 정의 클래스 로드
-		if ( file_exists( $subjects_api_file ) && is_readable( $subjects_api_file ) ) {
-			require_once $subjects_api_file;
+		// 교시/과목/세부과목 정적 정의 클래스 로드 (플랫폼 코어에서 이미 로드되었으면 생략)
+		// 주의: 호환성을 위해 이 코드는 유지하지만, 최초 로드는 0000-ptgates-platform에서 수행됨
+		if ( ! class_exists( '\PTG\Quiz\Subjects' ) ) {
+			if ( file_exists( $subjects_api_file ) && is_readable( $subjects_api_file ) ) {
+				require_once $subjects_api_file;
+			}
 		}
 
 		if ( file_exists( $rest_api_file ) && is_readable( $rest_api_file ) ) {
@@ -104,19 +107,28 @@ final class PTG_Quiz_Plugin {
      */
     public function render_shortcode( $atts ) {
         
+        // URL 파라미터에서 값 읽기 (숏코드 속성보다 우선순위가 낮음)
+        $url_bookmarked = isset($_GET['bookmarked']) ? sanitize_text_field($_GET['bookmarked']) : null;
+        $url_needs_review = isset($_GET['needs_review']) ? sanitize_text_field($_GET['needs_review']) : null;
+        $url_year = isset($_GET['year']) ? absint($_GET['year']) : null;
+        $url_subject = isset($_GET['subject']) ? sanitize_text_field($_GET['subject']) : null;
+        $url_limit = isset($_GET['limit']) ? absint($_GET['limit']) : null;
+        $url_session = isset($_GET['session']) ? absint($_GET['session']) : null;
+        $url_full_session = isset($_GET['full_session']) ? sanitize_text_field($_GET['full_session']) : null;
+        
         $atts = shortcode_atts(
             [
                 'id'          => null,
                 'question_id' => null,
                 'timer'       => 90,
                 'unlimited'   => '0',
-                'year'        => null,
-                'subject'     => null,
-                'limit'       => null,
-                'session'     => null,
-                'full_session' => '0',
-                'bookmarked'  => null,
-                'needs_review' => null,
+                'year'        => $url_year,  // URL 파라미터 우선
+                'subject'     => $url_subject,  // URL 파라미터 우선
+                'limit'       => $url_limit,  // URL 파라미터 우선
+                'session'     => $url_session,  // URL 파라미터 우선
+                'full_session' => $url_full_session ?: '0',  // URL 파라미터 우선
+                'bookmarked'  => $url_bookmarked,  // URL 파라미터 우선
+                'needs_review' => $url_needs_review,  // URL 파라미터 우선
                 'ids'         => null,
             ],
             $atts,

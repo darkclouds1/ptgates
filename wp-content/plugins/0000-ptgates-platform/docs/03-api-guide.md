@@ -624,4 +624,3 @@ wp_cache_flush_group('ptg_quiz');
 **작성일**: 2024년  
 **버전**: 1.0  
 **작성자**: PTGates 개발팀
-

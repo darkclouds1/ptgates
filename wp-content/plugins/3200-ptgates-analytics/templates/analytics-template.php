@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 <style>
 .ptg-analytics-container {
-    max-width: 1000px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 0 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

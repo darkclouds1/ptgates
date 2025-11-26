@@ -14,18 +14,24 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Subjects 클래스가 없으면 로드 시도
+// Subjects 클래스가 없으면 로드 시도 (최초 로드는 0000-ptgates-platform에서 수행됨)
 if (!class_exists('\PTG\Quiz\Subjects')) {
-    // 여러 경로 시도
-    $possible_paths = array(
-        WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
-        plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
-    );
-    
-    foreach ($possible_paths as $subjects_file) {
-        if (file_exists($subjects_file) && is_readable($subjects_file)) {
-            require_once $subjects_file;
-            break;
+    // 플랫폼 코어를 먼저 시도
+    $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+    if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
+        require_once $platform_subjects_file;
+    }
+    // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+    if (!class_exists('\PTG\Quiz\Subjects')) {
+        $possible_paths = array(
+            WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
+            plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
+        );
+        foreach ($possible_paths as $subjects_file) {
+            if (file_exists($subjects_file) && is_readable($subjects_file)) {
+                require_once $subjects_file;
+                break;
+            }
         }
     }
 }
@@ -438,16 +444,24 @@ class API {
                  ORDER BY q.question_id DESC
                  LIMIT %d OFFSET %d";
             
-            // Subjects 클래스 로드 확인
+            // Subjects 클래스 로드 확인 (최초 로드는 0000-ptgates-platform에서 수행됨)
             if (!class_exists('\PTG\Quiz\Subjects')) {
-                $possible_paths = array(
-                    WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
-                    plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
-                );
-                foreach ($possible_paths as $subjects_file) {
-                    if (file_exists($subjects_file) && is_readable($subjects_file)) {
-                        require_once $subjects_file;
-                        break;
+                // 플랫폼 코어를 먼저 시도
+                $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+                if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
+                    require_once $platform_subjects_file;
+                }
+                // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+                if (!class_exists('\PTG\Quiz\Subjects')) {
+                    $possible_paths = array(
+                        WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
+                        plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
+                    );
+                    foreach ($possible_paths as $subjects_file) {
+                        if (file_exists($subjects_file) && is_readable($subjects_file)) {
+                            require_once $subjects_file;
+                            break;
+                        }
                     }
                 }
             }
@@ -925,23 +939,30 @@ class API {
                 return Rest::success($cached);
             }
             
-            // Subjects 클래스가 없으면 다시 로드 시도
+            // Subjects 클래스가 없으면 다시 로드 시도 (최초 로드는 0000-ptgates-platform에서 수행됨)
             if (!class_exists('\PTG\Quiz\Subjects')) {
-                $possible_paths = array(
-                    WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
-                    plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
-                );
-                
-                foreach ($possible_paths as $subjects_file) {
-                    if (file_exists($subjects_file) && is_readable($subjects_file)) {
-                        require_once $subjects_file;
-                        break;
+                // 플랫폼 코어를 먼저 시도
+                $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+                if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
+                    require_once $platform_subjects_file;
+                }
+                // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+                if (!class_exists('\PTG\Quiz\Subjects')) {
+                    $possible_paths = array(
+                        WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
+                        plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
+                    );
+                    foreach ($possible_paths as $subjects_file) {
+                        if (file_exists($subjects_file) && is_readable($subjects_file)) {
+                            require_once $subjects_file;
+                            break;
+                        }
                     }
                 }
             }
             
             if (!class_exists('\PTG\Quiz\Subjects')) {
-                return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요. 경로: ' . WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php', 500);
+                return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 0000-ptgates-platform 또는 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요.', 500);
             }
             
             // 교시별 과목 목록
@@ -1006,23 +1027,30 @@ class API {
                 return Rest::success($cached);
             }
             
-            // Subjects 클래스가 없으면 다시 로드 시도
+            // Subjects 클래스가 없으면 다시 로드 시도 (최초 로드는 0000-ptgates-platform에서 수행됨)
             if (!class_exists('\PTG\Quiz\Subjects')) {
-                $possible_paths = array(
-                    WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
-                    plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
-                );
-                
-                foreach ($possible_paths as $subjects_file) {
-                    if (file_exists($subjects_file) && is_readable($subjects_file)) {
-                        require_once $subjects_file;
-                        break;
+                // 플랫폼 코어를 먼저 시도
+                $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+                if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
+                    require_once $platform_subjects_file;
+                }
+                // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
+                if (!class_exists('\PTG\Quiz\Subjects')) {
+                    $possible_paths = array(
+                        WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
+                        plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
+                    );
+                    foreach ($possible_paths as $subjects_file) {
+                        if (file_exists($subjects_file) && is_readable($subjects_file)) {
+                            require_once $subjects_file;
+                            break;
+                        }
                     }
                 }
             }
             
             if (!class_exists('\PTG\Quiz\Subjects')) {
-                return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요.', 500);
+                return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 0000-ptgates-platform 또는 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요.', 500);
             }
             
             $sessions = \PTG\Quiz\Subjects::get_sessions();

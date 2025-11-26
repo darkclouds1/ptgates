@@ -1,0 +1,658 @@
+mysqldump -u root -p ptgates ptgates_billing_history ptgates_categories ptgates_exam_presets ptgates_exam_session_items ptgates_exam_sessions ptgates_flashcard_sets ptgates_flashcards ptgates_highlights ptgates_org_member_link ptgates_organization ptgates_questions ptgates_review_schedule ptgates_subject ptgates_today_queue ptgates_user_drawings ptgates_user_member ptgates_user_memos ptgates_user_notes ptgates_user_results ptgates_user_states --no-data > ptgates_schema_only.sql
+
+/*M!999999\- enable the sandbox mode */
+-- MariaDB dump 10.19  Distrib 10.11.11-MariaDB, for debian-linux-gnu (x86_64)
+--
+-- Host: localhost    Database: ptgates
+-- ------------------------------------------------------
+-- Server version       10.11.11-MariaDB-ubu2204
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `ptgates_billing_history`
+--
+
+DROP TABLE IF EXISTS `ptgates_billing_history`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_billing_history` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL COMMENT '결제 행위를 수행한 사용자 ID (개인 또는 기관 담당자)',
+  `order_id` varchar(100) NOT NULL COMMENT '결제 시스템(PG사)의 고유 주문 번호',
+  `pg_transaction_id` varchar(100) DEFAULT NULL COMMENT 'PG사에서 부여한 실제 거래 ID (영수증 ID)',
+  `transaction_type` varchar(50) NOT NULL COMMENT '트랜잭션 유형 (purchase, renewal, refund, cancellation 등)',
+  `product_name` varchar(255) NOT NULL COMMENT '결제한 상품/멤버십 이름',
+  `payment_method` varchar(50) NOT NULL COMMENT '결제 수단 (card, transfer, kakao/naverpay 등)',
+  `amount` decimal(10,2) NOT NULL COMMENT '결제 금액',
+  `currency` varchar(10) NOT NULL DEFAULT 'KRW',
+  `status` varchar(20) NOT NULL COMMENT '결제 처리 상태 (paid, failed, refunded, pending)',
+  `transaction_date` datetime NOT NULL COMMENT '결제 또는 트랜잭션 발생 시점',
+  `memo` text DEFAULT NULL COMMENT '관리자용 특이사항 메모',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `order_id_unique` (`order_id`),
+  KEY `user_id` (`user_id`),
+  KEY `transaction_date` (`transaction_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_categories`
+--
+
+DROP TABLE IF EXISTS `ptgates_categories`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_categories` (
+  `category_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `question_id` bigint(20) unsigned NOT NULL COMMENT 'ptgates_questions 테이블의 외래키',
+  `exam_year` int(4) unsigned NOT NULL COMMENT '시험 시행 연도 (예: 2024)',
+  `exam_session` int(2) unsigned DEFAULT NULL COMMENT '시험 회차 (예: 52)',
+  `exam_course` varchar(50) NOT NULL COMMENT '교시 구분 (예: 1교시, 2교시)',
+  `subject` varchar(100) NOT NULL COMMENT '과목명 (예: 해부학, 물리치료학)',
+  `source_company` varchar(100) DEFAULT NULL COMMENT '문제 출처 (요청하신 회사별 구분용)',
+  PRIMARY KEY (`category_id`),
+  KEY `idx_question_id` (`question_id`),
+  KEY `idx_exam_meta` (`exam_year`,`exam_session`,`exam_course`),
+  KEY `idx_subject` (`subject`),
+  KEY `idx_year_subject` (`exam_year`,`subject`),
+  KEY `idx_question_id_fast` (`question_id`),
+  KEY `idx_question_subject` (`question_id`,`subject`),
+  CONSTRAINT `ptgates_categories_ibfk_1` FOREIGN KEY (`question_id`) REFERENCES `ptgates_questions` (`question_id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3873 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='문제의 분류 정보(연도, 과목, 출처 등) 저장';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_exam_presets`
+--
+
+DROP TABLE IF EXISTS `ptgates_exam_presets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_exam_presets` (
+  `preset_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `title` varchar(100) NOT NULL,
+  `filters_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`filters_json`)),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`preset_id`),
+  KEY `idx_user_title` (`user_id`,`title`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_exam_session_items`
+--
+
+DROP TABLE IF EXISTS `ptgates_exam_session_items`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_exam_session_items` (
+  `item_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` bigint(20) unsigned NOT NULL,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `order_index` int(10) unsigned NOT NULL COMMENT '세션 내 문항 순서',
+  `user_answer` varchar(255) DEFAULT NULL,
+  `is_correct` tinyint(1) DEFAULT NULL,
+  `elapsed_time` int(10) unsigned DEFAULT NULL COMMENT '초 단위(문항별)',
+  `answered_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`item_id`),
+  UNIQUE KEY `uq_session_question` (`session_id`,`question_id`),
+  KEY `idx_session_order` (`session_id`,`order_index`),
+  KEY `idx_question` (`question_id`),
+  CONSTRAINT `fk_es_items_question` FOREIGN KEY (`question_id`) REFERENCES `ptgates_questions` (`question_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_es_items_session` FOREIGN KEY (`session_id`) REFERENCES `ptgates_exam_sessions` (`session_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='세션 내 문항 구성 및 사용자 응답';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_exam_sessions`
+--
+
+DROP TABLE IF EXISTS `ptgates_exam_sessions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_exam_sessions` (
+  `session_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL COMMENT 'WP 사용자 ID',
+  `exam_course` varchar(50) NOT NULL COMMENT '교시 구분 (예: 1교시, 2교시)',
+  `time_limit_minutes` int(10) unsigned DEFAULT NULL COMMENT '분 단위 제한 시간 (NULL = 무제한)',
+  `is_unlimited` tinyint(1) NOT NULL DEFAULT 0 COMMENT '무제한 모드(1=무제한, 0=타이머 사용)',
+  `status` enum('pending','active','submitted','expired') NOT NULL DEFAULT 'pending',
+  `started_at` datetime DEFAULT NULL,
+  `ends_at` datetime DEFAULT NULL,
+  `submitted_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`session_id`),
+  KEY `idx_user_status` (`user_id`,`status`),
+  KEY `idx_course_status` (`exam_course`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='교시별 전체풀기 세션(타이머/진행상태)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_flashcard_sets`
+--
+
+DROP TABLE IF EXISTS `ptgates_flashcard_sets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_flashcard_sets` (
+  `set_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) NOT NULL,
+  `set_name` varchar(255) NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`set_id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_flashcards`
+--
+
+DROP TABLE IF EXISTS `ptgates_flashcards`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_flashcards` (
+  `card_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `set_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `source_type` varchar(50) DEFAULT 'custom',
+  `source_id` bigint(20) DEFAULT NULL,
+  `front_custom` longtext DEFAULT NULL,
+  `back_custom` longtext DEFAULT NULL,
+  `next_due_date` date DEFAULT NULL,
+  `review_count` int(11) DEFAULT 0,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`card_id`),
+  KEY `set_id` (`set_id`),
+  KEY `user_id` (`user_id`),
+  KEY `next_due_date` (`next_due_date`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_highlights`
+--
+
+DROP TABLE IF EXISTS `ptgates_highlights`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_highlights` (
+  `highlight_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `theory_id` bigint(20) unsigned NOT NULL,
+  `range_json` text NOT NULL,
+  `color` varchar(16) DEFAULT '#FFF59D',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`highlight_id`),
+  KEY `idx_user_theory` (`user_id`,`theory_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_org_member_link`
+--
+
+DROP TABLE IF EXISTS `ptgates_org_member_link`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_org_member_link` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `org_id` bigint(20) unsigned NOT NULL,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `assignment_date` datetime NOT NULL DEFAULT current_timestamp() COMMENT '기관 멤버십에 할당된 시점',
+  `expiry_date` datetime DEFAULT NULL COMMENT 'B2B 혜택 만료일 (사용자별)',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '현재 B2B 혜택 적용 여부',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `org_user_unique` (`org_id`,`user_id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_organization`
+--
+
+DROP TABLE IF EXISTS `ptgates_organization`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_organization` (
+  `org_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `org_name` varchar(255) NOT NULL COMMENT '기관/학과 공식 명칭',
+  `contact_user_id` bigint(20) unsigned DEFAULT NULL COMMENT '기관 담당 관리자의 wp_users.ID',
+  `org_email` varchar(100) DEFAULT NULL,
+  `org_type` varchar(50) NOT NULL DEFAULT 'university' COMMENT '기관 유형 (university, school, company 등)',
+  `member_limit` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '허용된 최대 등록 학생/사용자 수',
+  `members_registered` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '현재 등록된 학생/사용자 수',
+  `billing_plan` varchar(50) NOT NULL COMMENT '기관에 적용된 B2B 멤버십 플랜',
+  `plan_expiry_date` datetime DEFAULT NULL COMMENT '기관 멤버십 만료일',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`org_id`),
+  UNIQUE KEY `org_name` (`org_name`),
+  KEY `contact_user_id` (`contact_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_questions`
+--
+
+DROP TABLE IF EXISTS `ptgates_questions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_questions` (
+  `question_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `content` longtext NOT NULL COMMENT '문제 본문 전체 (지문, 보기, 이미지 경로 등 포함)',
+  `answer` varchar(255) NOT NULL COMMENT '정답 (객관식 번호, 주관식 답)',
+  `explanation` longtext DEFAULT NULL COMMENT '문제 해설 내용',
+  `type` varchar(50) NOT NULL COMMENT '문제 유형 (예: 객관식, 주관식)',
+  `difficulty` int(1) unsigned DEFAULT 2 COMMENT '난이도 (1:하, 2:중, 3:상)',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '사용 여부 (1:활성, 0:비활성)',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `question_image` varchar(255) DEFAULT NULL COMMENT '문제 이미지 파일명 (예: 2921.jpg)',
+  PRIMARY KEY (`question_id`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_type` (`type`),
+  KEY `idx_difficulty` (`difficulty`),
+  KEY `idx_question_active` (`question_id`,`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=3874 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='물리치료사 국가고시 문제의 핵심 데이터 저장';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_review_schedule`
+--
+
+DROP TABLE IF EXISTS `ptgates_review_schedule`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_review_schedule` (
+  `schedule_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `origin_result_id` bigint(20) unsigned DEFAULT NULL COMMENT '처음 예약을 만든 시도의 result_id',
+  `due_date` date NOT NULL COMMENT '재노출 예정일(현지 기준은 앱 레이어에서 처리)',
+  `status` enum('pending','shown','done','skipped') NOT NULL DEFAULT 'pending',
+  `shown_at` datetime DEFAULT NULL COMMENT '오늘의 문제로 실제 노출된 시각',
+  `done_at` datetime DEFAULT NULL COMMENT '복습 완료 시각',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`schedule_id`),
+  KEY `idx_user_due` (`user_id`,`due_date`),
+  KEY `idx_user_status_due` (`user_id`,`status`,`due_date`),
+  KEY `idx_question` (`question_id`),
+  KEY `idx_origin_result` (`origin_result_id`),
+  CONSTRAINT `fk_rs_origin_result` FOREIGN KEY (`origin_result_id`) REFERENCES `ptgates_user_results` (`result_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_rs_question` FOREIGN KEY (`question_id`) REFERENCES `ptgates_questions` (`question_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='스페이싱 복습 스케줄(오늘의 문제 큐)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_subject`
+--
+
+DROP TABLE IF EXISTS `ptgates_subject`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_subject` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `course_no` tinyint(3) unsigned NOT NULL COMMENT '교시 (1,2)',
+  `category` varchar(100) NOT NULL COMMENT '상위 과목군',
+  `subcategory` varchar(100) DEFAULT NULL COMMENT '세부 과목(합계행은 NULL)',
+  `questions` int(10) unsigned NOT NULL COMMENT '문항 수',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_course_category_subcategory` (`course_no`,`category`,`subcategory`),
+  KEY `idx_course_category` (`course_no`,`category`)
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Temporary table structure for view `ptgates_today_queue`
+--
+
+DROP TABLE IF EXISTS `ptgates_today_queue`;
+/*!50001 DROP VIEW IF EXISTS `ptgates_today_queue`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
+/*!50001 CREATE VIEW `ptgates_today_queue` AS SELECT
+ 1 AS `schedule_id`,
+  1 AS `user_id`,
+  1 AS `question_id`,
+  1 AS `due_date`,
+  1 AS `status`,
+  1 AS `content`,
+  1 AS `answer`,
+  1 AS `explanation`,
+  1 AS `type`,
+  1 AS `difficulty` */;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Table structure for table `ptgates_user_drawings`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_drawings`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_drawings` (
+  `drawing_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `is_answered` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '답안 제출 여부 (0: 미제출, 1: 제출)',
+  `device_type` enum('pc','tablet','mobile') NOT NULL DEFAULT 'pc' COMMENT '기기 타입 (pc: 데스크톱/노트북, tablet: 태블릿, mobile: 스마트폰)',
+  `format` enum('json','svg') NOT NULL DEFAULT 'json',
+  `data` longtext NOT NULL,
+  `width` int(10) unsigned DEFAULT NULL,
+  `height` int(10) unsigned DEFAULT NULL,
+  `device` varchar(100) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`drawing_id`),
+  UNIQUE KEY `uq_user_question_answered_device` (`user_id`,`question_id`,`is_answered`,`device_type`),
+  KEY `idx_user_question` (`user_id`,`question_id`),
+  KEY `idx_question_id` (`question_id`),
+  KEY `idx_user_question_answered` (`user_id`,`question_id`,`is_answered`),
+  KEY `idx_user_question_device` (`user_id`,`question_id`,`device_type`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_user_member`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_member`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_member` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `membership_source` varchar(20) NOT NULL DEFAULT 'individual' COMMENT '멤버십 획득 경로 (individual, b2b)',
+  `org_id` bigint(20) unsigned DEFAULT NULL COMMENT '소속된 기관의 org_id (b2b 멤버십인 경우)',
+  `member_grade` varchar(50) NOT NULL DEFAULT 'basic' COMMENT '회원의 현재 멤버십 등급 (basic, premium, trial 등)',
+  `billing_status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '결제 상태 (active, expired, pending, cancelled)',
+  `billing_expiry_date` datetime DEFAULT NULL COMMENT '멤버십 만료일',
+  `total_payments_krw` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT '누적 결제 금액',
+  `exam_count_total` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '총 생성 가능한 모의고사 횟수',
+  `exam_count_used` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '사용한 모의고사 횟수',
+  `study_count_total` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '총 학습 가능한 횟수 또는 시간 (플랜에 따라 정의)',
+  `study_count_used` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '사용한 학습 횟수',
+  `last_login` datetime DEFAULT NULL COMMENT '마지막 플러그인 학습/접속 시간',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '계정 활성화 상태 (1=활성, 0=비활성/정지)',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`),
+  KEY `member_grade_status` (`member_grade`,`billing_status`),
+  KEY `org_id_idx` (`org_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_user_memos`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_memos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_memos` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) NOT NULL,
+  `question_id` bigint(20) NOT NULL,
+  `content` longtext NOT NULL,
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_question` (`user_id`,`question_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_user_notes`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_notes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_notes` (
+  `note_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL,
+  `ref_type` enum('question','theory','notebook') NOT NULL DEFAULT 'question',
+  `ref_id` bigint(20) unsigned NOT NULL COMMENT 'question_id 또는 이론ID 등',
+  `text` longtext NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`note_id`),
+  KEY `idx_user_ref` (`user_id`,`ref_type`,`ref_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_user_results`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_results`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_results` (
+  `result_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL COMMENT '워드프레스 사용자 ID (Ultimate Member 연동)',
+  `question_id` bigint(20) unsigned NOT NULL COMMENT '풀이한 문제 ID',
+  `user_answer` varchar(255) DEFAULT NULL COMMENT '사용자가 선택/입력한 답',
+  `is_correct` tinyint(1) NOT NULL COMMENT '정답 여부 (1:정답, 0:오답)',
+  `elapsed_time` int(10) unsigned DEFAULT NULL COMMENT '문제 풀이에 소요된 시간 (초)',
+  `attempted_at` datetime NOT NULL DEFAULT current_timestamp() COMMENT '풀이를 시도한 일시',
+  PRIMARY KEY (`result_id`),
+  KEY `idx_user_question` (`user_id`,`question_id`),
+  KEY `question_id` (`question_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_user_correct` (`user_id`,`is_correct`),
+  KEY `idx_attempted_at` (`attempted_at`),
+  CONSTRAINT `ptgates_user_results_ibfk_1` FOREIGN KEY (`question_id`) REFERENCES `ptgates_questions` (`question_id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=736 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자별 문제 풀이 기록 저장';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ptgates_user_states`
+--
+
+DROP TABLE IF EXISTS `ptgates_user_states`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `ptgates_user_states` (
+  `user_id` bigint(20) unsigned NOT NULL,
+  `question_id` bigint(20) unsigned NOT NULL,
+  `bookmarked` tinyint(1) NOT NULL DEFAULT 0,
+  `needs_review` tinyint(1) NOT NULL DEFAULT 0,
+  `study_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '과목/Study 해설 보기 횟수',
+  `quiz_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '학습/Quiz 진행 횟수',
+  `review_count` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '복습(Reviewer) 진행 횟수',
+  `last_result` enum('correct','wrong') DEFAULT NULL,
+  `last_answer` varchar(255) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `last_study_date` datetime DEFAULT NULL COMMENT '마지막 과목/Study 진행 일시',
+  `last_quiz_date` datetime DEFAULT NULL COMMENT '마지막 학습/Quiz 진행 일시',
+  `last_review_date` datetime DEFAULT NULL COMMENT '마지막 복습(Reviewer) 진행 일시',
+  PRIMARY KEY (`user_id`,`question_id`),
+  KEY `idx_flags` (`bookmarked`,`needs_review`),
+  KEY `idx_user_study_count_date` (`user_id`,`study_count`,`last_study_date`),
+  KEY `idx_user_quiz_count_date` (`user_id`,`quiz_count`,`last_quiz_date`),
+  KEY `idx_user_review_count_date` (`user_id`,`review_count`,`last_review_date`),
+  KEY `idx_user_flags` (`user_id`,`bookmarked`,`needs_review`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_insert_last_study_date`
+BEFORE INSERT ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.study_count > 0 THEN
+        SET NEW.updated_at = NOW();
+        SET NEW.last_study_date = NEW.updated_at;
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_insert_last_quiz_date`
+BEFORE INSERT ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.quiz_count > 0 THEN
+        SET NEW.updated_at = NOW();
+        SET NEW.last_quiz_date = NEW.updated_at;
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_insert_last_review_date`
+BEFORE INSERT ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.review_count > 0 THEN
+        SET NEW.updated_at = NOW();
+        SET NEW.last_review_date = NEW.updated_at;
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_update_last_study_date`
+BEFORE UPDATE ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.study_count != OLD.study_count THEN
+        SET NEW.last_study_date = NOW();
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_update_last_quiz_date`
+BEFORE UPDATE ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.quiz_count != OLD.quiz_count THEN
+        SET NEW.last_quiz_date = NOW();
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_unicode_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `ptgates_update_last_review_date`
+BEFORE UPDATE ON `ptgates_user_states`
+FOR EACH ROW
+BEGIN
+    IF NEW.review_count != OLD.review_count THEN
+        SET NEW.last_review_date = NOW();
+    END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+
+--
+-- Final view structure for view `ptgates_today_queue`
+--
+
+/*!50001 DROP VIEW IF EXISTS `ptgates_today_queue`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_unicode_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`ptgates`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `ptgates_today_queue` AS select `rs`.`schedule_id` AS `schedule_id`,`rs`.`user_id` AS `user_id`,`rs`.`question_id` AS `question_id`,`rs`.`due_date` AS `due_date`,`rs`.`status` AS `status`,`q`.`content` AS `content`,`q`.`answer` AS `answer`,`q`.`explanation` AS `explanation`,`q`.`type` AS `type`,`q`.`difficulty` AS `difficulty` from (`ptgates_review_schedule` `rs` join `ptgates_questions` `q` on(`q`.`question_id` = `rs`.`question_id`)) where `rs`.`status` = 'pending' and `rs`.`due_date` = curdate() */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2025-11-25 12:37:14
