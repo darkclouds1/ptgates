@@ -78,6 +78,17 @@ class LegacyRepo {
             $where[] = "c.exam_session >= %d";
             $where_values[] = absint($args['exam_session_min']);
         }
+
+        // exclude_ids 필터 (이미 조회된 문제 제외)
+        if (!empty($args['exclude_ids']) && is_array($args['exclude_ids'])) {
+            $exclude_ids = array_map('absint', $args['exclude_ids']);
+            $exclude_ids = array_filter($exclude_ids); // 0 제거
+            if (!empty($exclude_ids)) {
+                $placeholders = implode(',', array_fill(0, count($exclude_ids), '%d'));
+                $where[] = "q.question_id NOT IN ($placeholders)";
+                $where_values = array_merge($where_values, $exclude_ids);
+            }
+        }
         
         $where_clause = implode(' AND ', $where);
         

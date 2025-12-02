@@ -303,6 +303,14 @@ class Study_API {
 			$offset = 0;
 		}
 
+        // 이미 조회된 문제 ID 목록 (콤마 구분 문자열)
+        $exclude_ids_param = $request->get_param('exclude_ids');
+        $exclude_ids = [];
+        if (!empty($exclude_ids_param)) {
+            $exclude_ids = array_map('absint', explode(',', $exclude_ids_param));
+            $exclude_ids = array_filter($exclude_ids);
+        }
+
 		// 랜덤 섞기 플래그
 		$random = (bool) $request->get_param('random');
 
@@ -470,11 +478,12 @@ class Study_API {
 		$args = [
 			'subject'          => $subject,
 			'limit'            => ($random && !$is_smart_random) ? 1000 : $repo_limit, 
-			'offset'           => $random ? 0 : $offset,
+			'offset'           => (!empty($exclude_ids)) ? 0 : ($random ? 0 : $offset), // exclude_ids가 있으면 offset 0
 			'exam_session_min' => 1000,
             'random'           => $random,
             'smart_random_user_id' => $is_smart_random ? $user_id : null,
             'smart_random_exclude_correct' => $is_smart_random, 
+            'exclude_ids'      => $exclude_ids,
 		];
 
 		$questions = LegacyRepo::get_questions_with_categories($args);

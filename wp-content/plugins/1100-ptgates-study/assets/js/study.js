@@ -47,6 +47,9 @@
         return text;
     }
 
+    // 전역 XHR 변수 (중복 요청 방지)
+    let currentXhr = null;
+
     /**
      * 초기화 함수
      */
@@ -482,6 +485,16 @@
         params.set('limit', pageSize);
         if (offset > 0) {
             params.set('offset', offset);
+            
+            // 현재 화면에 표시된 모든 레슨 ID 수집 (중복 방지)
+            const currentIds = [];
+            studyContainer.find('.ptg-lesson-item').each(function() {
+                const id = $(this).data('lesson-id');
+                if (id) currentIds.push(id);
+            });
+            if (currentIds.length > 0) {
+                params.set('exclude_ids', currentIds.join(','));
+            }
         }
         if (random) {
             params.set('random', '1');
@@ -489,17 +502,27 @@
         const url = rest.baseUrl + 'courses/' + subjectId + '?' + params.toString();
         if (PTG_STUDY_DEBUG) console.log('PTG Study: fetching lessons', { url, subjectId, subjectLabel, categoryLabel, rest, offset, random });
         
+        if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
+            return;
+        }
+        if (offset === 0 && currentXhr) {
+            currentXhr.abort();
+        }
+
         if (offset > 0) {
             $('#ptg-infinite-loader').show();
         }
 
-        $.ajax({
+        currentXhr = $.ajax({
 			url: url,
             method: 'GET',
             beforeSend: function(xhr) {
                 if (rest.nonce) {
 					xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
 				}
+            },
+            complete: function() {
+                currentXhr = null;
             }
         }).done(function(courseDetail) {
             if (PTG_STUDY_DEBUG) console.log('PTG Study: lessons fetch success, courseDetail:', courseDetail);
@@ -532,6 +555,8 @@
             });
         }).fail(function(jqXHR, textStatus, errorThrown) {
             $('#ptg-infinite-loader').hide();
+            if (textStatus === 'abort') return;
+
             console.error('PTG Study: lessons fetch failed', { status: jqXHR && jqXHR.status, textStatus, errorThrown });
             if (offset === 0) {
                 alert(`${displayName} 과목의 학습 내용이 없습니다.`);
@@ -564,22 +589,46 @@
         const rest = getRestConfig();
         const pageSize = 5; // Batch size changed to 5
         
+        if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
+            return;
+        }
+        if (offset === 0 && currentXhr) {
+            currentXhr.abort();
+        }
+        
         if (offset > 0) {
             $('#ptg-infinite-loader').show();
         }
 
-        $.ajax({
+        // 현재 화면에 표시된 모든 레슨 ID 수집
+        let excludeIds = '';
+        if (offset > 0) {
+            const currentIds = [];
+            studyContainer.find('.ptg-lesson-item').each(function() {
+                const id = $(this).data('lesson-id');
+                if (id) currentIds.push(id);
+            });
+            if (currentIds.length > 0) {
+                excludeIds = currentIds.join(',');
+            }
+        }
+
+        currentXhr = $.ajax({
             url: rest.baseUrl + 'courses/' + category.id,
             method: 'GET',
             data: {
 				subjects: subjectNames,
                 limit: pageSize,
-                offset: offset
+                offset: offset,
+                exclude_ids: excludeIds
             },
             beforeSend: function(xhr) {
                 if (rest.nonce) {
 					xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
 				}
+            },
+            complete: function() {
+                currentXhr = null;
             }
         }).done(function(courseDetail) {
             $('#ptg-infinite-loader').hide();
