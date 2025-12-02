@@ -1,0 +1,94 @@
+/* Header Styles matching 2200-ptgates-flashcards */
+.ptg-reviewer-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    margin-top: 5px !important;
+    margin-bottom: 18px !important;
+    padding: 12px 14px !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06) !important;
+}
+
+.ptg-reviewer-header h1 {
+    margin: 0 !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    letter-spacing: -0.01em !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.ptg-reviewer-header-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex-shrink: 0 !important;
+}
+
+.ptg-reviewer-dashboard-link {
+    display: inline-block !important;
+    background: #edf2f7 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #4a5568 !important;
+    text-decoration: none !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+    white-space: nowrap !important;
+}
+
+.ptg-reviewer-dashboard-link:hover {
+    background: #f1f5f9 !important;
+    color: #2d3748 !important;
+    text-decoration: underline !important;
+}
+
+.ptg-review-list {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 20px;
+}
+
+.ptg-review-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ptg-review-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.ptg-review-item:last-child {
+    border-bottom: none;
+}
+
+.ptg-review-title {
+    font-size: 14px;
+    color: #333;
+}
+
+.ptg-btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 4px;
+    background: #4a90e2;
+    color: white;
+    text-decoration: none;
+}
+
+.ptg-btn-sm:hover {
+    background: #357abd;
+}

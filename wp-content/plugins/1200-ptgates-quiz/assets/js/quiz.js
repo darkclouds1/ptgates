@@ -398,6 +398,119 @@ function PTG_quiz_alert(message) {
     };
 
     /**
+     * 사용량 제한 확인 (Usage Limit Check)
+     * @param {string} type 'mock' (모의고사) or 'general' (일반 퀴즈)
+     * @param {number} amount 추가할 문제 수 (일반 퀴즈용)
+     * @returns {boolean} true if allowed, false if blocked
+     */
+    function checkUsageLimit(type, amount = 0) {
+        // 설정이 없으면 통과 (안전장치)
+        if (typeof window.ptgQuiz === 'undefined') return true;
+
+        const config = window.ptgQuiz;
+        const memberGrade = config.memberGrade || 'guest'; // guest, basic, trial, premium
+        const limits = config.limits || { mock: 1, quiz: 20, trial: 30 };
+        const membershipUrl = config.membershipUrl || '/membership';
+
+        // 프리미엄 회원은 무제한
+        if (memberGrade === 'premium' || memberGrade === 'pt_admin') {
+            return true;
+        }
+
+        let storageKey = '';
+        let limit = 0;
+        let currentCount = 0;
+        let message = '';
+
+        // 날짜 기반 키 생성 (Asia/Seoul 기준 자정 리셋을 위해 날짜 포함)
+        // 클라이언트 시간 기준이지만, 대부분의 사용자가 한국에 있다고 가정
+        // 더 정확한 제어를 위해 서버 시간을 쓰거나, 날짜 문자열을 키에 포함
+        const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '');
+        
+        if (type === 'mock') {
+            storageKey = `ptg_mock_exam_count_${today}`;
+            limit = limits.mock; // 1회
+            currentCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
+
+            if (currentCount >= limit) {
+                if (memberGrade === 'trial') {
+                    message = `Trial 체험 회원님은 오늘의 모의고사 무료 이용 ${limit}회를 모두 사용하셨습니다.\n프리미엄으로 업그레이드하면 무제한으로 이용할 수 있습니다.`;
+                } else {
+                    message = `오늘의 모의고사 무료 이용 ${limit}회를 모두 사용하셨습니다.\n프리미엄 회원은 무제한으로 전체 모의고사를 이용할 수 있습니다.`;
+                }
+            }
+        } else {
+            // General Quiz
+            storageKey = `ptg_quiz_question_count_${today}`;
+            limit = (memberGrade === 'trial') ? limits.trial : limits.quiz;
+            currentCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
+
+            if (currentCount + amount > limit) {
+                const remaining = Math.max(0, limit - currentCount);
+                if (memberGrade === 'guest') {
+                    message = `하루 무료 체험 ${limit}문제를 모두 사용하셨습니다.\n로그인하면 하루 ${limits.quiz}문제를 계속 학습하실 수 있습니다.`;
+                    // 비로그인인데 로그인하면 더 준다는 멘트가 맞는지 확인 필요.
+                    // 기획상 비로그인도 20, Basic도 20이면 "로그인하면..." 멘트는 좀 애매할 수 있음.
+                    // 하지만 기획서 멘트: "로그인하면 하루 20문제를 계속 학습하실 수 있습니다." (비로그인 20 -> 로그인 20 리셋? 아니면 공유? 일단 별도 키 사용하므로 리셋 효과 있음)
+                    if (currentCount >= limit) {
+                         // 이미 다 씀
+                    } else {
+                        // 이번에 초과
+                        message = `이번 퀴즈(${amount}문제)를 시작하면 하루 제한(${limit}문제)을 초과합니다.\n남은 횟수: ${remaining}문제`;
+                        // return false; // 제거: 아래 공통 로직에서 alert 후 redirect 처리
+                    }
+                } else if (memberGrade === 'trial') {
+                    message = `Trial 체험 회원님은 오늘의 체험 학습(${limit}문제)을 모두 사용하셨습니다.\n프리미엄으로 업그레이드하면 전 과목·전 문항을 무제한으로 학습할 수 있습니다.`;
+                } else {
+                    // Basic
+                    message = `무료 회원은 하루 ${limit}문제까지만 정답을 확인할 수 있습니다.\n프리미엄 멤버십으로 업그레이드하고 무제한으로 이용하세요!`;
+                }
+            }
+        }
+
+        if (message) {
+            if (confirm(message)) {
+                if (memberGrade === 'guest' && type !== 'mock') {
+                     // 비로그인 일반 퀴즈 초과 시 로그인 페이지로? 기획서엔 [로그인] 버튼 언급.
+                     // config.loginUrl이 없으므로 membershipUrl 대신 로그인 URL이 필요할 수도 있음.
+                     // 하지만 ptgates-quiz.php에는 loginUrl을 안 넘겨줬음.
+                     // 일단 membershipUrl로 통일하거나, 필요시 수정.
+                     // 기획서: "모두 확인 시 /membership 페이지로 이동." (공통)
+                     window.location.href = membershipUrl;
+                } else {
+                    window.location.href = membershipUrl;
+                }
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * 사용량 증가 (퀴즈 시작 시 호출)
+     */
+    function incrementUsage(type, amount = 1) {
+        if (typeof window.ptgQuiz === 'undefined') return;
+        const config = window.ptgQuiz;
+        const memberGrade = config.memberGrade || 'guest';
+        
+        if (memberGrade === 'premium' || memberGrade === 'pt_admin') return;
+
+        const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '');
+        let storageKey = '';
+
+        if (type === 'mock') {
+            storageKey = `ptg_mock_exam_count_${today}`;
+        } else {
+            storageKey = `ptg_quiz_question_count_${today}`;
+        }
+
+        let currentCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
+        localStorage.setItem(storageKey, (currentCount + amount).toString());
+    }
+
+    /**
      * 상태 전환 및 UI 반영
      */
     function setState(nextState) {
@@ -443,7 +556,8 @@ function PTG_quiz_alert(message) {
                 if (QuizState.persistentFilters) {
                     updateActiveFilters(
                         QuizState.persistentFilters.bookmarked,
-                        QuizState.persistentFilters.needsReview
+                        QuizState.persistentFilters.needsReview,
+                        QuizState.persistentFilters.wrongOnly
                     );
                 }
                 break;
@@ -558,6 +672,7 @@ function PTG_quiz_alert(message) {
         const fullSessionFromUrl = urlParams.get('full_session') === '1' || urlParams.get('full_session') === 'true';
         const bookmarkedFromUrl = urlParams.get('bookmarked') === '1' || urlParams.get('bookmarked') === 'true';
         const needsReviewFromUrl = urlParams.get('needs_review') === '1' || urlParams.get('needs_review') === 'true';
+        const wrongOnlyFromUrl = urlParams.get('wrong_only') === '1' || urlParams.get('wrong_only') === 'true';
 
         // data 속성에서 필터 읽기
         const yearFromData = container.dataset.year ? parseInt(container.dataset.year) : null;
@@ -576,12 +691,15 @@ function PTG_quiz_alert(message) {
         const fullSession = fullSessionFromUrl || fullSessionFromData;
         const bookmarked = bookmarkedFromUrl || bookmarkedFromData;
         const needsReview = needsReviewFromUrl || needsReviewFromData;
+        const wrongOnly = wrongOnlyFromUrl; // data 속성은 없음
 
         const questionId = parseInt(container.dataset.questionId) || 0;
 
         // 1200-ptgates-quiz는 기본적으로 기출문제 제외하고 5문제 연속 퀴즈
         // question_id가 없고 필터도 없으면 기본값으로 5문제 시작
-        const hasFilters = year || subject || limit || session || bookmarked || needsReview;
+        // 1200-ptgates-quiz는 기본적으로 기출문제 제외하고 5문제 연속 퀴즈
+        // question_id가 없고 필터도 없으면 기본값으로 5문제 시작
+        const hasFilters = year || subject || limit || session || bookmarked || needsReview || wrongOnly;
         const useDefaultFilters = !questionId && !hasFilters;
 
 
@@ -628,19 +746,20 @@ function PTG_quiz_alert(message) {
         setupFilterUI();
 
         // 활성 필터 표시 업데이트
-        updateActiveFilters(bookmarked, needsReview);
+        updateActiveFilters(bookmarked, needsReview, wrongOnly);
 
         // 영구 필터 상태 저장 (조회 버튼에서 사용)
         QuizState.persistentFilters = {
             bookmarked: bookmarked || false,
-            needsReview: needsReview || false
+            needsReview: needsReview || false,
+            wrongOnly: wrongOnly || false
         };
 
         // 초기 상태 적용
         setState('idle');
 
         // 북마크/복습만 있고 다른 필터가 없으면 필터 섹션 표시
-        const hasOnlyPersistentFilter = (bookmarked || needsReview) && !year && !subject && !limit && !session;
+        const hasOnlyPersistentFilter = (bookmarked || needsReview || wrongOnly) && !year && !subject && !limit && !session;
         
         // 필터 조건이 있으면 필터 UI 숨기고 바로 시작 (단, 영구 필터만 있는 경우는 제외)
         if ((hasFilters || questionId) && !hasOnlyPersistentFilter) {
@@ -678,6 +797,34 @@ function PTG_quiz_alert(message) {
                     if (needsReview) {
                         filters.needs_review = true;
                     }
+                    if (wrongOnly) {
+                        filters.wrong_only = true;
+                    }
+
+                    if (bookmarked) {
+                        filters.bookmarked = true;
+                    }
+                    if (needs_review) {
+                        filters.needs_review = true;
+                    }
+
+                    // --- Usage Limit Check ---
+                    // 모의고사 (session 필터 존재)
+                    if (session) {
+                        if (!checkUsageLimit('mock')) {
+                            return; // 차단
+                        }
+                    }
+                    // 일반 퀴즈 (session 없음)
+                    // 문제 수를 미리 알 수 없으므로, limit 파라미터로 체크
+                    else {
+                        // limit이 없으면 기본값 5
+                        const estimatedCount = limit || 5;
+                        if (!checkUsageLimit('general', estimatedCount)) {
+                            return; // 차단
+                        }
+                    }
+                    // -------------------------
 
                     const questionIds = await loadQuestionsList(filters);
 
@@ -690,6 +837,15 @@ function PTG_quiz_alert(message) {
                         showError('선택한 조건에 맞는 문제를 찾을 수 없습니다.');
                         return;
                     }
+
+                    // --- Increment Usage ---
+                    // 실제 로드된 문제 수로 증가 (일반 퀴즈의 경우)
+                    if (session) {
+                        incrementUsage('mock');
+                    } else {
+                        incrementUsage('general', questionIds.length);
+                    }
+                    // -----------------------
 
                     // 문제 목록 저장
                     QuizState.questions = questionIds;
@@ -761,6 +917,13 @@ function PTG_quiz_alert(message) {
             // useDefaultFilters가 false인 경우에도 기본값으로 처리
             (async () => {
                 try {
+                    // --- Usage Limit Check (Default) ---
+                    // 기본 5문제
+                    if (!checkUsageLimit('general', 5)) {
+                        return;
+                    }
+                    // -----------------------------------
+
                     const questionIds = await loadQuestionsList({ limit: 5 });
 
                     if (questionIds === null) {
@@ -772,6 +935,10 @@ function PTG_quiz_alert(message) {
                         showError('문제를 찾을 수 없습니다.');
                         return;
                     }
+
+                    // --- Increment Usage ---
+                    incrementUsage('general', questionIds.length);
+                    // -----------------------
 
                     QuizState.questions = questionIds;
                     QuizState.currentIndex = 0;
@@ -868,6 +1035,8 @@ function PTG_quiz_alert(message) {
         if (startBtn) {
             startBtn.addEventListener('click', startQuizFromFilter);
         }
+
+
     }
 
     /**
@@ -929,13 +1098,23 @@ function PTG_quiz_alert(message) {
                 subjects = (response && response.success && Array.isArray(response.data)) ? response.data : [];
             }
 
-            // Fallback (클라이언트 매핑)
-            if ((!subjects || subjects.length === 0) && session) {
-                const fallback = {
-                    '1': ['물리치료 기초', '물리치료 진단평가'],
-                    '2': ['물리치료 중재', '의료관계법규']
-                };
-                subjects = fallback[String(session)] || [];
+            // Fallback (클라이언트 매핑 - 공통 MAP 주입)
+            if (!subjects || subjects.length === 0) {
+                const mapping = (typeof ptgQuiz !== 'undefined' && ptgQuiz.subjectMap) ? ptgQuiz.subjectMap : {};
+                
+                if (session) {
+                    // Specific Session
+                    if (mapping[session] && mapping[session].subjects) {
+                        subjects = Object.keys(mapping[session].subjects);
+                    }
+                } else {
+                    // All Sessions
+                    Object.keys(mapping).forEach(sKey => {
+                        if (mapping[sKey] && mapping[sKey].subjects) {
+                            subjects = subjects.concat(Object.keys(mapping[sKey].subjects));
+                        }
+                    });
+                }
             }
 
             // 과목 목록 추가 (있을 때만)
@@ -955,30 +1134,40 @@ function PTG_quiz_alert(message) {
         } catch (error) {
             console.error('[PTG Quiz] 과목 목록 로드 오류:', error);
             // Fallback (오류 시에도 기본 과목 채우기)
-            if (session) {
-                try {
-                    const fallback = {
-                        '1': ['물리치료 기초', '물리치료 진단평가'],
-                        '2': ['물리치료 중재', '의료관계법규']
-                    };
-                    const subjects = fallback[String(session)] || [];
-                    if (subjects.length) {
-                        subjects.forEach(subject => {
-                            const option = document.createElement('option');
-                            option.value = subject;
-                            option.textContent = subject;
-                            subjectSelect.appendChild(option);
-                        });
-                        // 자동 선택 및 세부과목 로드 트리거
-                        if (!subjectSelect.value) {
-                            subjectSelect.value = String(subjects[0]);
-                            try {
-                                subjectSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                            } catch (_) { }
-                        }
+            // Fallback (오류 시에도 기본 과목 채우기)
+            try {
+                const mapping = (typeof ptgQuiz !== 'undefined' && ptgQuiz.subjectMap) ? ptgQuiz.subjectMap : {};
+                let subjects = [];
+                
+                if (session) {
+                    if (mapping[session] && mapping[session].subjects) {
+                        subjects = Object.keys(mapping[session].subjects);
                     }
-                } catch (_) { }
-            }
+                } else {
+                    Object.keys(mapping).forEach(sKey => {
+                        if (mapping[sKey] && mapping[sKey].subjects) {
+                            subjects = subjects.concat(Object.keys(mapping[sKey].subjects));
+                        }
+                    });
+                }
+
+                if (subjects.length) {
+                    subjects = [...new Set(subjects)];
+                    subjects.forEach(subject => {
+                        const option = document.createElement('option');
+                        option.value = subject;
+                        option.textContent = subject;
+                        subjectSelect.appendChild(option);
+                    });
+                    // 자동 선택 및 세부과목 로드 트리거
+                    if (!subjectSelect.value && session) {
+                        subjectSelect.value = String(subjects[0]);
+                        try {
+                            subjectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        } catch (_) { }
+                    }
+                }
+            } catch (_) { }
         }
 
         const sessionValue = (document.getElementById('ptg-quiz-filter-session') || {}).value || session || '';
@@ -1005,57 +1194,53 @@ function PTG_quiz_alert(message) {
                 list = (response && response.success && Array.isArray(response.data)) ? response.data : [];
             }
 
-            // Fallback (클라이언트 매핑)
-            const mapping = {
-                '1': {
-                    '물리치료 기초': ['해부생리학', '운동학', '물리적 인자치료', '공중보건학'],
-                    '물리치료 진단평가': ['근골격계 물리치료 진단평가', '신경계 물리치료 진단평가', '진단평가 원리', '심폐혈관계 검사 및 평가', '기타 계통 검사', '임상의사결정']
-                },
-                '2': {
-                    '물리치료 중재': ['근골격계 중재', '신경계 중재', '심폐혈관계 중재', '림프, 피부계 중재', '물리치료 문제해결'],
-                    '의료관계법규': ['의료법', '의료기사법', '노인복지법', '장애인복지법', '국민건강보험법']
-                }
-            };
+            // Fallback (클라이언트 매핑 - 공통 MAP 주입)
+            const mapping = (typeof ptgQuiz !== 'undefined' && ptgQuiz.subjectMap) ? ptgQuiz.subjectMap : {};
 
             // 서버에서 못 받았거나, 집계 모드일 때는 정적 매핑으로 계산
             if (!list || list.length === 0) {
                 const sessKey = session ? String(session) : null;
+                let all = [];
+
+                // Helper to extract sub-subjects from the new map structure
+                const getSubs = (sKey, subjKey) => {
+                    if (mapping[sKey] && 
+                        mapping[sKey].subjects && 
+                        mapping[sKey].subjects[subjKey] && 
+                        mapping[sKey].subjects[subjKey].subs) {
+                        return Object.keys(mapping[sKey].subjects[subjKey].subs);
+                    }
+                    return [];
+                };
 
                 if (subject) {
                     // 특정 과목의 세부과목
                     if (sessKey) {
-                        list = ((mapping[sessKey] || {})[subject]) || [];
+                        all = getSubs(sessKey, subject);
                     } else {
                         // 교시가 전체인 경우 → 모든 교시에서 해당 과목의 세부과목을 합쳐서 표시
-                        let all = [];
                         Object.keys(mapping).forEach(sk => {
-                            const subMap = mapping[sk] || {};
-                            if (subMap[subject]) {
-                                all = all.concat(subMap[subject]);
-                            }
+                            all = all.concat(getSubs(sk, subject));
                         });
-                        list = Array.from(new Set(all));
                     }
                 } else if (sessKey) {
                     // 특정 교시 전체 세부과목
-                    const subMap = mapping[sessKey] || {};
-                    let all = [];
-                    Object.keys(subMap).forEach(subj => {
-                        all = all.concat(subMap[subj]);
-                    });
-                    // 중복 제거
-                    list = Array.from(new Set(all));
+                    if (mapping[sessKey] && mapping[sessKey].subjects) {
+                        Object.keys(mapping[sessKey].subjects).forEach(subj => {
+                            all = all.concat(getSubs(sessKey, subj));
+                        });
+                    }
                 } else {
                     // 교시도 선택 안 한 경우: 전체 교시의 전체 세부과목
-                    let all = [];
                     Object.keys(mapping).forEach(sk => {
-                        const subMap = mapping[sk];
-                        Object.keys(subMap).forEach(subj => {
-                            all = all.concat(subMap[subj]);
-                        });
+                        if (mapping[sk] && mapping[sk].subjects) {
+                            Object.keys(mapping[sk].subjects).forEach(subj => {
+                                all = all.concat(getSubs(sk, subj));
+                            });
+                        }
                     });
-                    list = Array.from(new Set(all));
                 }
+                list = Array.from(new Set(all));
             }
 
             if (list && list.length) {
@@ -1205,6 +1390,10 @@ function PTG_quiz_alert(message) {
             needsReview = needsReviewFromUrl || needsReviewFromData;
         }
 
+        // 틀린 문제만 필터 (URL 파라미터 체크)
+        const urlParams = new URLSearchParams(window.location.search);
+        const wrongOnly = urlParams.get('wrong_only') === '1' || urlParams.get('wrong_only') === 'true';
+
         const session = sessionSelect.value ? parseInt(sessionSelect.value) : null;
         const subject = subjectSelect.value || null;
         const subsubject = subSubjectSelect ? (subSubjectSelect.value || null) : null;
@@ -1241,6 +1430,9 @@ function PTG_quiz_alert(message) {
             }
             if (needsReview) {
                 filters.needs_review = true;
+            }
+            if (wrongOnly) {
+                filters.wrong_only = true;
             }
 
             if (startBtn) {
@@ -1283,7 +1475,8 @@ function PTG_quiz_alert(message) {
             if (QuizState.persistentFilters) {
                 updateActiveFilters(
                     QuizState.persistentFilters.bookmarked,
-                    QuizState.persistentFilters.needsReview
+                    QuizState.persistentFilters.needsReview,
+                    wrongOnly // 틀린 문제만 필터 추가
                 );
             }
 
@@ -1326,7 +1519,7 @@ function PTG_quiz_alert(message) {
     /**
      * 활성 필터 표시 업데이트
      */
-    function updateActiveFilters(bookmarked, needsReview) {
+    function updateActiveFilters(bookmarked, needsReview, wrongOnly) {
         const filtersContainer = document.getElementById('ptg-quiz-active-filters');
         if (!filtersContainer) return;
 
@@ -1345,6 +1538,13 @@ function PTG_quiz_alert(message) {
                 type: 'needs_review',
                 label: '복습 문제만',
                 icon: '🔁'
+            });
+        }
+        if (wrongOnly) {
+            filters.push({
+                type: 'wrong_only',
+                label: '틀린 문제만',
+                icon: '❌' // 또는 다른 아이콘
             });
         }
 
@@ -1385,6 +1585,8 @@ function PTG_quiz_alert(message) {
             urlParams.delete('bookmarked');
         } else if (filterType === 'needs_review') {
             urlParams.delete('needs_review');
+        } else if (filterType === 'wrong_only') {
+            urlParams.delete('wrong_only');
         }
 
         // 새로운 URL 생성
@@ -2896,6 +3098,7 @@ function PTG_quiz_alert(message) {
             if (filters.full_session) params.append('full_session', 'true');
             if (filters.bookmarked) params.append('bookmarked', 'true');
             if (filters.needs_review) params.append('needs_review', 'true');
+            if (filters.wrong_only) params.append('wrong_only', 'true');
 
             const endpoint = `ptg-quiz/v1/questions?${params.toString()}`;
             const response = await PTGPlatform.get(endpoint);

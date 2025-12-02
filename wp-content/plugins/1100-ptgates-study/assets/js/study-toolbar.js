@@ -26,7 +26,7 @@
                 return; 
             }
 
-            console.log('[PTG Study Toolbar] Initializing ' + $newItems.length + ' items.');
+
 
             $newItems.each(function() {
                 var $item = $(this);
@@ -112,7 +112,7 @@
                     'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                 },
                 success: function(status) {
-                    console.log('Status response for ' + questionId + ':', status);
+
 
                     var $item = $('.ptg-lesson-item[data-lesson-id="' + questionId + '"], .ptg-lesson-item[data-question-id="' + questionId + '"]');
                     var $toolbar = $item.find('.ptg-question-toolbar');
@@ -126,7 +126,7 @@
                     var isMemo = !!data.memo;
                     var isFlashcard = !!data.flashcard;
 
-                    console.log('Parsed status for ' + questionId + ':', { isBookmarked, isReview, isMemo, isFlashcard });
+
 
                     if (isBookmarked) {
                         $toolbar.find('.ptg-btn-bookmark').addClass('is-active');
@@ -205,7 +205,7 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                console.log('Bookmark clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
 
                 if (!window.PTGStudyToolbar.isUserLoggedIn()) {
                     window.PTGStudyToolbar.showLoginRequiredModal();
@@ -227,7 +227,7 @@
                         'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                     },
                     success: function (response) {
-                        console.log('Bookmark saved');
+
                     },
                     error: function (xhr) {
                         console.error('Bookmark failed');
@@ -242,7 +242,7 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                console.log('Review clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
 
                 if (!window.PTGStudyToolbar.isUserLoggedIn()) {
                     window.PTGStudyToolbar.showLoginRequiredModal();
@@ -264,7 +264,7 @@
                         'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                     },
                     success: function (response) {
-                        console.log('Review mark saved');
+
                     },
                     error: function (xhr) {
                         console.error('Review mark failed');
@@ -279,7 +279,7 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                console.log('Memo clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
 
                 if (!window.PTGStudyToolbar.isUserLoggedIn()) {
                     window.PTGStudyToolbar.showLoginRequiredModal();
@@ -326,7 +326,7 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                console.log('Flashcard clicked. Logged in:', window.PTGStudyToolbar.isUserLoggedIn());
+
 
                 if (!window.PTGStudyToolbar.isUserLoggedIn()) {
                     window.PTGStudyToolbar.showLoginRequiredModal();
@@ -463,6 +463,34 @@
                 PTGStudyToolbar.autoResizeTextarea($(this), false);
             });
 
+            // Paste handler to format circled numbers
+            $textarea.on('paste', function(e) {
+                e.preventDefault();
+                var text = '';
+                if (e.originalEvent.clipboardData && e.originalEvent.clipboardData.getData) {
+                    text = e.originalEvent.clipboardData.getData('text/plain');
+                } else if (window.clipboardData && window.clipboardData.getData) {
+                    text = window.clipboardData.getData('Text');
+                }
+
+                // Remove newline after circled numbers (①\nText -> ① Text)
+                // Also handle potential spaces around newline
+                var formatted = text.replace(/([①-⑳])\s*[\r\n]+\s*/g, '$1 ');
+
+                // Insert at cursor position
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                var currentVal = $(this).val();
+                
+                $(this).val(currentVal.substring(0, start) + formatted + currentVal.substring(end));
+                
+                // Move cursor to end of inserted text
+                this.selectionStart = this.selectionEnd = start + formatted.length;
+                
+                // Resize
+                PTGStudyToolbar.autoResizeTextarea($(this), false);
+            });
+
             // Auto-save on blur
             $textarea.on('blur', function() {
                 var content = $(this).val();
@@ -567,7 +595,7 @@
                         return;
                     }
 
-                    console.log('Flashcard save attempt:', { qId: qId, frontLength: frontText.length, backLength: backText.length });
+
 
                     $status.text('세트 정보 확인 중...').css('color', '#666');
 
@@ -579,12 +607,29 @@
                             'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                         },
                         success: function(sets) {
-                            console.log('Sets fetched successfully:', sets);
+
                             var setId = (sets && sets.length > 0) ? sets[0].set_id : 1;
-                            console.log('Using set_id:', setId);
+
                             
                             $status.text('저장 중...').css('color', '#666');
                             
+                            // Extract subject from study view header
+                            var subject = '';
+                            var $headerTitle = $('.ptg-lesson-header h3');
+                            if ($headerTitle.length > 0) {
+                                var fullTitle = $headerTitle.text().trim();
+                                // Format is usually "Category · Subject" or just "Subject"
+                                if (fullTitle.includes('·')) {
+                                    subject = fullTitle.split('·').pop().trim();
+                                } else {
+                                    subject = fullTitle;
+                                }
+                                // Remove " 전체 학습" suffix if present (for category view)
+                                subject = subject.replace(' 전체 학습', '');
+                            }
+                            
+
+
                             // Now create the flashcard
                             $.ajax({
                                 url: (window.location.origin || '') + '/wp-json/ptg-flash/v1/cards',
@@ -594,14 +639,15 @@
                                     source_type: 'question',
                                     source_id: qId,
                                     front: frontText,
-                                    back: backText
+                                    back: backText,
+                                    subject: subject // Add subject parameter
                                 }),
                                 contentType: 'application/json',
                                 headers: {
                                     'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                                 },
                                 success: function (response) {
-                                    console.log('Flashcard saved successfully:', response);
+
                                     $status.text('✓ 저장되었습니다').css('color', '#10b981');
                                     
                                     // Update toolbar icon status
@@ -634,7 +680,7 @@
                                                     $('#ptg-study-flashcard-modal').fadeOut(200, function() {
                                                         $status.text('').css('color', '#666');
                                                     });
-                                                }, 1500);
+                                                }, 1000);
                                                 return;
                                             } catch (e) {
                                                 console.error('Failed to recover JSON', e);

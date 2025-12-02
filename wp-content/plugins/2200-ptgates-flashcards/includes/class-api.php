@@ -26,13 +26,35 @@ class API {
 			]
 		);
 
-		// Create Set
+		// Create Set (Legacy)
 		register_rest_route(
 			$namespace,
 			'/sets',
 			[
 				'methods'             => 'POST',
 				'callback'            => [ $this, 'create_set' ],
+				'permission_callback' => [ $this, 'check_permission' ],
+			]
+		);
+
+		// Create Set from Subject (New)
+		register_rest_route(
+			$namespace,
+			'/create-set',
+			[
+				'methods'             => 'POST',
+				'callback'            => [ $this, 'create_set_from_subject' ],
+				'permission_callback' => [ $this, 'check_permission' ],
+			]
+		);
+
+		// Delete Set
+		register_rest_route(
+			$namespace,
+			'/sets/(?P<id>\d+)',
+			[
+				'methods'             => 'DELETE',
+				'callback'            => [ $this, 'delete_set' ],
 				'permission_callback' => [ $this, 'check_permission' ],
 			]
 		);
@@ -100,16 +122,42 @@ class API {
 	public function get_sets( $request ) {
 		global $wpdb;
 		$user_id = get_current_user_id();
-		$table   = 'ptgates_flashcard_sets';
+		$sets_table = 'ptgates_flashcard_sets';
+		$cards_table = 'ptgates_flashcards';
 
         // Suppress errors to prevent HTML output in JSON response
         $wpdb->hide_errors();
-		$results = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $table WHERE user_id = %d ORDER BY created_at DESC", $user_id ) );
+		
+		// Sync dynamic sets (Bookmark, Review, Wrong)
+		$this->sync_dynamic_sets($user_id);
+		
+		$today = current_time( 'Y-m-d' );
+		
+		$sql = "
+			SELECT s.*, 
+				COUNT(c.card_id) as total_cards,
+				SUM(CASE WHEN (c.next_due_date IS NULL OR c.next_due_date <= %s) THEN 1 ELSE 0 END) as due_cards
+			FROM {$sets_table} s
+			LEFT JOIN {$cards_table} c ON s.set_id = c.set_id
+			WHERE (s.user_id = %d OR s.set_id = 1)
+			GROUP BY s.set_id
+			ORDER BY s.created_at DESC
+		";
+		
+		$results = $wpdb->get_results( $wpdb->prepare( $sql, $today, $user_id ) );
         
         if ( $wpdb->last_error ) {
             error_log( 'PTG Flashcards API Error (get_sets): ' . $wpdb->last_error );
             return rest_ensure_response( [] );
         }
+
+		// Map set_id=1 name to '모의고사 암기카드'
+		foreach ( $results as $set ) {
+			if ( $set->set_id == 1 ) {
+				$set->set_name = '학습 암기카드';
+				$set->is_default = true;
+			}
+		}
         
 		return rest_ensure_response( $results );
 	}
@@ -132,53 +180,365 @@ class API {
 		return rest_ensure_response( [ 'set_id' => $wpdb->insert_id ] );
 	}
 
+	public function delete_set( $request ) {
+		global $wpdb;
+		$user_id = get_current_user_id();
+		$set_id  = $request->get_param( 'id' );
+
+		$sets_table = 'ptgates_flashcard_sets';
+		$cards_table = 'ptgates_flashcards';
+
+		// 1. Delete all cards in this set
+		$wpdb->delete( $cards_table, [ 'set_id' => $set_id, 'user_id' => $user_id ] );
+
+		// 2. Delete the set IF NOT set_id=1
+		if ( $set_id != 1 ) {
+			$wpdb->delete( $sets_table, [ 'set_id' => $set_id, 'user_id' => $user_id ] );
+		}
+
+		return rest_ensure_response( [ 'success' => true ] );
+	}
+
+	public function create_set_from_subject( $request ) {
+		global $wpdb;
+		$user_id = get_current_user_id();
+		
+		$random  = filter_var( $request->get_param( 'random' ), FILTER_VALIDATE_BOOLEAN );
+		$session = $request->get_param( 'session' );
+		$subject = $request->get_param( 'subject' );
+		$subsubject = $request->get_param( 'subsubject' );
+		$limit   = $request->get_param( 'limit' );
+
+		if ( $limit === 'full' ) {
+			$limit = 1000; 
+		} else {
+			$limit = intval( $limit );
+			if ( $limit <= 0 ) $limit = 5;
+		}
+
+		// 1. Prepare Set Name
+		$new_set_name = '';
+		$session_name = $session . '교시'; // Default to "1교시" format
+		
+		// Resolve Session Name from Map if available
+		if ( $session && class_exists( '\PTG\Quiz\Subjects' ) ) {
+			$map = \PTG\Quiz\Subjects::MAP;
+			if ( isset( $map[$session]['name'] ) ) {
+				$session_name = $map[$session]['name'];
+			}
+		}
+
+		$mode = $request->get_param( 'mode' ); // 'random', 'flashcard', 'bookmark', 'review', 'wrong'
+		
+		if ( $random ) {
+			if ( empty($session) && empty($subject) && empty($subsubject) ) {
+				$new_set_name = '모의 암기카드 [R]';
+			} elseif ( $subsubject ) {
+				$new_set_name = $subsubject . ' [R]';
+			} elseif ( $subject ) {
+				$new_set_name = $subject . ' [R]';
+			} elseif ( $session ) {
+				$new_set_name = $session_name . ' [R]';
+			}
+		} elseif ( $mode === 'bookmark' ) {
+			$new_set_name = '북마크';
+		} elseif ( $mode === 'review' ) {
+			$new_set_name = '복습 문제';
+		} elseif ( $mode === 'wrong' ) {
+			$new_set_name = '틀린 문제';
+		} else {
+			// Flashcard Only Mode
+			if ( $subsubject ) {
+				$new_set_name = $subsubject;
+			} elseif ( $subject ) {
+				$new_set_name = $subject;
+			} elseif ( $session ) {
+				$new_set_name = $session_name;
+			}
+		}
+
+		// 2. Check for Duplicates (Pre-check)
+		// Skip check ONLY if it's "Flashcard Only" AND "All" (Redirect case)
+		$is_redirect_case = ( ! $random && empty($session) && empty($subject) && empty($subsubject) && ! in_array( $mode, ['bookmark', 'review', 'wrong'] ) );
+		
+		if ( ! $is_redirect_case && $new_set_name ) {
+			$sets_table = 'ptgates_flashcard_sets';
+			$existing_set = $wpdb->get_var( $wpdb->prepare(
+				"SELECT set_id FROM $sets_table WHERE user_id = %d AND set_name = %s",
+				$user_id,
+				$new_set_name
+			) );
+
+			if ( $existing_set ) {
+				return new \WP_Error( 'duplicate_set', '이미 있는 과목입니다. 새로 만들려면 삭제 후 만들어야 합니다.', [ 'status' => 409 ] );
+			}
+		}
+
+		// 3. Fetch Questions (BEFORE creating set)
+		$questions = [];
+		$source_cards = [];
+		$q_table = 'ptgates_questions';
+		$c_table = 'ptgates_categories';
+		$cards_table = 'ptgates_flashcards';
+
+		if ( $random ) {
+			// --- RANDOM MODE LOGIC ---
+			// Case A: Quota-based Fetching (No specific sub-subject selected)
+			if ( empty( $subsubject ) && class_exists( '\PTG\Quiz\Subjects' ) ) {
+				$map = \PTG\Quiz\Subjects::MAP;
+				
+				foreach ( $map as $sess_key => $sess_data ) {
+					if ( $session && $session != $sess_key ) continue;
+
+					if ( ! empty( $sess_data['subjects'] ) ) {
+						foreach ( $sess_data['subjects'] as $subj_name => $subj_data ) {
+							if ( $subject && $subject != $subj_name ) continue;
+
+							if ( ! empty( $subj_data['subs'] ) ) {
+								foreach ( $subj_data['subs'] as $sub_name => $count ) {
+									$sub_limit = (int) $count;
+									if ( $sub_limit <= 0 ) continue;
+
+									$sub_sql = $wpdb->prepare(
+										"SELECT q.*, c.subject as category_subject 
+										  FROM $q_table q 
+										  JOIN $c_table c ON q.question_id = c.question_id 
+										  WHERE q.is_active = 1 AND c.exam_session >= 1000 AND c.subject = %s 
+										  ORDER BY RAND() LIMIT %d",
+										$sub_name,
+										$sub_limit
+									);
+									
+									$sub_questions = $wpdb->get_results( $sub_sql, ARRAY_A );
+									if ( ! empty( $sub_questions ) ) {
+										$questions = array_merge( $questions, $sub_questions );
+									}
+								}
+							}
+						}
+					}
+				}
+
+			} 
+			// Case B: Simple Fetching (Specific sub-subject selected or fallback)
+			else {
+				$sql = "
+					SELECT q.*, c.subject as category_subject
+					FROM $q_table q
+					JOIN $c_table c ON q.question_id = c.question_id
+					WHERE q.is_active = 1 AND c.exam_session >= 1000
+				";
+				$query_args = [];
+
+				if ( $subsubject ) {
+					$sql .= " AND c.subject = %s";
+					$query_args[] = $subsubject;
+				} elseif ( $subject ) {
+					$sql .= " AND c.subject IN (SELECT subject FROM $c_table WHERE subject LIKE %s)";
+					$query_args[] = $subject . '%';
+				} elseif ( $session ) {
+					$sql .= " AND c.exam_course = %s";
+					$query_args[] = $session . '교시'; // Append '교시'
+				}
+
+				$sql .= " ORDER BY RAND() LIMIT %d";
+				$query_args[] = $limit;
+
+				$questions = $wpdb->get_results( $wpdb->prepare( $sql, $query_args ), ARRAY_A );
+			}
+		} elseif ( in_array( $mode, ['bookmark', 'review', 'wrong'] ) ) {
+			// --- DYNAMIC MODES ---
+			$states_table = 'ptgates_user_states';
+			$q_table = 'ptgates_questions';
+			
+			$where = "user_id = %d";
+			$args = [ $user_id ];
+			
+			if ( $mode === 'bookmark' ) {
+				$where .= " AND bookmarked = 1";
+			} elseif ( $mode === 'review' ) {
+				$where .= " AND needs_review = 1";
+			} elseif ( $mode === 'wrong' ) {
+				$where .= " AND last_result = 'wrong'";
+			}
+			
+			// Fetch Question IDs
+			$q_ids = $wpdb->get_col( $wpdb->prepare( "SELECT question_id FROM $states_table WHERE $where", $args ) );
+			
+			if ( ! empty( $q_ids ) ) {
+				$placeholders = implode( ',', array_fill( 0, count( $q_ids ), '%d' ) );
+				$questions = $wpdb->get_results( $wpdb->prepare(
+					"SELECT * FROM $q_table WHERE question_id IN ($placeholders)",
+					$q_ids
+				), ARRAY_A );
+			}
+		} else {
+			// --- FLASHCARD ONLY MODE LOGIC ---
+			// Source: Set 1 (User's cards in Default Set)
+			
+			if ( $is_redirect_case ) {
+				// Just redirect
+			} else {
+				// Check if Set 1 has ANY cards first
+				$total_default_cards = $wpdb->get_var( $wpdb->prepare(
+					"SELECT COUNT(*) FROM $cards_table WHERE user_id = %d AND set_id = 1",
+					$user_id
+				) );
+				
+				if ( ! $total_default_cards ) {
+					return new \WP_Error( 'empty_default_set', '학습 암기카드(기본)에 저장된 카드가 없습니다. 먼저 문제를 풀며 암기카드를 추가해주세요.', [ 'status' => 404 ] );
+				}
+
+				// Filter: JOIN with Question & Category
+				$sql = "
+					SELECT c.* 
+					FROM $cards_table c
+					JOIN $q_table q ON c.source_id = q.question_id
+					JOIN $c_table cat ON q.question_id = cat.question_id
+					WHERE c.user_id = %d AND c.set_id = 1 AND c.source_type = 'question'
+				";
+				$query_args = [ $user_id ];
+
+				if ( $subsubject ) {
+					$sql .= " AND cat.subject = %s";
+					$query_args[] = $subsubject;
+				} elseif ( $subject ) {
+					// Parent Subject Filter
+					if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
+						$map = \PTG\Quiz\Subjects::MAP;
+						$target_subs = [];
+						foreach ( $map as $sess_data ) {
+							if ( isset( $sess_data['subjects'][$subject]['subs'] ) ) {
+								$target_subs = array_merge( $target_subs, array_keys( $sess_data['subjects'][$subject]['subs'] ) );
+							}
+						}
+						
+						if ( ! empty( $target_subs ) ) {
+							$placeholders = implode( ',', array_fill( 0, count( $target_subs ), '%s' ) );
+							$sql .= " AND cat.subject IN ($placeholders)";
+							$query_args = array_merge( $query_args, $target_subs );
+						} else {
+							$sql .= " AND cat.subject LIKE %s";
+							$query_args[] = $subject . '%';
+						}
+					} else {
+						$sql .= " AND cat.subject LIKE %s";
+						$query_args[] = $subject . '%';
+					}
+				} elseif ( $session ) {
+					$sql .= " AND cat.exam_course = %s";
+					$query_args[] = $session . '교시'; // Append '교시'
+				}
+
+				// Limit? Usually copy all, but respect limit if set
+				if ( $limit && $limit !== 1000 ) { // 1000 is our internal 'full' default
+					$sql .= " LIMIT %d";
+					$query_args[] = $limit;
+				}
+
+				error_log( 'PTG Flashcards Debug SQL: ' . $sql );
+				error_log( 'PTG Flashcards Debug Args: ' . print_r( $query_args, true ) );
+
+				$source_cards = $wpdb->get_results( $wpdb->prepare( $sql, $query_args ) );
+				error_log( 'PTG Flashcards Result Count: ' . count( $source_cards ) );
+			}
+		}
+
+		if ( empty( $questions ) && empty( $source_cards ) && ! $is_redirect_case ) {
+			return new \WP_Error( 'no_questions', '조건에 맞는 문제가 없습니다. (선택한 범위에 해당하는 학습 암기카드가 없습니다.)', [ 'status' => 404 ] );
+		}
+
+		// 4. Create Set (Now that we have data)
+		if ( $is_redirect_case ) {
+			return rest_ensure_response( [ 'set_id' => 1, 'message' => 'Redirect to default set' ] );
+		}
+		
+		$sets_table = 'ptgates_flashcard_sets';
+		$wpdb->insert( $sets_table, [
+			'user_id'  => $user_id,
+			'set_name' => $new_set_name,
+		] );
+		$target_set_id = $wpdb->insert_id;
+
+		if ( ! $target_set_id ) {
+			return new \WP_Error( 'db_error', '세트 생성 실패', [ 'status' => 500 ] );
+		}
+
+		// 5. Insert Cards
+		$count = 0;
+		
+		if ( $random || in_array( $mode, ['bookmark', 'review', 'wrong'] ) ) {
+			foreach ( $questions as $q ) {
+				$front = $q['content'] ?? '';
+				$answer = $q['answer'] ?? '';
+				$explanation = $q['explanation'] ?? '';
+				
+				if ( empty( $front ) ) continue;
+
+				$wpdb->insert( $cards_table, [
+					'user_id'      => $user_id,
+					'set_id'       => $target_set_id,
+					'source_type'  => 'question',
+					'source_id'    => $q['question_id'],
+					'front_custom' => $front,
+					'back_custom'  => "<strong>정답: " . $answer . "</strong><br><br>" . $explanation,
+					'next_due_date'=> current_time( 'Y-m-d' ),
+				] );
+				$count++;
+			}
+		} else {
+			foreach ( $source_cards as $card ) {
+				$wpdb->insert( $cards_table, [
+					'user_id'      => $user_id,
+					'set_id'       => $target_set_id,
+					'source_type'  => $card->source_type,
+					'source_id'    => $card->source_id,
+					'front_custom' => $card->front_custom,
+					'back_custom'  => $card->back_custom,
+					'next_due_date'=> current_time( 'Y-m-d' ),
+				] );
+				$count++;
+			}
+		}
+
+		return rest_ensure_response( [ 'set_id' => $target_set_id, 'count' => $count ] );
+	}
+
 	public function get_cards( $request ) {
 		global $wpdb;
-		$user_id    = get_current_user_id();
-		
-		// args로 정의했으므로 get_param()으로 직접 가져오기
-		$set_id      = $request->get_param( 'set_id' );
-		$mode        = $request->get_param( 'mode' );
-		$source_type = $request->get_param( 'source_type' );
-		$source_id   = $request->get_param( 'source_id' );
+		$user_id = get_current_user_id();
+		$set_id  = $request->get_param( 'set_id' );
+		$mode    = $request->get_param( 'mode' ); // 'review' or 'all'
 
 		$table = 'ptgates_flashcards';
-		$where = [ 'user_id = %d' ];
-		$args  = [ $user_id ];
+		$cat_table = 'ptgates_categories';
+		
+		// Select fields + Category info
+		$sql = "
+			SELECT f.*, 
+				c.exam_course, c.subject
+			FROM $table f
+			LEFT JOIN $cat_table c ON (f.source_id = c.question_id AND f.source_type = 'question')
+			WHERE f.user_id = %d
+		";
+		
+		$args = [ $user_id ];
 
 		if ( $set_id ) {
-			$where[] = 'set_id = %d';
-			$args[]  = $set_id;
-		}
-
-		if ( ! empty( $source_type ) ) {
-			$where[] = 'source_type = %s';
-			$args[]  = $source_type;
-		}
-
-		if ( ! empty( $source_id ) && $source_id > 0 ) {
-			$where[] = 'source_id = %d';
-			$args[]  = $source_id;
+			$sql .= " AND f.set_id = %d";
+			$args[] = $set_id;
 		}
 
 		if ( $mode === 'review' ) {
-			// Due date is today or past, OR null (new cards)
-			// Using Platform helper if available, else PHP date
 			$today = current_time( 'Y-m-d' );
-			$where[] = '(next_due_date IS NULL OR next_due_date <= %s)';
-			$args[]  = $today;
+			$sql .= " AND (f.next_due_date IS NULL OR f.next_due_date <= %s)";
+			$args[] = $today;
 		}
 
-		$where_sql = implode( ' AND ', $where );
-		$sql = "SELECT * FROM $table WHERE $where_sql ORDER BY next_due_date ASC LIMIT 50";
+		$sql .= " ORDER BY f.next_due_date ASC, f.card_id ASC";
 
-		$prepared_sql = $wpdb->prepare( $sql, $args );
-		$results = $wpdb->get_results( $prepared_sql );
-		
-		if ( $wpdb->last_error ) {
-			error_log( '[PTG Flashcards API] get_cards DB 오류: ' . $wpdb->last_error );
-		}
-		
+		$results = $wpdb->get_results( $wpdb->prepare( $sql, $args ) );
+
 		return rest_ensure_response( $results );
 	}
 
@@ -186,53 +546,26 @@ class API {
 		global $wpdb;
 		$user_id = get_current_user_id();
 		
-		$data = [
-			'user_id'      => $user_id,
-			'set_id'       => $request->get_param( 'set_id' ),
-			'source_type'  => $request->get_param( 'source_type' ) ?: 'custom',
-			'source_id'    => $request->get_param( 'source_id' ),
-			'front_custom' => $request->get_param( 'front' ),
-			'back_custom'  => $request->get_param( 'back' ),
-			'next_due_date'=> current_time( 'Y-m-d' ), // Start immediately
-		];
+		$front     = $request->get_param( 'front' ); // mapped to front_custom
+		$back      = $request->get_param( 'back' );  // mapped to back_custom
+		$source_id = $request->get_param( 'source_id' );
+		$set_id    = $request->get_param( 'set_id' );
 
-		if ( empty( $data['set_id'] ) || empty( $data['front_custom'] ) ) {
-			return new \WP_Error( 'invalid_param', 'Set ID and Front content are required', [ 'status' => 400 ] );
+		if ( empty( $set_id ) ) {
+			$set_id = 1; // Default Set
 		}
 
 		$table = 'ptgates_flashcards';
-        
-        // Check for existing card to prevent duplicates
-        $existing_card = $wpdb->get_row( $wpdb->prepare(
-            "SELECT card_id FROM $table WHERE user_id = %d AND set_id = %d AND source_type = %s AND source_id = %d",
-            $user_id, $data['set_id'], $data['source_type'], $data['source_id']
-        ) );
+		$wpdb->insert( $table, [
+			'user_id'      => $user_id,
+			'set_id'       => $set_id,
+			'source_type'  => 'question',
+			'source_id'    => $source_id,
+			'front_custom' => $front,
+			'back_custom'  => $back,
+			'next_due_date'=> current_time( 'Y-m-d' ),
+		] );
 
-        if ( $existing_card ) {
-            // Optionally update the content if needed, for now just return existing ID
-            // We could update front/back here if the user edited them
-            $wpdb->update( $table, [
-                'front_custom' => $data['front_custom'],
-                'back_custom'  => $data['back_custom'],
-                'updated_at'   => current_time( 'mysql' )
-            ], [ 'card_id' => $existing_card->card_id ] );
-            
-            return rest_ensure_response( [ 'card_id' => $existing_card->card_id, 'updated' => true ] );
-        }
-        
-        $wpdb->hide_errors();
-		$result = $wpdb->insert( $table, $data );
-
-        if ( $result === false ) {
-            error_log( 'PTG Flashcards API Error (create_card): ' . $wpdb->last_error );
-            return new \WP_Error( 'db_error', 'Database insertion failed: ' . $wpdb->last_error, [ 'status' => 500 ] );
-        }
-
-		// Clear any buffered output (e.g. PHP notices, WP errors) to ensure clean JSON
-        if ( ob_get_length() ) {
-            ob_clean();
-        }
-        
 		return rest_ensure_response( [ 'card_id' => $wpdb->insert_id ] );
 	}
 
@@ -264,5 +597,99 @@ class API {
 		$wpdb->query( $wpdb->prepare( "UPDATE $table SET review_count = review_count + 1 WHERE card_id = %d", $card_id ) );
 
 		return rest_ensure_response( [ 'success' => true, 'next_due' => $next_due ] );
+	}
+
+	private function sync_dynamic_sets( $user_id ) {
+		global $wpdb;
+		$sets_table = 'ptgates_flashcard_sets';
+		$cards_table = 'ptgates_flashcards';
+		$states_table = 'ptgates_user_states';
+		$questions_table = 'ptgates_questions';
+
+		// Define dynamic sets mapping
+		$dynamic_sets = [
+			'bookmark' => [ 'name' => '북마크', 'col' => 'bookmarked', 'val' => 1 ],
+			'review'   => [ 'name' => '복습 문제', 'col' => 'needs_review', 'val' => 1 ],
+			'wrong'    => [ 'name' => '틀린 문제', 'col' => 'last_result', 'val' => 'wrong' ]
+		];
+
+		foreach ( $dynamic_sets as $key => $config ) {
+			// 1. Check if set exists
+			$set_id = $wpdb->get_var( $wpdb->prepare(
+				"SELECT set_id FROM $sets_table WHERE user_id = %d AND set_name = %s",
+				$user_id, $config['name']
+			) );
+
+			if ( ! $set_id ) continue; // Only sync if set exists
+
+			// 2. Get current valid Question IDs from user states
+			// Note: last_result is a string, others are int(1)
+			if ( $key === 'wrong' ) {
+				$valid_q_ids = $wpdb->get_col( $wpdb->prepare(
+					"SELECT question_id FROM $states_table WHERE user_id = %d AND last_result = 'wrong'",
+					$user_id
+				) );
+			} else {
+				$col = $config['col'];
+				$valid_q_ids = $wpdb->get_col( $wpdb->prepare(
+					"SELECT question_id FROM $states_table WHERE user_id = %d AND $col = 1",
+					$user_id
+				) );
+			}
+
+			// 3. Get current Card Source IDs in this set
+			$current_cards = $wpdb->get_results( $wpdb->prepare(
+				"SELECT card_id, source_id FROM $cards_table WHERE user_id = %d AND set_id = %d AND source_type = 'question'",
+				$user_id, $set_id
+			) );
+
+			$current_source_ids = [];
+			$card_map = [];
+			foreach ( $current_cards as $c ) {
+				$current_source_ids[] = $c->source_id;
+				$card_map[$c->source_id] = $c->card_id;
+			}
+
+			// 4. Calculate Diff
+			$to_add = array_diff( $valid_q_ids, $current_source_ids );
+			$to_remove = array_diff( $current_source_ids, $valid_q_ids );
+
+			// 5. Add new cards
+			if ( ! empty( $to_add ) ) {
+				// Fetch question details for new cards
+				$placeholders = implode( ',', array_fill( 0, count( $to_add ), '%d' ) );
+				$questions = $wpdb->get_results( $wpdb->prepare(
+					"SELECT question_id, content, answer, explanation FROM $questions_table WHERE question_id IN ($placeholders)",
+					$to_add
+				), ARRAY_A );
+
+				foreach ( $questions as $q ) {
+					$wpdb->insert( $cards_table, [
+						'user_id'      => $user_id,
+						'set_id'       => $set_id,
+						'source_type'  => 'question',
+						'source_id'    => $q['question_id'],
+						'front_custom' => $q['content'],
+						'back_custom'  => "<strong>정답: " . $q['answer'] . "</strong><br><br>" . $q['explanation'],
+						'next_due_date'=> current_time( 'Y-m-d' ),
+					] );
+				}
+			}
+
+			// 6. Remove invalid cards
+			if ( ! empty( $to_remove ) ) {
+				$remove_card_ids = [];
+				foreach ( $to_remove as $source_id ) {
+					if ( isset( $card_map[$source_id] ) ) {
+						$remove_card_ids[] = $card_map[$source_id];
+					}
+				}
+				
+				if ( ! empty( $remove_card_ids ) ) {
+					$ids_str = implode( ',', array_map( 'absint', $remove_card_ids ) );
+					$wpdb->query( "DELETE FROM $cards_table WHERE card_id IN ($ids_str)" );
+				}
+			}
+		}
 	}
 }

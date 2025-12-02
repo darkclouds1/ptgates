@@ -111,6 +111,8 @@
 }
 
 .ptg-quiz-dashboard-link {
+    display: inline-block !important;
+    background: #edf2f7 !important; /* Added background */
     font-size: 13px !important;
     font-weight: 600 !important;
     color: #4a5568 !important;
@@ -407,11 +409,24 @@ button.ptg-btn-icon:focus-visible,
 
 .ptgates-filter-input {
     padding: 10px 12px;
+    padding-right: 30px; /* Space for custom arrow */
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
-    background: white;
+    background-color: white;
     transition: border-color 0.2s;
+    
+    /* iOS/iPad Fix: Reset native appearance */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    height: 42px; /* Explicit height for consistency */
+    
+    /* Custom Arrow (Robust) */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333333'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: calc(100% - 10px) center !important;
+    background-size: 16px 16px !important;
 }
 
 .ptgates-filter-input:focus {

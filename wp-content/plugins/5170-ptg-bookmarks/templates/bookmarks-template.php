@@ -4,68 +4,74 @@ if (!defined('ABSPATH')) {
 }
 
 // 스크립트 버전 관리
-$js_file = defined('PTG_DASHBOARD_PATH') ? PTG_DASHBOARD_PATH . 'assets/js/bookmarks.js' : plugin_dir_path(dirname(__FILE__)) . 'assets/js/bookmarks.js';
+$js_file = defined('PTG_BOOKMARKS_PATH') ? PTG_BOOKMARKS_PATH . 'assets/js/bookmarks.js' : plugin_dir_path(dirname(__FILE__)) . 'assets/js/bookmarks.js';
 $js_ver = file_exists($js_file) ? filemtime($js_file) : '0.1.0';
-$js_url = defined('PTG_DASHBOARD_URL') ? PTG_DASHBOARD_URL . 'assets/js/bookmarks.js' : plugin_dir_url(dirname(__FILE__)) . 'assets/js/bookmarks.js';
+$js_url = defined('PTG_BOOKMARKS_URL') ? PTG_BOOKMARKS_URL . 'assets/js/bookmarks.js' : plugin_dir_url(dirname(__FILE__)) . 'assets/js/bookmarks.js';
 
 // REST API 설정
-$rest_url = get_rest_url(null, 'ptg-dash/v1/');
+$rest_url = get_rest_url(null, 'ptg-bookmarks/v1/');
 $nonce = wp_create_nonce('wp_rest');
 
 // Quiz 페이지 URL 가져오기
-$quiz_url = PTG_Dashboard::get_quiz_url();
+if (!function_exists('ptg_get_quiz_url')) {
+    function ptg_get_quiz_url() {
+        $quiz_page_id = get_option('ptg_quiz_page_id');
+        if ($quiz_page_id) {
+            $url = get_permalink($quiz_page_id);
+            if ($url) return rtrim($url, '/');
+        }
+        
+        // Fallback: search for page with [ptg_quiz]
+        $query = new \WP_Query([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
+        
+        if ($query->have_posts()) {
+            foreach ($query->posts as $page_id) {
+                $page = get_post($page_id);
+                if ($page && has_shortcode($page->post_content, 'ptg_quiz')) {
+                    update_option('ptg_quiz_page_id', $page_id);
+                    return rtrim(get_permalink($page_id), '/');
+                }
+            }
+        }
+        wp_reset_postdata();
+        
+        return home_url('/ptg_quiz/');
+    }
+}
+$quiz_url = ptg_get_quiz_url();
 
 // 대시보드 페이지 URL 가져오기
 if (!function_exists('ptg_get_dashboard_url')) {
     function ptg_get_dashboard_url() {
-        // 1. 옵션에 저장된 대시보드 페이지 ID 확인
         $dashboard_page_id = get_option('ptg_dashboard_page_id');
-        
-        // 2. 옵션에 저장된 ID가 있으면 유효성 검사
-        if ($dashboard_page_id) {
-            $page = get_post($dashboard_page_id);
-            if ($page && $page->post_status === 'publish' && has_shortcode($page->post_content, 'ptg_dashboard')) {
-                $url = get_permalink($dashboard_page_id);
-                if ($url) {
-                    return rtrim($url, '/');
-                }
-            } else {
-                delete_option('ptg_dashboard_page_id');
-                $dashboard_page_id = null;
-            }
-        }
-        
-        // 3. 옵션이 없거나 유효하지 않으면 [ptg_dashboard] 숏코드가 있는 페이지 찾기
-        if (!$dashboard_page_id) {
-            $query = new \WP_Query(array(
-                'post_type' => 'page',
-                'post_status' => 'publish',
-                'posts_per_page' => -1,
-                'fields' => 'ids',
-            ));
-            
-            if ($query->have_posts()) {
-                foreach ($query->posts as $page_id) {
-                    $page = get_post($page_id);
-                    if ($page && has_shortcode($page->post_content, 'ptg_dashboard')) {
-                        $dashboard_page_id = $page_id;
-                        update_option('ptg_dashboard_page_id', $dashboard_page_id);
-                        break;
-                    }
-                }
-            }
-            wp_reset_postdata();
-        }
-        
-        // 4. 페이지 ID가 있으면 URL 반환
         if ($dashboard_page_id) {
             $url = get_permalink($dashboard_page_id);
-            if ($url) {
-                return rtrim($url, '/');
-            }
+            if ($url) return rtrim($url, '/');
         }
         
-        // 5. 찾지 못한 경우 fallback URL 반환
+        $query = new \WP_Query([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
+        
+        if ($query->have_posts()) {
+            foreach ($query->posts as $page_id) {
+                $page = get_post($page_id);
+                if ($page && has_shortcode($page->post_content, 'ptg_dashboard')) {
+                    update_option('ptg_dashboard_page_id', $page_id);
+                    return rtrim(get_permalink($page_id), '/');
+                }
+            }
+        }
+        wp_reset_postdata();
+        
         return home_url('/');
     }
 }
@@ -80,63 +86,69 @@ $dashboard_url = ptg_get_dashboard_url();
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
+    /* Header Styles matching 2200-ptgates-flashcards */
     .ptg-bookmarks-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-        padding: 16px 20px;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        margin-top: 5px !important;
+        margin-bottom: 18px !important;
+        padding: 12px 14px !important;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06) !important;
     }
 
     .ptg-bookmarks-header h1 {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 600;
-        color: #1f2937;
+        margin: 0 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        letter-spacing: -0.01em !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+
+    .ptg-header-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .ptg-dashboard-link {
+        display: inline-block;
+        background: #edf2f7; /* Base background from flashcards */
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: #4a5568 !important;
+        text-decoration: none !important;
+        padding: 6px 12px !important;
+        border-radius: 6px !important;
+        transition: all 0.2s ease !important;
+        white-space: nowrap !important;
+    }
+
+    .ptg-dashboard-link:hover {
+        background: #f1f5f9 !important;
+        color: #2d3748 !important;
+        text-decoration: underline !important;
     }
 
     .ptg-btn-quiz-start {
-        padding: 8px 16px;
+        padding: 6px 12px !important;
         background: #3b82f6;
         color: #ffffff;
         border: none;
-        border-radius: 6px;
+        border-radius: 6px !important;
         font-weight: 500;
-        font-size: 0.875rem;
+        font-size: 13px !important;
         cursor: pointer;
         transition: background 0.2s ease;
-    }
-
-    .ptg-btn-quiz-start:hover {
-        background: #2563eb;
-    }
-
-    .ptg-bookmarks-back-link {
-        margin-bottom: 12px;
-        font-size: 0.875rem;
-    }
-
-    .ptg-bookmarks-back-link a {
-        color: #3b82f6;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        transition: color 0.2s ease;
-    }
-
-    .ptg-bookmarks-back-link a:hover {
-        color: #2563eb;
-        text-decoration: underline;
-    }
-
-    .ptg-bookmarks-back-link a::before {
-        content: '←';
-        font-size: 1rem;
+        white-space: nowrap !important;
     }
 
     .ptg-bookmarks-info {
@@ -423,4 +435,3 @@ window.ptg_bookmarks_vars = {
     }
 })();
 </script>
-

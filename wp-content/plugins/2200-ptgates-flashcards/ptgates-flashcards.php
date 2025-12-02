@@ -15,6 +15,12 @@ final class PTG_Flashcards_Plugin {
 
 	private static $instance = null;
 
+    // --- Configuration Constants ---
+    const LIMIT_BASIC_CARDS = 20; // Basic(로그인 무료회원) 1일 카드 제한
+    const LIMIT_TRIAL_CARDS = 50; // Trial 회원 1일 카드 제한
+    const MEMBERSHIP_URL    = '/membership'; // 멤버십 안내 페이지 URL
+    // -------------------------------
+
 	public static function get_instance() {
 		if ( is_null( self::$instance ) ) {
 			self::$instance = new self();
@@ -50,8 +56,8 @@ final class PTG_Flashcards_Plugin {
 	public function enqueue_assets() {
 		global $post;
 		if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_flash' ) ) {
-			// CSS (Placeholder)
-			// wp_enqueue_style(...)
+			// CSS
+			wp_enqueue_style( 'ptg-flash-css', plugin_dir_url( __FILE__ ) . 'assets/css/flashcards.css', [], '1.0.0' );
 		}
 	}
 
@@ -70,6 +76,29 @@ final class PTG_Flashcards_Plugin {
 		$flash_js     = $plugin_url . 'assets/js/flashcards.js';
 		$rest_url     = esc_url_raw( rest_url( 'ptg-flash/v1/' ) );
 		$nonce        = wp_create_nonce( 'wp_rest' );
+        $user_id      = get_current_user_id();
+
+        // 회원 등급 조회
+        $member_grade = 'guest';
+        if ( is_user_logged_in() ) {
+            if ( current_user_can( 'administrator' ) ) {
+                $member_grade = 'administrator';
+            } elseif ( class_exists( '\PTG\Platform\Repo' ) ) {
+                // 0000-ptgates-platform의 Repo 클래스 사용
+                $member = \PTG\Platform\Repo::find_one( 'ptgates_user_member', [ 'user_id' => $user_id ] );
+                if ( $member && ! empty( $member['member_grade'] ) ) {
+                    $member_grade = $member['member_grade'];
+                    // Trial 만료 체크
+                    if ( $member_grade === 'trial' && ! empty( $member['billing_expiry_date'] ) && strtotime( $member['billing_expiry_date'] ) < time() ) {
+                        $member_grade = 'basic';
+                    }
+                } else {
+                    $member_grade = 'basic'; // 로그인했지만 정보 없으면 Basic 취급
+                }
+            } else {
+                $member_grade = 'basic'; // 플랫폼 없으면 기본 Basic
+            }
+        }
 		
 		// Inline Loader Script
 		$loader_script = sprintf(
@@ -79,6 +108,10 @@ final class PTG_Flashcards_Plugin {
 				cfg.ptgFlash=cfg.ptgFlash||{};
 				cfg.ptgFlash.restUrl=%1$s;
 				cfg.ptgFlash.nonce=%2$s;
+				cfg.ptgFlash.subjectMap=%5$s;
+                cfg.ptgFlash.memberGrade=%6$s;
+                cfg.ptgFlash.limits={basic:%7$d,trial:%8$d};
+                cfg.ptgFlash.membershipUrl=%9$s;
 				
 				var queue=[
 					{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},
@@ -104,7 +137,12 @@ final class PTG_Flashcards_Plugin {
 			wp_json_encode( $rest_url ),
 			wp_json_encode( $nonce ),
 			wp_json_encode( $platform_url ),
-			wp_json_encode( $flash_js )
+			wp_json_encode( $flash_js ),
+			wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::MAP : [] ),
+            wp_json_encode( $member_grade ),
+            self::LIMIT_BASIC_CARDS,
+            self::LIMIT_TRIAL_CARDS,
+            wp_json_encode( home_url( self::MEMBERSHIP_URL ) )
 		);
 
 		ob_start();

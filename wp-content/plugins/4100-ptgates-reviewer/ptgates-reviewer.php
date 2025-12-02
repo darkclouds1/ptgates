@@ -47,7 +47,13 @@ final class PTG_Reviewer_Plugin {
 		global $post;
 		if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_review' ) ) {
 			// CSS (if needed in future, currently none specified in plan but good to have placeholder)
-			// wp_enqueue_style(...)
+			// CSS
+			wp_enqueue_style(
+				'ptg-reviewer-style',
+				plugin_dir_url( __FILE__ ) . 'assets/css/reviewer.css',
+				[],
+				'1.0.0'
+			);
 
 			// JS Loader is handled inline in shortcode for module independence, 
 			// but we can register the script file to be available.
@@ -69,6 +75,12 @@ final class PTG_Reviewer_Plugin {
 		$rest_url     = esc_url_raw( rest_url( 'ptg-review/v1/' ) );
 		$nonce        = wp_create_nonce( 'wp_rest' );
 		$user_id      = get_current_user_id();
+        
+        // 대시보드 URL 가져오기
+        $dashboard_url = home_url('/');
+        if (class_exists('PTG_Dashboard')) {
+            $dashboard_url = PTG_Dashboard::get_dashboard_url();
+        }
 
 		// Inline Loader Script (following project guidelines)
 		$loader_script = sprintf(
@@ -78,6 +90,7 @@ final class PTG_Reviewer_Plugin {
 				cfg.ptgReviewer=cfg.ptgReviewer||{};
 				cfg.ptgReviewer.restUrl=%1$s;
 				cfg.ptgReviewer.nonce=%2$s;
+                cfg.ptgReviewer.dashboardUrl=%5$s;
 				
 				var queue=[
 					{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},
@@ -103,7 +116,8 @@ final class PTG_Reviewer_Plugin {
 			wp_json_encode( $rest_url ),
 			wp_json_encode( $nonce ),
 			wp_json_encode( $platform_url ),
-			wp_json_encode( $reviewer_js )
+			wp_json_encode( $reviewer_js ),
+            wp_json_encode( $dashboard_url )
 		);
 
 		ob_start();

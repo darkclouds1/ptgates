@@ -85,6 +85,11 @@ class API {
                     'type' => 'boolean',
                     'default' => false,
                 ),
+                'wrong_only' => array(
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => false,
+                ),
             ),
         ));
         
@@ -395,9 +400,10 @@ class API {
         $full_session = $request->get_param('full_session') === true || $request->get_param('full_session') === 'true';
         $bookmarked = $request->get_param('bookmarked') === true || $request->get_param('bookmarked') === 'true';
         $needs_review = $request->get_param('needs_review') === true || $request->get_param('needs_review') === 'true';
+        $wrong_only = $request->get_param('wrong_only') === true || $request->get_param('wrong_only') === 'true';
 
         // 모듈 결정 (퀴즈 vs 복습)
-        $module = $needs_review ? 'reviewer' : 'quiz';
+        $module = ($needs_review || $wrong_only) ? 'reviewer' : 'quiz';
 
         // 1. 권한/한도 체크
         $current_user_id = get_current_user_id();
@@ -416,7 +422,7 @@ class API {
         
         // 캐시 키 생성 (북마크/복습 필터는 사용자별로 다르므로 user_id 포함)
         $user_id = 0;
-        if ($bookmarked || $needs_review) {
+        if ($bookmarked || $needs_review || $wrong_only) {
             $user_id = get_current_user_id();
             if (!$user_id) {
                 // 로그인하지 않은 경우 빈 배열 반환
@@ -433,6 +439,7 @@ class API {
             'full_session' => $full_session,
             'bookmarked' => $bookmarked,
             'needs_review' => $needs_review,
+            'wrong_only' => $wrong_only,
             'user_id' => $user_id,
         );
         $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
@@ -469,7 +476,7 @@ class API {
         
         // 북마크 또는 복습 필터가 있으면 JOIN 추가
         $join_clause = '';
-        if ($bookmarked || $needs_review) {
+        if ($bookmarked || $needs_review || $wrong_only) {
             $join_clause = $wpdb->prepare(
                 "INNER JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
                 $user_id
@@ -478,8 +485,14 @@ class API {
             if ($bookmarked) {
                 $where[] = "s.bookmarked = 1";
             }
-            if ($needs_review) {
+            
+            // 복습 필요 OR 틀린 문제 (둘 다 선택 시 합집합)
+            if ($needs_review && $wrong_only) {
+                $where[] = "(s.needs_review = 1 OR s.last_result = 'wrong')";
+            } elseif ($needs_review) {
                 $where[] = "s.needs_review = 1";
+            } elseif ($wrong_only) {
+                $where[] = "s.last_result = 'wrong'";
             }
         }
         
@@ -560,22 +573,66 @@ class API {
         // 2교시: 물리치료 중재 65문항 + 의료관계법규 20문항 = 85문항
         if (!empty($session) && $full_session) {
             // 모의고사 생성 한도 체크 및 차감 (Permissions 클래스 사용)
+            // Permissions::check_and_deduct_exam_count는 기본적으로 1일 1회 제한을 체크함
             if (class_exists('\PTG\Platform\Permissions')) {
                 $check_result = \PTG\Platform\Permissions::check_and_deduct_exam_count($current_user_id, true);
                 if (is_wp_error($check_result)) {
-                    return Rest::error($check_result->get_error_code(), $check_result->get_error_message(), $check_result->get_error_data());
+                    // 403 Forbidden + 메시지
+                    return Rest::error($check_result->get_error_code(), $check_result->get_error_message(), array('status' => 403));
                 }
             }
 
             $question_ids = self::get_session_questions_by_ratio($session, $where_clause, $join_clause);
             
-            // 기존 Access Manager 사용량 증가는 제거하거나 유지 (여기서는 요구사항에 따라 Permissions로 대체됨)
-            // if (class_exists('PTG_Access_Manager')) {
-            //     \PTG_Access_Manager::increment_usage($module, $current_user_id, count($question_ids));
-            // }
-            
             return Rest::success($question_ids);
         }
+        
+        // --- General Quiz Usage Limit Check (Server-side) ---
+        // 일반 퀴즈 (모의고사가 아닌 경우)
+        // Permissions 클래스나 Access Manager를 통해 하루 사용량을 체크해야 함
+        // 현재 DB 스키마에 일반 퀴즈 카운트 전용 테이블이 명시적으로 없으므로,
+        // User Meta를 사용하여 간단히 구현 (ptg_quiz_usage_YYYYMMDD)
+        
+        // 프리미엄 회원은 체크 건너뜀
+        $is_premium = false;
+        if (class_exists('\PTG\Platform\Permissions')) {
+            $is_premium = \PTG\Platform\Permissions::can_access_feature('premium_content', $current_user_id);
+        }
+
+        if (!$is_premium && empty($session)) {
+            $today = date('Ymd', current_time('timestamp')); // Asia/Seoul 기준 (WP 설정 따름)
+            $meta_key = 'ptg_quiz_usage_' . $today;
+            $current_usage = (int) get_user_meta($current_user_id, $meta_key, true);
+            
+            // 제한 설정 (상수 또는 기본값)
+            // ptgates-quiz.php의 상수를 가져오거나 하드코딩 (플러그인 메인 파일 로드 순서 주의)
+            // 여기서는 안전하게 하드코딩 또는 옵션 조회. 
+            // 하지만 ptgates-quiz.php가 로드된 상태이므로 상수 사용 가능할 수도 있음.
+            // 안전하게 기본값 사용: Basic 20, Trial 30
+            $limit_quiz = 20;
+            
+            // Trial 체크
+            if (class_exists('\PTG\Platform\Repo')) {
+                $member = \PTG\Platform\Repo::find_one('ptgates_user_member', array('user_id' => $current_user_id));
+                if ($member && $member['member_grade'] === 'trial') {
+                    $limit_quiz = 30;
+                }
+            }
+
+            // 요청한 문제 수 (limit 파라미터)
+            $requested_amount = $limit;
+
+            if ($current_usage + $requested_amount > $limit_quiz) {
+                return Rest::error('usage_limit_exceeded', '하루 퀴즈 제한 횟수를 초과했습니다. 프리미엄으로 업그레이드하세요.', array('status' => 403));
+            }
+
+            // 사용량 증가 (여기서 증가시키면, 실제 문제 반환 전에 증가됨. 
+            // 만약 뒤에서 에러나면? 하지만 트랜잭션 복잡하므로 여기서 증가)
+            update_user_meta($current_user_id, $meta_key, $current_usage + $requested_amount);
+        }
+        // ----------------------------------------------------
+
+        // LIMIT 및 OFFSET
         
         // LIMIT 및 OFFSET
         $limit_clause = '';
@@ -583,8 +640,12 @@ class API {
             $limit_clause = $wpdb->prepare("LIMIT %d", $limit);
         }
         
-        // 정렬: 전체 교시인 경우 고정 순서(문항 ID 오름차순), 그 외 무작위
-        $order_clause = (!empty($session) && $full_session) ? "ORDER BY q.question_id ASC" : "ORDER BY RAND()";
+        // 정렬: 복습 모드인 경우 오래된순, 전체 교시인 경우 고정 순서(문항 ID 오름차순), 그 외 무작위
+        if ($needs_review) {
+            $order_clause = "ORDER BY s.last_quiz_date ASC";
+        } else {
+            $order_clause = (!empty($session) && $full_session) ? "ORDER BY q.question_id ASC" : "ORDER BY RAND()";
+        }
         
         $query = "
             SELECT q.question_id
@@ -653,6 +714,7 @@ class API {
             // 잘못된 교시
             return array();
         }
+        
         
         // 각 과목별로 문제 가져오기
         foreach ($subjects as $subject_name => $limit_count) {

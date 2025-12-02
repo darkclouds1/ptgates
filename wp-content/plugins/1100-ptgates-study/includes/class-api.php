@@ -275,20 +275,35 @@ class Study_API {
      * 특정 과목(코스)에 대한 학습자료(문제 목록) 반환
      */
     public static function get_course_detail($request) {
+        // Subjects 클래스 로드 보장
+        if ( ! class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+            $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+            if ( file_exists( $platform_subjects_file ) ) {
+                require_once $platform_subjects_file;
+            } else {
+                $quiz_subjects_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+                if ( file_exists( $quiz_subjects_file ) ) {
+                    require_once $quiz_subjects_file;
+                }
+            }
+        }
+
         $course_id = $request['course_id'];
         $subjects_param = $request->get_param('subjects');
         $limit = (int) $request->get_param('limit');
+        
+        // 기본값 설정 (Map에서 덮어씌워질 예정)
         if ($limit <= 0) {
-			$limit = 50; // 기본값(프론트에서 세부과목 조회 시에는 명시적으로 10을 전달)
+			$limit = 50; 
         }
 
-		// 페이지네이션을 위한 offset (세부과목 단일 조회에서 사용)
+        // 페이지네이션을 위한 offset
 		$offset = (int) $request->get_param('offset');
 		if ($offset < 0) {
 			$offset = 0;
 		}
 
-		// 랜덤 섞기 플래그 (세부과목 단일 조회에서 사용)
+		// 랜덤 섞기 플래그
 		$random = (bool) $request->get_param('random');
 
         if (!empty($subjects_param)) {
@@ -304,8 +319,37 @@ class Study_API {
                 return new \WP_Error('invalid_subjects', '선택된 과목 정보가 올바르지 않습니다.', ['status' => 400]);
             }
 
-            // 집계 모드: 각 세부과목의 문제를 모두 모은 후 question_id ASC 정렬,
-            // 그 다음 limit/offset으로 잘라서 반환 (페이지네이션).
+            // [과목 선택 모드] Subjects::MAP에서 해당 과목의 총 문항 수(total)를 찾아 Limit 적용
+            $max_items = 0;
+            
+            if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+                foreach ( \PTG\Quiz\Subjects::MAP as $session_data ) {
+                    if ( ! empty( $session_data['subjects'] ) ) {
+                        foreach ( $session_data['subjects'] as $subj_name => $subj_data ) {
+                            $is_match = false;
+                            foreach ($subject_names as $req_sub) {
+                                $needle = preg_replace( '/\s+|·/u', '', $req_sub );
+                                if ( ! empty( $subj_data['subs'] ) ) {
+                                    foreach ( $subj_data['subs'] as $sub_key => $sub_val ) {
+                                        $candidate = preg_replace( '/\s+|·/u', '', $sub_key );
+                                        if ( $needle === $candidate ) {
+                                            $is_match = true;
+                                            break 2; // Found sub-subject match
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if ( $is_match && isset( $subj_data['total'] ) ) {
+                                $max_items = (int) $subj_data['total'];
+                                break 2; 
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 집계 모드: 각 세부과목의 문제를 모두 모은 후 question_id ASC 정렬
             $questions_map = [];
 
             foreach ($subject_names as $subject_name) {
@@ -331,12 +375,23 @@ class Study_API {
                 return $a['question_id'] <=> $b['question_id'];
             });
 
+            // Map에 정의된 총 문항 수로 전체 풀 제한
+            if ($max_items > 0 && count($questions) > $max_items) {
+                $questions = array_slice($questions, 0, $max_items);
+            }
+
             $total_count = count($questions);
 
-            // 페이지네이션 적용 (10문제씩 등)
+            // 페이지네이션 적용 (요청된 limit 사용)
             $paged_questions = array_slice($questions, $offset, $limit);
 
-            $formatted_lessons = array_map(function($q) {
+            // 사용자 통계 조회
+            $user_id = get_current_user_id();
+            $question_ids = array_column($paged_questions, 'question_id');
+            $user_stats = LegacyRepo::get_user_question_stats($user_id, $question_ids);
+
+            $formatted_lessons = array_map(function($q) use ($user_stats) {
+                $stats = isset($user_stats[$q['question_id']]) ? $user_stats[$q['question_id']] : null;
                 return [
                     'id'          => $q['question_id'],
                     'title'       => '문제 #' . $q['question_id'],
@@ -349,6 +404,7 @@ class Study_API {
                         'session' => isset($q['exam_session']) ? $q['exam_session'] : null,
                         'subject' => $q['subject'],
                     ],
+                    'user_stats'  => $stats,
                 ];
             }, $paged_questions);
 
@@ -370,14 +426,55 @@ class Study_API {
         }
 
 		$subject = urldecode($course_id);
+        $user_id = get_current_user_id();
+        $is_smart_random = $random && $user_id;
+
+        // [세부과목 선택 모드] Subjects::MAP에서 해당 세부과목의 문항 수를 찾아 Limit 적용
+        $max_items = 0;
+        if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+            $needle = urldecode($course_id);
+            if (class_exists('Normalizer')) {
+                $needle = \Normalizer::normalize($needle, \Normalizer::FORM_C);
+            }
+            $needle = preg_replace( '/\s+|·/u', '', $needle );
+
+            foreach ( \PTG\Quiz\Subjects::MAP as $session_data ) {
+                if ( ! empty( $session_data['subjects'] ) ) {
+                    foreach ( $session_data['subjects'] as $subj_name => $subj_data ) {
+                        if ( ! empty( $subj_data['subs'] ) ) {
+                            foreach ( $subj_data['subs'] as $sub_name => $count ) {
+                                $candidate = $sub_name;
+                                if (class_exists('Normalizer')) {
+                                    $candidate = \Normalizer::normalize($candidate, \Normalizer::FORM_C);
+                                }
+                                $candidate = preg_replace( '/\s+|·/u', '', $candidate );
+                                
+                                if ( $needle === $candidate || stripos($needle, $candidate) !== false || stripos($candidate, $needle) !== false ) {
+                                    $max_items = (int) $count;
+                                    break 3; // Found match
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $repo_limit = $limit;
+        if ($max_items > 0) {
+             // Optimization: Request fewer items if we know we are near the limit
+             $repo_limit = min($limit, max(0, $max_items - $offset));
+        }
 
 		// 세부과목 단일 조회
 		$args = [
 			'subject'          => $subject,
-			'limit'            => $random ? 1000 : $limit, // 랜덤일 때는 넉넉히 가져온 후 자르기
+			'limit'            => ($random && !$is_smart_random) ? 1000 : $repo_limit, 
 			'offset'           => $random ? 0 : $offset,
-			// 전역 정책: 회차 1000 이상만
 			'exam_session_min' => 1000,
+            'random'           => $random,
+            'smart_random_user_id' => $is_smart_random ? $user_id : null,
+            'smart_random_exclude_correct' => $is_smart_random, 
 		];
 
 		$questions = LegacyRepo::get_questions_with_categories($args);
@@ -385,16 +482,34 @@ class Study_API {
 			'subject'          => $subject,
 			'exam_session_min' => 1000,
 		]);
+        
+        // Fallback: If Map lookup failed, use DB count as max_items
+        if ($max_items == 0) {
+            $max_items = $total_count;
+        }
 
-        if (empty($questions)) {
+        // Enforce Limit (Post-Fetch Slicing)
+        // This ensures we never return more than allowed, even if Repo returned more or random mode fetched duplicates
+        $remaining = max(0, $max_items - $offset);
+        if (count($questions) > $remaining) {
+            $questions = array_slice($questions, 0, $remaining);
+        }
+        
+        // Update total_count for response to match the effective limit
+        $total_count = $max_items;
+
+        if (empty($questions) && $offset < $max_items) {
             return new \WP_Error('no_questions', '해당 과목에 대한 문제가 없습니다.', ['status' => 404]);
         }
 
 		// 정렬/랜덤 처리
 		if ($random) {
-			// 랜덤 섞기 후 limit 만큼 잘라서 반환
-			shuffle($questions);
-			$questions = array_slice($questions, 0, $limit);
+            if (!$is_smart_random) {
+                // Legacy Random (PHP Shuffle for guests)
+			    shuffle($questions);
+			    $questions = array_slice($questions, 0, $limit);
+            }
+            // Smart random is already sorted and limited by SQL
 		} else {
 			// question_id 오름차순 정렬 (학습용 순서)
 			usort($questions, function($a, $b) {
@@ -402,7 +517,13 @@ class Study_API {
 			});
 		}
 
-		$formatted_lessons = array_map(function($q) {
+		// 사용자 통계 조회
+        $user_id = get_current_user_id();
+        $question_ids = array_column($questions, 'question_id');
+        $user_stats = LegacyRepo::get_user_question_stats($user_id, $question_ids);
+
+		$formatted_lessons = array_map(function($q) use ($user_stats) {
+            $stats = isset($user_stats[$q['question_id']]) ? $user_stats[$q['question_id']] : null;
 			return [
 				'id'          => $q['question_id'],
 				'title'       => '문제 #' . $q['question_id'],
@@ -414,7 +535,8 @@ class Study_API {
 					'year'    => $q['exam_year'],
 					'session' => isset($q['exam_session']) ? $q['exam_session'] : null,
 					'subject' => $q['subject'],
-				]
+				],
+                'user_stats'  => $stats,
 			];
 		}, $questions);
 

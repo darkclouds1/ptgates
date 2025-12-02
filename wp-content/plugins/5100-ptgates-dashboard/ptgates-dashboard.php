@@ -61,7 +61,6 @@ class PTG_Dashboard {
         }
 
         add_shortcode('ptg_dashboard', [$this, 'render_shortcode']);
-        add_shortcode('ptg_bookmarks', [$this, 'render_bookmarks_shortcode']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
     }
 
@@ -290,17 +289,20 @@ class PTG_Dashboard {
     }
 
     public function render_shortcode($atts) {
-        // CSS는 템플릿 파일에 인라인 스타일로 포함되어 있음
+        $view = isset($_GET['view']) ? sanitize_text_field($_GET['view']) : 'dashboard';
+
         ob_start();
-        include PTG_DASHBOARD_PATH . 'templates/dashboard-template.php';
+        
+        if ($view === 'membership') {
+            include PTG_DASHBOARD_PATH . 'templates/membership-template.php';
+        } else {
+            include PTG_DASHBOARD_PATH . 'templates/dashboard-template.php';
+        }
+        
         return ob_get_clean();
     }
 
-    public function render_bookmarks_shortcode($atts) {
-        ob_start();
-        include PTG_DASHBOARD_PATH . 'templates/bookmarks-template.php';
-        return ob_get_clean();
-    }
+
 }
 
 PTG_Dashboard::get_instance();

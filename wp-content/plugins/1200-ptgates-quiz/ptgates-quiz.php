@@ -17,6 +17,13 @@ final class PTG_Quiz_Plugin {
 
     private static $instance = null;
 
+    // --- Configuration Constants ---
+    const LIMIT_MOCK_EXAM      = 1;  // 모의고사(1교시/2교시/전체) 1일 제한 횟수
+    const LIMIT_QUIZ_QUESTIONS = 20; // Basic(로그인 무료회원) 1일 일반 퀴즈 제한
+    const LIMIT_TRIAL_QUESTIONS= 50; // Trial 회원 1일 일반 퀴즈 제한
+    const MEMBERSHIP_URL       = '/membership'; // 멤버십 안내 페이지 URL
+    // -------------------------------
+
     public static function get_instance() {
         if ( is_null( self::$instance ) ) {
             self::$instance = new self();
@@ -29,30 +36,12 @@ final class PTG_Quiz_Plugin {
         
         // 1. REST API는 'rest_api_init' 훅에서 초기화합니다.
         add_action( 'rest_api_init', [ $this, 'init_rest_api' ] );
-        add_filter( 'rest_authentication_errors', [ $this, 'rest_auth_guard' ] );
         
         // 2. 숏코드는 'init' 훅에서 등록합니다.
         add_action( 'init', [ $this, 'register_shortcode' ] );
 
         // 3. 스크립트와 스타일은 'wp_enqueue_scripts' 훅에서 로드합니다.
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
-    }
-
-    /**
-     * 우리 네임스페이스 요청일 때 비로그인은 JSON 에러로 즉시 응답
-     */
-    public function rest_auth_guard( $result ) {
-        if ( ! empty( $result ) ) {
-            return $result;
-        }
-        // 현재 요청 경로 확인
-        $route = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-        if ( strpos( $route, '/wp-json/ptg-quiz/v1/' ) !== false ) {
-            if ( ! is_user_logged_in() ) {
-                return new \WP_Error( 'rest_forbidden', '로그인이 필요합니다.', [ 'status' => 401 ] );
-            }
-        }
-        return $result;
     }
 
     /**
@@ -160,8 +149,28 @@ final class PTG_Quiz_Plugin {
         $user_id        = get_current_user_id();
         $timezone       = wp_timezone_string();
 
+        // 회원 등급 조회
+        $member_grade = 'guest';
+        if ( is_user_logged_in() ) {
+            // 0000-ptgates-platform의 Repo 클래스 사용
+            if ( class_exists( '\PTG\Platform\Repo' ) ) {
+                $member = \PTG\Platform\Repo::find_one( 'ptgates_user_member', [ 'user_id' => $user_id ] );
+                if ( $member && ! empty( $member['member_grade'] ) ) {
+                    $member_grade = $member['member_grade'];
+                    // Trial 만료 체크
+                    if ( $member_grade === 'trial' && ! empty( $member['billing_expiry_date'] ) && strtotime( $member['billing_expiry_date'] ) < time() ) {
+                        $member_grade = 'basic';
+                    }
+                } else {
+                    $member_grade = 'basic'; // 로그인했지만 정보 없으면 Basic 취급
+                }
+            } else {
+                $member_grade = 'basic'; // 플랫폼 없으면 기본 Basic
+            }
+        }
+
         $loader_script = sprintf(
-            '<script id="ptg-quiz-script-loader">(function(d){var cfg=d.defaultView||window;cfg.ptgQuiz=cfg.ptgQuiz||{};cfg.ptgQuiz.restUrl=%1$s;cfg.ptgQuiz.nonce=%2$s;cfg.ptgPlatform=cfg.ptgPlatform||{};if(!cfg.ptgPlatform.restUrl){cfg.ptgPlatform.restUrl=%6$s;}cfg.ptgPlatform.nonce=%2$s;cfg.ptgPlatform.userId=%7$d;cfg.ptgPlatform.timezone=%8$s;var queue=[{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},{check:function(){return typeof cfg.PTGQuizUI!=="undefined";},url:%4$s},{check:function(){return typeof cfg.PTGStudyToolbar!=="undefined";},url:%9$s},{check:function(){return typeof cfg.PTGQuizDrawing!=="undefined";},url:%10$s},{check:function(){return typeof cfg.PTGQuizToolbar!=="undefined";},url:%11$s},{check:function(){return typeof cfg.PTGQuiz!=="undefined";},url:%5$s}];function load(i){if(i>=queue.length){return;}var item=queue[i];if(item.check()){load(i+1);return;}var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');if(existing){existing.addEventListener("load",function(){load(i+1);});return;}var s=d.createElement("script");s.src=item.url+(item.url.indexOf("?")===-1?"?ver=1.0.18":"");s.async=false;s.setAttribute("data-ptg-src",item.url);s.onload=function(){load(i+1);};s.onerror=function(){console.error("[PTG Quiz] 스크립트를 불러오지 못했습니다:",item.url);load(i+1);};(d.head||d.body||d.documentElement).appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}})(document);</script>',
+            '<script id="ptg-quiz-script-loader">(function(d){var cfg=d.defaultView||window;cfg.ptgQuiz=cfg.ptgQuiz||{};cfg.ptgQuiz.restUrl=%1$s;cfg.ptgQuiz.nonce=%2$s;cfg.ptgQuiz.subjectMap=%12$s;cfg.ptgQuiz.memberGrade=%13$s;cfg.ptgQuiz.limits={mock:%14$d,quiz:%15$d,trial:%16$d};cfg.ptgQuiz.membershipUrl=%17$s;cfg.ptgPlatform=cfg.ptgPlatform||{};if(!cfg.ptgPlatform.restUrl){cfg.ptgPlatform.restUrl=%6$s;}cfg.ptgPlatform.nonce=%2$s;cfg.ptgPlatform.userId=%7$d;cfg.ptgPlatform.timezone=%8$s;var queue=[{check:function(){return typeof cfg.PTGPlatform!=="undefined";},url:%3$s},{check:function(){return typeof cfg.PTGQuizUI!=="undefined";},url:%4$s},{check:function(){return typeof cfg.PTGStudyToolbar!=="undefined";},url:%9$s},{check:function(){return typeof cfg.PTGQuizDrawing!=="undefined";},url:%10$s},{check:function(){return typeof cfg.PTGQuizToolbar!=="undefined";},url:%11$s},{check:function(){return typeof cfg.PTGQuiz!=="undefined";},url:%5$s}];function load(i){if(i>=queue.length){return;}var item=queue[i];if(item.check()){load(i+1);return;}var existing=d.querySelector(\'script[data-ptg-src="\'+item.url+\'"]\');if(existing){existing.addEventListener("load",function(){load(i+1);});return;}var s=d.createElement("script");s.src=item.url+(item.url.indexOf("?")===-1?"?ver=1.0.18":"");s.async=false;s.setAttribute("data-ptg-src",item.url);s.onload=function(){load(i+1);};s.onerror=function(){console.error("[PTG Quiz] 스크립트를 불러오지 못했습니다:",item.url);load(i+1);};(d.head||d.body||d.documentElement).appendChild(s);}if(d.readyState==="loading"){d.addEventListener("DOMContentLoaded",function(){load(0);});}else{load(0);}})(document);</script>',
             wp_json_encode( $rest_url ),
             wp_json_encode( $nonce ),
             wp_json_encode( $platform_url ),
@@ -172,7 +181,13 @@ final class PTG_Quiz_Plugin {
             wp_json_encode( $timezone ),
             wp_json_encode( $study_toolbar_url ),
             wp_json_encode( $quiz_drawing_url ),
-            wp_json_encode( $quiz_toolbar_url )
+            wp_json_encode( $quiz_toolbar_url ),
+            wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::MAP : [] ),
+            wp_json_encode( $member_grade ),
+            self::LIMIT_MOCK_EXAM,
+            self::LIMIT_QUIZ_QUESTIONS,
+            self::LIMIT_TRIAL_QUESTIONS,
+            wp_json_encode( home_url( self::MEMBERSHIP_URL ) )
         );
 
         $template = plugin_dir_path( __FILE__ ) . 'templates/quiz-template.php';

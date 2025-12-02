@@ -70,58 +70,66 @@
         'quiz-tip': {
             title: '실전 모의 학습 가이드',
             content: `
-                <div style="text-align: left; line-height: 1.8;">
-                    <!-- 출제 순서 경향 -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📊 출제 순서 경향 (ptGates 적용)</h3>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름. (예: 운동치료학에서 원리 → 기법 → 질환별 적용 순)</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>과목별 배치:</strong> 각 과목(예: 공중보건학) 내에서도 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, <strong>환경/산업보건</strong> 같은 세부 응용 주제가 뒤쪽에 배치되는 경향이 명확함.</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>학습 활용:</strong> ptGates는 이 경향을 반영하여 '세부과목별 묶음 학습'과 '실제 기출 순서 학습' 모드를 모두 지원할 예정임.</li>
-                        </ul>
-                    </div>
+                <div style="text-align: left; line-height: 1.6; color: #374151;">
+                    <!-- 1. 출제 경향 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">📊 출제 경향 (ptGates 적용)</h4>
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 13px;">
+                            <ul style="list-style: none; padding: 0; margin: 0;">
+                                <li style="margin-bottom: 6px; padding-left: 14px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>흐름:</strong> <span style="color:#e11d48;">기초</span> → <span style="color:#2563eb;">응용</span> → <span style="color:#059669;">임상</span> (원리에서 질환별 적용 순)</li>
+                                <li style="margin-bottom: 0; padding-left: 14px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>배치:</strong> 과목 내에서도 <strong>개론</strong>이 앞쪽, <strong>세부 사례</strong>가 뒤쪽에 배치됨.</li>
+                            </ul>
+                        </div>
+                    </section>
 
-                    <!-- 교시별 모의고사 구성 -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🎯 교시별 모의고사 구성</h3>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">1교시 (105문항)</h4>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 기초 (60문항):</strong> 해부생리학(22), 운동학(12), 물리적 인자치료(16), 공중보건학(10)</li>
-                                <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 진단평가 (45문항):</strong> 근골격계(10), 신경계(16), 진단평가 원리(6), 심폐혈관계(4), 기타(2), 임상의사결정(7)</li>
-                            </ul>
+                    <!-- 2. 모의고사 구성 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">🎯 교시별 구성</h4>
+                        <div style="display: flex; gap: 10px; font-size: 13px;">
+                            <div style="flex: 1; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <strong style="display:block; margin-bottom:6px; color:#333; border-bottom:1px solid #eee; padding-bottom:4px;">1교시 (105문항)</strong>
+                                <ul style="margin:0; padding-left:14px; color:#555; list-style:none;">
+                                    <li style="margin-bottom:4px; position:relative;"><span style="position:absolute; left:-12px; color:#9ca3af;">•</span>기초(60): 해부/운동/인자/공중</li>
+                                    <li style="position:relative;"><span style="position:absolute; left:-12px; color:#9ca3af;">•</span>진단(45): 근골/신경/심폐 등</li>
+                                </ul>
+                            </div>
+                            <div style="flex: 1; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <strong style="display:block; margin-bottom:6px; color:#333; border-bottom:1px solid #eee; padding-bottom:4px;">2교시 (85문항)</strong>
+                                <ul style="margin:0; padding-left:14px; color:#555; list-style:none;">
+                                    <li style="margin-bottom:4px; position:relative;"><span style="position:absolute; left:-12px; color:#9ca3af;">•</span>중재(65): 근골/신경/피부 등</li>
+                                    <li style="position:relative;"><span style="position:absolute; left:-12px; color:#9ca3af;">•</span>법규(20): 의료/노인/장애인 등</li>
+                                </ul>
+                            </div>
                         </div>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                            <h4 style="margin: 0 0 10px 0; color: #333;">2교시 (85문항)</h4>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>물리치료 중재 (65문항):</strong> 근골격계(28), 신경계(25), 심폐혈관계(5), 림프/피부(2), 문제해결(5)</li>
-                                <li style="margin-bottom: 8px; padding-left: 20px; position: relative; font-size: 14px;"><span style="position: absolute; left: 0; color: #666;">•</span> <strong>의료관계법규 (20문항):</strong> 의료법(5), 의료기사법(5), 노인복지법(4), 장애인복지법(3), 국민건강보험법(3)</li>
-                            </ul>
+                    </section>
+
+                    <!-- 3. 주요 기능 -->
+                    <section style="margin-bottom: 16px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">🔍 주요 기능</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                            <div style="background: #f0f9ff; padding: 8px; border-radius: 4px; color: #0c4a6e;">
+                                <strong>🎲 기본 퀴즈</strong><br>필터 없이 5문제 랜덤
+                            </div>
+                            <div style="background: #f0f9ff; padding: 8px; border-radius: 4px; color: #0c4a6e;">
+                                <strong>📚 과목 선택</strong><br>특정 교시/과목 집중
+                            </div>
+                            <div style="background: #f0f9ff; padding: 8px; border-radius: 4px; color: #0c4a6e;">
+                                <strong>⏱️ 문항 조절</strong><br>시간에 맞춰 개수 설정
+                            </div>
+                            <div style="background: #f0f9ff; padding: 8px; border-radius: 4px; color: #0c4a6e;">
+                                <strong>🔖 북마크/복습</strong><br>틀린 문제 다시 풀기
+                            </div>
                         </div>
-                    </div>
-                    
-                    <!-- 주요 기능 -->
-                    <div style="margin-bottom: 30px;">
-                        <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">🔍 주요 기능</h3>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 퀴즈:</strong> 필터 없이 사용 시 5문제 랜덤 출제</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>교시/과목 선택:</strong> 특정 교시나 과목을 집중적으로 학습 가능</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>문항 수 지정:</strong> 학습 시간에 맞춰 문제 수 조절 가능</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>북마크/복습:</strong> 중요하거나 틀린 문제만 모아서 다시 풀기 (로그인 필요)</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- 참고사항 -->
-                    <div>
-                        <h3 style="color: #4a90e2; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; margin-bottom: 15px;">📌 참고사항</h3>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 기출문제는 자동으로 제외됩니다.</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #666;">•</span> 전체 교시 모의고사는 국가시험 문항 구성 비율을 자동 적용합니다.</li>
-                        </ul>
-                    </div>
+                    </section>
+
+                    <!-- 4. 참고사항 -->
+                    <section style="font-size: 12px; color: #6b7280; background: #f9fafb; padding: 8px; border-radius: 4px;">
+                        <p style="margin: 0 0 4px 0;">※ 기출문제는 자동 제외됩니다. (생성 문항 중심)</p>
+                        <p style="margin: 0;">※ 전체 모의고사는 국가시험 문항 비율을 따릅니다.</p>
+                    </section>
                 </div>
             `,
-            maxWidth: 900
+            maxWidth: 600
         },
         
         /**
@@ -130,111 +138,124 @@
         'study-tip': {
             title: '기출 학습 가이드',
             content: `
-                <div style="text-align: left; line-height: 1.8;">
-                    <!-- ptGates Study 프로그램 사용 팁 -->
-                    <section style="margin-bottom: 24px;">
-                        <h4 style="margin: 0 0 12px 0; color: #374151; font-size: 16px;">💡 ptGates Study 프로그램 사용 팁</h4>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 12px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>암기카드 활용:</strong> 이해가 어렵거나 외울 부분이 많은 개념은 툴바의 암기카드 기능을 이용해 즉시 저장하고 <strong>간격 반복 학습(SRS)</strong>을 활용할 것.</li>
-                            <li style="margin-bottom: 12px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>취약점 분석:</strong> 학습 후에는 <strong>대시보드(ptgates-analytics)</strong>를 확인하여, 연관 개념 중 취약한 단원을 찾아 복습 우선순위를 정할 것.</li>
-                            <li style="margin-bottom: 12px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>연속 학습:</strong> 출제 순서 경향을 참조하여 <strong>기초 → 응용</strong> 흐름에 따라 세부 영역 묶음 단위로 끊임없이 학습하는 것을 추천함.</li>
+                <div style="text-align: left; line-height: 1.6; color: #374151;">
+                    <!-- 1. 학습 팁 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">💡 효과적인 학습 팁</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px;">
+                            <li style="margin-bottom: 6px; padding-left: 14px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>암기카드:</strong> 어려운 개념은 즉시 저장해 <strong>간격 반복(SRS)</strong>으로 암기하세요.</li>
+                            <li style="margin-bottom: 6px; padding-left: 14px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>취약점 분석:</strong> 대시보드에서 부족한 단원을 파악해 집중 공략하세요.</li>
+                            <li style="margin-bottom: 6px; padding-left: 14px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>연속 학습:</strong> <strong>기초→응용</strong> 흐름에 맞춰 세부 영역을 묶어서 학습하세요.</li>
                         </ul>
                     </section>
 
-                    <!-- 출제 순서 경향 요약 -->
-                    <section style="margin-bottom: 24px;">
-                        <h4 style="margin: 0 0 12px 0; color: #374151; font-size: 16px;">📌 출제 순서 경향 요약</h4>
-                        <ul style="list-style: none; padding: 0; margin: 0;">
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>기본 흐름:</strong> 출제는 보통 <strong>기초 → 응용 → 임상</strong>의 큰 패턴을 따름.</li>
-                            <li style="margin-bottom: 10px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #4a90e2;">•</span> <strong>과목별 배치:</strong> 각 과목 내에서 <strong>개론/역학</strong> 같은 범용 개념이 앞쪽에, 세부 응용/임상 사례가 뒤쪽에 배치되는 경향이 명확함.</li>
-                        </ul>
+                    <!-- 2. 스마트 랜덤 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">🧠 스마트 랜덤 추천 (로그인)</h4>
+                        <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 3px solid #0ea5e9; font-size: 13px;">
+                            <p style="margin: 0 0 8px 0; color: #0c4a6e;">'랜덤 섞기' 시 다음 우선순위로 문제가 노출됩니다:</p>
+                            <ol style="margin: 0; padding-left: 20px; color: #075985;">
+                                <li style="margin-bottom: 4px;"><strong>1순위 (최근 오답):</strong> 틀린 문제 집중 복습</li>
+                                <li style="margin-bottom: 4px;"><strong>2순위 (미학습):</strong> 새로운 문제 도전</li>
+                                <li style="margin-bottom: 0;"><strong>3순위 (최근 정답):</strong> 아는 문제 가볍게 확인</li>
+                            </ol>
+                        </div>
                     </section>
 
-                    <!-- 학습 구조 -->
-                    <section style="margin-bottom: 24px;">
-                        <h4 style="margin: 0 0 12px 0; color: #374151; font-size: 16px;">🎯 학습 구조</h4>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 12px;">
-                            <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">교시별 배열</h5>
-                            <ul style="list-style: none; padding: 0; margin: 0; padding-left: 20px;">
-                                <li style="margin-bottom: 6px; color: #4b5563;">• <strong>1교시:</strong> 기초(60) → 진단평가(45)</li>
-                                <li style="margin-bottom: 6px; color: #4b5563;">• <strong>2교시:</strong> 중재(65) → 법규(20)</li>
-                            </ul>
-                        </div>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 12px;">
-                            <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">세부 영역 순서</h5>
-                            <ul style="list-style: none; padding: 0; margin: 0; padding-left: 20px;">
-                                <li style="margin-bottom: 6px; color: #4b5563;">• <strong>기초:</strong> 해부생리 → 운동학 → 물리적 인자 → 공중보건</li>
-                                <li style="margin-bottom: 6px; color: #4b5563;">• <strong>중재:</strong> 근골격 → 신경계 → 기타(심폐/피부/문제해결)</li>
-                            </ul>
-                        </div>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                            <h5 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">학습 전략</h5>
-                            <ul style="list-style: none; padding: 0; margin: 0; padding-left: 20px;">
-                                <li style="margin-bottom: 6px; color: #4b5563;">• 교시·과목·세부영역 <strong>묶음</strong>으로 연속 학습</li>
-                                <li style="margin-bottom: 6px; color: #4b5563;">• 정렬 모드로 <strong>흐름</strong> 익힌 뒤, 랜덤으로 <strong>복습</strong></li>
-                            </ul>
+                    <!-- 3. 출제 경향 & 구조 -->
+                    <section>
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">📌 출제 경향 및 구조</h4>
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 13px;">
+                            <p style="margin: 0 0 8px 0;"><strong>출제 흐름:</strong> <span style="color:#e11d48;">기초</span> → <span style="color:#2563eb;">응용</span> → <span style="color:#059669;">임상</span> (개론에서 세부 사례로)</p>
+                            
+                            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                <div style="flex: 1; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                    <strong style="display:block; margin-bottom:4px; color:#333;">1교시 (기초/진단)</strong>
+                                    <ul style="margin:0; padding-left:12px; color:#555;">
+                                        <li>해부/운동/인자/공중</li>
+                                        <li>진단평가(근골/신경 등)</li>
+                                    </ul>
+                                </div>
+                                <div style="flex: 1; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                    <strong style="display:block; margin-bottom:4px; color:#333;">2교시 (중재/법규)</strong>
+                                    <ul style="margin:0; padding-left:12px; color:#555;">
+                                        <li>중재(근골/신경 등)</li>
+                                        <li>의료관계법규</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                     </section>
                 </div>
             `,
-            maxWidth: 900
+            maxWidth: 600
         },
         
         /**
          * timer-tip: 시간관리 Tip
          */
         'timer-tip': {
-            title: '물리치료사 국가시험 시간관리 가이드',
+            title: '국가시험 시간관리 가이드',
             content: `
-                <div style="text-align: left; line-height: 1.8;">
-                    <p style="margin: 0 0 16px 0; color: #4b5563;">물리치료사 국가시험은 전체 260문항에 총 250분의 시험 시간이 주어지므로, 전체적으로 한 문제당 평균 약 57.7초를 배분하여 풀어야 합니다.</p>
-                    
-                    <p style="margin: 0 0 16px 0; color: #4b5563;">하지만 각 교시별로 문항 수와 시간이 다르기 때문에, 실제 시험에서는 각 교시의 할당 시간에 맞춰 문제를 풀어야 합니다.</p>
-                    
-                    <p style="margin: 0 0 16px 0; color: #4b5563;">다음은 제48회 국가시험부터 적용된 교시별 평균 소요 시간입니다:</p>
-                    
-                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #e5e7eb;">
-                        <thead>
-                            <tr style="background-color: #f3f4f6;">
-                                <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">교시</th>
-                                <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">시험 과목 (총 문항 수)</th>
-                                <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">시험 시간 (분)</th>
-                                <th style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">한 문제당 평균 시간 (초)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">1교시</td>
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">물리치료 기초 + 진단평가 (105문항)</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">90분</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">약 51.4초</td>
-                            </tr>
-                            <tr style="background-color: #f9fafb;">
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">2교시</td>
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">물리치료 중재 + 의료관계법규 (85문항)</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">75분</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">약 52.9초</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">3교시</td>
-                                <td style="padding: 12px; border: 1px solid #e5e7eb; color: #4b5563;">실기시험 (70문항)</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">85분</td>
-                                <td style="padding: 12px; text-align: center; border: 1px solid #e5e7eb; color: #4b5563;">약 72.8초</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <div style="margin-top: 24px; padding: 16px; background-color: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
-                        <h4 style="margin: 0 0 12px 0; color: #0c4a6e; font-size: 16px; font-weight: 700;">핵심 요약:</h4>
-                        <ul style="margin: 0 0 12px 0; padding-left: 20px; color: #075985;">
-                            <li style="margin-bottom: 8px;"><strong>필기(1/2교시):</strong> 문제당 약 51~53초로, 1분 이내에 문제를 해결하는 속도가 요구됩니다.</li>
-                            <li style="margin-bottom: 8px;"><strong>실기(3교시):</strong> 문제당 약 73초로, 필기시험에 비해 상대적으로 시간이 더 많이 주어집니다.</li>
-                        </ul>
-                        <p style="margin: 0; color: #075985;">물리치료사 국시는 과목 수와 문제 수가 많으므로, 시간 관리가 합격을 좌우하는 중요한 요소입니다. 따라서 실제 시험 시간과 동일하게 모의고사를 치르면서 시간 배분을 철저히 훈련하는 것이 중요합니다.</p>
-                    </div>
+                <div style="text-align: left; line-height: 1.6; color: #374151;">
+                    <!-- 1. 개요 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">⏱️ 시험 시간 개요</h4>
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 13px;">
+                            <p style="margin: 0 0 4px 0;"><strong>전체:</strong> 260문항 / 250분 (평균 57.7초/문제)</p>
+                            <p style="margin: 0; color: #e11d48;">※ 교시별로 문항 수와 시간이 다르므로 전략적 배분이 필수입니다.</p>
+                        </div>
+                    </section>
+
+                    <!-- 2. 교시별 상세 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">📊 교시별 평균 소요 시간</h4>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #e5e7eb;">
+                            <thead style="background: #f3f4f6;">
+                                <tr>
+                                    <th style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">교시</th>
+                                    <th style="padding: 8px; border: 1px solid #e5e7eb; text-align: left;">과목 (문항수)</th>
+                                    <th style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">시간</th>
+                                    <th style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">평균</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">1교시</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb;">기초+진단 (105)</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">90분</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; color:#e11d48; font-weight:bold;">51초</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">2교시</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb;">중재+법규 (85)</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">75분</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; color:#e11d48; font-weight:bold;">53초</td>
+                                </tr>
+                                <tr style="background: #f9fafb;">
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">3교시</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb;">실기 (70)</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">85분</td>
+                                    <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; color:#059669;">73초</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <!-- 3. 핵심 전략 -->
+                    <section>
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">💡 핵심 전략</h4>
+                        <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 3px solid #0ea5e9; font-size: 13px;">
+                            <ul style="margin: 0; padding-left: 14px; color: #0c4a6e;">
+                                <li style="margin-bottom: 6px;"><strong>필기 (1,2교시):</strong> <span style="color:#e11d48;">속도전</span>입니다. 1분 안에 푸는 연습이 필요합니다.</li>
+                                <li style="margin-bottom: 6px;"><strong>실기 (3교시):</strong> 상대적으로 여유가 있습니다. 지문 분석에 집중하세요.</li>
+                                <li style="margin-bottom: 0;"><strong>실전 연습:</strong> 실제 시험 시간과 동일하게 타이머를 설정하고 연습하세요.</li>
+                            </ul>
+                        </div>
+                    </section>
                 </div>
             `,
-            maxWidth: 900
+            maxWidth: 600
         }
     };
     

@@ -8,6 +8,7 @@
 
             this.config = window.ptgReviewer || {};
             this.mode = this.container.data('mode') || 'today';
+            this.dashboardUrl = this.config.dashboardUrl || '/';
 
             this.loadReviews();
         },
@@ -32,29 +33,46 @@
         },
 
         renderList: function(questions) {
+            const self = this;
+            
+            // Header HTML
+            let html = `
+                <div class="ptg-reviewer-header">
+                    <h1>오늘의 복습</h1>
+                    <div class="ptg-reviewer-header-right">
+                        <a href="${self.escapeHtml(self.dashboardUrl)}" class="ptg-reviewer-dashboard-link">대시보드</a>
+                    </div>
+                </div>
+            `;
+
             if (!questions || questions.length === 0) {
-                this.container.html('<div class="ptg-empty">오늘 복습할 내용이 없습니다. 🎉</div>');
+                html += '<div class="ptg-empty">오늘 복습할 내용이 없습니다. 🎉</div>';
+                this.container.html(html);
                 return;
             }
 
-            let html = '<div class="ptg-review-list">';
+            html += '<div class="ptg-review-list">';
             html += '<h3>오늘의 복습 (' + questions.length + ')</h3>';
             html += '<ul>';
             
             questions.forEach(function(q) {
-                // Assuming there is a way to link to the quiz, e.g., a shortcode page or direct link
-                // For now, we'll just show the title and a "Start" button that might link to a quiz page
-                // In a real scenario, this URL structure needs to be defined in the platform settings or passed via config
                 const quizUrl = '/quiz/?id=' + q.question_id; 
                 
                 html += '<li class="ptg-review-item">';
-                html += '<span class="ptg-review-title">[' + q.type + '] ' + (q.content ? q.content.substring(0, 50) + '...' : '문제 #' + q.question_id) + '</span>';
+                html += '<span class="ptg-review-title">[' + q.type + '] ' + (q.content ? self.escapeHtml(q.content.substring(0, 50)) + '...' : '문제 #' + q.question_id) + '</span>';
                 html += '<a href="' + quizUrl + '" class="ptg-btn ptg-btn-sm">복습하기</a>';
                 html += '</li>';
             });
 
             html += '</ul></div>';
             this.container.html(html);
+        },
+
+        escapeHtml: function(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     };
 

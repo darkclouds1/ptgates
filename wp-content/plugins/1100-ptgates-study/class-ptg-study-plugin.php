@@ -7,6 +7,12 @@ if (!defined('ABSPATH')) {
 class PTG_Study_Plugin {
     private static $instance;
 
+    // --- Configuration Constants ---
+    const LIMIT_GUEST_VIEW = 5;  // 비로그인 사용자 보기 제한 횟수
+    const LIMIT_FREE_VIEW  = 20; // 무료(Basic) 회원 보기 제한 횟수
+    const MEMBERSHIP_URL   = '/membership'; // 멤버십 안내 페이지 URL
+    // -------------------------------
+
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
@@ -207,7 +213,14 @@ class PTG_Study_Plugin {
                     rest_url: '<?php echo esc_url( get_rest_url( null, 'ptg-study/v1/' ) ); ?>',
                     api_nonce: '<?php echo wp_create_nonce( 'wp_rest' ); ?>',
                     is_user_logged_in: <?php echo is_user_logged_in() ? 'true' : 'false'; ?>,
-                    login_url: '<?php echo esc_url( add_query_arg( 'redirect_to', urlencode( get_permalink() ), home_url( '/login/' ) ) ); ?>'
+                    is_premium: <?php echo \PTG\Platform\Permissions::can_access_feature('premium_content') ? 'true' : 'false'; ?>,
+                    limits: {
+                        guest: <?php echo self::LIMIT_GUEST_VIEW; ?>,
+                        free: <?php echo self::LIMIT_FREE_VIEW; ?>
+                    },
+                    membership_url: '<?php echo esc_url( home_url( self::MEMBERSHIP_URL ) ); ?>',
+                    login_url: '<?php echo esc_url( add_query_arg( 'redirect_to', urlencode( get_permalink() ), home_url( '/login/' ) ) ); ?>',
+                    subjectMap: <?php echo json_encode( $subjects_map ); ?>
                 };
             </script>
 
@@ -256,6 +269,8 @@ class PTG_Study_Plugin {
                     flex-shrink: 0 !important;
                 }
                 .ptg-study-dashboard-link {
+                    display: inline-block !important;
+                    background: #edf2f7 !important; /* Added background */
                     font-size: 13px !important;
                     font-weight: 600 !important;
                     color: #4a5568 !important;

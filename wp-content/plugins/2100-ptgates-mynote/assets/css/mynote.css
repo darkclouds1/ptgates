@@ -12,9 +12,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin: 0 auto 20px;
     flex-wrap: wrap;
     gap: 15px;
+    width: 100%;
+    max-width: 960px;
 }
 
 .ptg-mynote-header-left {

@@ -87,8 +87,35 @@ class LegacyRepo {
         
         // 랜덤 모드 처리
         $order_by = "ORDER BY q.question_id DESC";
+        $join_clause = "INNER JOIN {$categories_table} c ON q.question_id = c.question_id";
+
         if (!empty($args['random']) && $args['random']) {
             $order_by = "ORDER BY RAND()";
+            
+            // Smart Random (Logged-in User Priority)
+            if (!empty($args['smart_random_user_id'])) {
+                $user_id = absint($args['smart_random_user_id']);
+                $join_clause .= " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = %d";
+                
+                // JOIN comes before WHERE, so prepend user_id
+                array_unshift($where_values, $user_id);
+
+                // Exclude Correct Answers if requested
+                if (!empty($args['smart_random_exclude_correct']) && $args['smart_random_exclude_correct']) {
+                    $where_clause .= " AND (us.last_result IS NULL OR us.last_result != 'correct')";
+                }
+                
+                // Priority: 1. Wrong, 2. Unstudied (NULL), 3. Correct (if not excluded)
+                $order_by = "
+                    ORDER BY 
+                    CASE 
+                        WHEN us.last_result = 'wrong' THEN 1 
+                        WHEN us.last_result IS NULL THEN 2 
+                        ELSE 3 
+                    END ASC, 
+                    RAND()
+                ";
+            }
         }
         
         $sql = "
@@ -110,7 +137,7 @@ class LegacyRepo {
                 c.subject,
                 c.source_company
             FROM {$questions_table} q
-            INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+            {$join_clause}
             WHERE {$where_clause}
             {$order_by}
             LIMIT %d OFFSET %d
@@ -326,6 +353,53 @@ class LegacyRepo {
         }
         
         return $wpdb->insert_id;
+    }
+
+    /**
+     * 사용자별 문제 학습 통계 조회
+     * 
+     * @param int $user_id 사용자 ID
+     * @param array $question_ids 문제 ID 배열
+     * @return array [question_id => [study_count, correct_count, wrong_count, last_study_date]]
+     */
+    public static function get_user_question_stats($user_id, $question_ids) {
+        global $wpdb;
+        
+        if (empty($question_ids)) {
+            return [];
+        }
+
+        $results_table = 'ptgates_user_results';
+        $ids_placeholder = implode(',', array_fill(0, count($question_ids), '%d'));
+        
+        $sql = "
+            SELECT 
+                question_id,
+                COUNT(*) as study_count,
+                SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct_count,
+                SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) as wrong_count,
+                MAX(attempted_at) as last_study_date
+            FROM {$results_table}
+            WHERE user_id = %d AND question_id IN ($ids_placeholder)
+            GROUP BY question_id
+        ";
+        
+        $query = $wpdb->prepare($sql, array_merge([$user_id], $question_ids));
+        $results = $wpdb->get_results($query, ARRAY_A);
+        
+        $stats = [];
+        if (is_array($results)) {
+            foreach ($results as $row) {
+                $stats[$row['question_id']] = [
+                    'study_count' => (int)$row['study_count'],
+                    'correct_count' => (int)$row['correct_count'],
+                    'wrong_count' => (int)$row['wrong_count'],
+                    'last_study_date' => $row['last_study_date']
+                ];
+            }
+        }
+        
+        return $stats;
     }
 }
 

@@ -603,13 +603,25 @@
             }
             
             // Now create the flashcard
-            const response = await window.PTGPlatform.post('ptg-flash/v1/cards', {
+            const payload = {
                 set_id: setId,
                 source_type: 'question',
                 source_id: parseInt(questionId),
                 front: frontText,
                 back: backText
-            });
+            };
+
+            // Add subject if available for auto-set creation
+            if (window.PTGQuiz?.QuizState?.questionData?.category?.subject) {
+                payload.subject = window.PTGQuiz.QuizState.questionData.category.subject;
+            } else if (window.PTGQuiz?.QuizState?.questionData?.subject) {
+                payload.subject = window.PTGQuiz.QuizState.questionData.subject;
+            }
+
+            console.log('[PTG Quiz Toolbar] Flashcard payload:', payload);
+            console.log('[PTG Quiz Toolbar] QuizState:', window.PTGQuiz?.QuizState);
+
+            const response = await window.PTGPlatform.post('ptg-flash/v1/cards', payload);
 
             if (statusEl) {
                 statusEl.textContent = '✓ 저장되었습니다';
@@ -629,7 +641,7 @@
                     statusEl.textContent = '';
                     statusEl.style.color = '#666';
                 }
-            }, 1500);
+            }, 1000);
 
         } catch (error) {
             console.error('[PTG Quiz] 암기카드 저장 실패:', error);

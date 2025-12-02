@@ -102,7 +102,7 @@
             }
 
             const self = this;
-            const restUrl = (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.rest_url) || '/wp-json/ptg-dash/v1/';
+            const restUrl = (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.rest_url) || '/wp-json/ptg-bookmarks/v1/';
             const nonce = (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.nonce) || '';
 
             $.ajax({
@@ -181,12 +181,12 @@
 
             const dashboardUrl = (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.dashboard_url) || '/';
             const html = `
-                <div class="ptg-bookmarks-back-link">
-                    <a href="${this.escapeHtml(dashboardUrl)}">대시보드로 돌아가기</a>
-                </div>
                 <div class="ptg-bookmarks-header">
                     <h1>북마크 문제 모아보기</h1>
-                    <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
+                    <div class="ptg-header-actions">
+                        <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
+                        <a href="${this.escapeHtml(dashboardUrl)}" class="ptg-dashboard-link">대시보드</a>
+                    </div>
                 </div>
                 <div class="ptg-bookmarks-info">
                     모든 북마크 문제가 공통 <span class="ptg-map-link">MAP</span> 순서에 따라 과목별로 랜덤하게 섞여서 표시됩니다.
@@ -295,12 +295,12 @@
         renderEmpty: function() {
             const dashboardUrl = (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.dashboard_url) || '/';
             const html = `
-                <div class="ptg-bookmarks-back-link">
-                    <a href="${this.escapeHtml(dashboardUrl)}">대시보드로 돌아가기</a>
-                </div>
                 <div class="ptg-bookmarks-header">
                     <h1>북마크 문제 모아보기</h1>
-                    <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
+                    <div class="ptg-header-actions">
+                        <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
+                        <a href="${this.escapeHtml(dashboardUrl)}" class="ptg-dashboard-link">대시보드</a>
+                    </div>
                 </div>
                 <div class="ptg-bookmarks-empty">
                     북마크된 문제가 없습니다. 
@@ -391,4 +391,3 @@
     window.PTGBookmarks = Bookmarks;
 
 })(jQuery);
-
