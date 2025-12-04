@@ -111,7 +111,7 @@ class API {
         register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/state', array(
             'methods' => 'GET',
             'callback' => array(__CLASS__, 'get_question_state'),
-            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'permission_callback' => '__return_true', // 공개 API (비로그인 허용)
             'args' => array(
                 'question_id' => array(
                     'required' => true,
@@ -163,7 +163,7 @@ class API {
         register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/attempt', array(
             'methods' => \WP_REST_Server::CREATABLE,
             'callback' => array(__CLASS__, 'attempt_question'),
-            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'permission_callback' => '__return_true', // 공개 API (비로그인 허용)
             'args' => array(
                 'question_id' => array(
                     'required' => true,
@@ -185,7 +185,7 @@ class API {
         register_rest_route(self::NAMESPACE, '/questions/(?P<id>\d+)/attempt', array(
             'methods' => \WP_REST_Server::CREATABLE,
             'callback' => function($request){ $request->set_param('question_id', absint($request->get_param('id'))); return self::attempt_question($request); },
-            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'permission_callback' => '__return_true', // 공개 API (비로그인 허용)
         ));
         
         // 드로잉 목록 조회
@@ -444,8 +444,16 @@ class API {
         );
         $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
         
+        // 랜덤 정렬 여부 확인 (복습이 아니고, 전체 교시 풀이가 아닌 경우)
+        $is_random = !$needs_review && !(!empty($session) && $full_session);
+
         // 캐시 확인 (30분 유효 - 문제 목록은 자주 변경될 수 있음)
-        $cached = wp_cache_get($cache_key, 'ptg_quiz');
+        // 랜덤 정렬인 경우 캐시 사용 안 함 (매번 새로운 문제)
+        $cached = false;
+        if (!$is_random) {
+            $cached = wp_cache_get($cache_key, 'ptg_quiz');
+        }
+        
         if ($cached !== false) {
             // 캐시된 결과 반환 전 사용량 증가
             if (class_exists('PTG_Access_Manager')) {
@@ -643,8 +651,27 @@ class API {
         // 정렬: 복습 모드인 경우 오래된순, 전체 교시인 경우 고정 순서(문항 ID 오름차순), 그 외 무작위
         if ($needs_review) {
             $order_clause = "ORDER BY s.last_quiz_date ASC";
+        } elseif (!empty($session) && $full_session) {
+            $order_clause = "ORDER BY q.question_id ASC";
         } else {
-            $order_clause = (!empty($session) && $full_session) ? "ORDER BY q.question_id ASC" : "ORDER BY RAND()";
+            // Smart Random (로그인 사용자 대상)
+            // 우선순위: 1. 오답(wrong), 2. 미학습(NULL), 3. 정답(correct), 4. 나머지 랜덤
+            if ($current_user_id) {
+                // JOIN 추가 (이미 $join_clause 변수가 있음, 여기에 추가)
+                $join_clause .= " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = " . absint($current_user_id);
+                
+                $order_clause = "
+                    ORDER BY 
+                    CASE 
+                        WHEN us.last_result = 'wrong' THEN 1 
+                        WHEN us.last_result IS NULL THEN 2 
+                        ELSE 3 
+                    END ASC, 
+                    RAND()
+                ";
+            } else {
+                $order_clause = "ORDER BY RAND()";
+            }
         }
         
         $query = "
@@ -669,7 +696,10 @@ class API {
         }, $results);
         
         // 캐시 저장 (30분)
-        wp_cache_set($cache_key, $question_ids, 'ptg_quiz', 1800);
+        // 랜덤 정렬인 경우 캐시 저장 안 함
+        if (!$is_random) {
+            wp_cache_set($cache_key, $question_ids, 'ptg_quiz', 1800);
+        }
         
         // 사용량 증가
         if (class_exists('PTG_Access_Manager')) {
@@ -917,9 +947,16 @@ class API {
         // DB 오류가 응답에 섞이지 않도록 억제
         $wpdb->suppress_errors(true);
 
-        $user_id = Permissions::get_user_id_or_error();
-        if (is_wp_error($user_id)) {
-            return $user_id;
+        $user_id = get_current_user_id();
+        
+        // 비로그인 사용자는 기본 상태 반환
+        if (!$user_id) {
+            return Rest::success(array(
+                'bookmarked' => false,
+                'needs_review' => false,
+                'last_result' => null,
+                'last_answer' => null
+            ));
         }
         
         $question_id = absint($request->get_param('question_id'));
@@ -1059,10 +1096,7 @@ class API {
         // DB 오류 HTML 출력 방지
         $wpdb->suppress_errors(true);
 
-        $user_id = Permissions::get_user_id_or_error();
-        if (is_wp_error($user_id)) {
-            return $user_id;
-        }
+        $user_id = get_current_user_id();
         
         $question_id = absint($request->get_param('question_id'));
         $user_answer = $request->get_param('answer');
@@ -1109,6 +1143,15 @@ class API {
         // 정답 여부 확인
         $is_correct = (trim($user_answer) === trim($correct_answer));
         
+        // 비로그인 사용자는 결과만 반환하고 종료
+        if (!$user_id) {
+            return Rest::success(array(
+                'is_correct' => $is_correct,
+                'result_id' => 0,
+                'correct_answer' => $correct_answer
+            ), '풀이가 완료되었습니다.');
+        }
+
         // 결과 저장
         $result_id = LegacyRepo::save_user_result($user_id, array(
             'question_id' => $question_id,

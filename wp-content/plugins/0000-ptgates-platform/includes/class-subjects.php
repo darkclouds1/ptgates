@@ -189,58 +189,51 @@ class Subjects {
 	}
 
 	/**
+	 * Cache for subject lookups to avoid repeated DB queries.
+	 *
+	 * @var array<string, string|null>
+	 */
+	private static $subject_cache = [];
+
+	/**
 	 * 세부과목명으로 상위 과목명을 찾아 반환합니다.
+	 *
+	 * DB(ptgates_categories)의 subject_category 컬럼을 조회하여 반환합니다.
+	 * 성능을 위해 메모리 캐싱을 사용합니다.
 	 *
 	 * @param string $subsubject 세부과목명
 	 * @return string|null 상위 과목명 또는 찾지 못한 경우 null
 	 */
 	public static function get_subject_from_subsubject( string $subsubject ): ?string {
+		global $wpdb;
+
 		$needle = trim( (string) $subsubject );
 		if ( $needle === '' ) {
 			return null;
 		}
 
-		foreach ( self::MAP as $session_data ) {
-			if ( empty( $session_data['subjects'] ) || ! is_array( $session_data['subjects'] ) ) {
-				continue;
-			}
-
-			foreach ( $session_data['subjects'] as $subject_name => $subject_meta ) {
-				if ( empty( $subject_meta['subs'] ) || ! is_array( $subject_meta['subs'] ) ) {
-					continue;
-				}
-
-				foreach ( $subject_meta['subs'] as $sub_name => $count ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable
-					if ( self::is_subsubject_match( $needle, $sub_name ) ) {
-						return $subject_name;
-					}
-				}
-			}
+		// Check memory cache first
+		if ( array_key_exists( $needle, self::$subject_cache ) ) {
+			return self::$subject_cache[ $needle ];
 		}
 
-		return null;
-	}
+		// Query DB for parent subject category
+		// ptgates_categories table: subject (sub-subject) -> subject_category (parent subject)
+		// We use LIMIT 1 because the mapping should be consistent
+		$table_name = 'ptgates_categories'; // Table name without prefix as per project convention
+		
+		// Prepare query
+		$query = $wpdb->prepare(
+			"SELECT subject_category FROM {$table_name} WHERE subject = %s AND subject_category IS NOT NULL AND subject_category != '' LIMIT 1",
+			$needle
+		);
 
-	/**
-	 * 세부과목명이 동일하거나 유사한지 비교합니다.
-	 */
-	private static function is_subsubject_match( string $needle, string $candidate ): bool {
-		if ( $needle === $candidate ) {
-			return true;
-		}
+		$parent_subject = $wpdb->get_var( $query );
 
-		$normalized_needle    = preg_replace( '/\s+|·/u', '', $needle );
-		$normalized_candidate = preg_replace( '/\s+|·/u', '', $candidate );
+		// Cache the result (even if null)
+		self::$subject_cache[ $needle ] = $parent_subject;
 
-		if ( $normalized_needle === $normalized_candidate ) {
-			return true;
-		}
-
-		if ( stripos( $needle, $candidate ) !== false || stripos( $candidate, $needle ) !== false ) {
-			return true;
-		}
-
-		return false;
+		return $parent_subject;
 	}
 }
 

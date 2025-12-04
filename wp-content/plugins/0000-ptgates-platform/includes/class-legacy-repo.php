@@ -67,6 +67,12 @@ class LegacyRepo {
             }
         }
 
+        // subject_category 필터 (대분류)
+        if (!empty($args['subject_category'])) {
+            $where[] = "c.subject_category = %s";
+            $where_values[] = sanitize_text_field($args['subject_category']);
+        }
+
         // exam_course 필터
         if (!empty($args['exam_course'])) {
             $where[] = "c.exam_course = %s";
@@ -127,6 +133,19 @@ class LegacyRepo {
                     RAND()
                 ";
             }
+        }
+
+        // Wrong Only Filter (Can be used with or without random)
+        if (!empty($args['wrong_only_user_id'])) {
+            $user_id = absint($args['wrong_only_user_id']);
+            
+            // Check if already joined (Smart Random might have joined it)
+            if (strpos($join_clause, 'ptgates_user_states') === false) {
+                $join_clause .= " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = %d";
+                array_unshift($where_values, $user_id);
+            }
+            
+            $where_clause .= " AND us.last_result = 'wrong'";
         }
         
         $sql = "
@@ -204,6 +223,12 @@ class LegacyRepo {
             }
         }
 
+        // subject_category 필터 (대분류)
+        if (!empty($args['subject_category'])) {
+            $where[] = "c.subject_category = %s";
+            $where_values[] = sanitize_text_field($args['subject_category']);
+        }
+
         if (!empty($args['exam_course'])) { 
             $where[] = "c.exam_course = %s";
             $where_values[] = sanitize_text_field($args['exam_course']);
@@ -266,24 +291,34 @@ class LegacyRepo {
      * @param int|null $year 연도 필터 (선택)
      * @return array 과목 배열
      */
-    public static function get_available_subjects($year = null) {
+    public static function get_available_subjects($year = null, $subject_category = null) {
         global $wpdb;
         
         // 레거시 테이블은 prefix 없이 직접 사용
         $categories_table = 'ptgates_categories';
         
-        $where = '';
+        $where = array();
         $where_values = array();
         
         if ($year) {
-            $where = 'WHERE exam_year = %d';
+            $where[] = 'exam_year = %d';
             $where_values[] = absint($year);
+        }
+
+        if ($subject_category) {
+            $where[] = 'subject_category = %s';
+            $where_values[] = sanitize_text_field($subject_category);
+        }
+        
+        $where_clause = '';
+        if (!empty($where)) {
+            $where_clause = 'WHERE ' . implode(' AND ', $where);
         }
         
         $sql = "
             SELECT DISTINCT subject 
             FROM {$categories_table} 
-            {$where}
+            {$where_clause}
             ORDER BY subject ASC
         ";
         
@@ -322,6 +357,7 @@ class LegacyRepo {
                 exam_session,
                 exam_course,
                 subject,
+                subject_category,
                 source_company
             FROM {$categories_table}
             WHERE question_id = %d
@@ -411,6 +447,41 @@ class LegacyRepo {
         }
         
         return $stats;
+    }
+    /**
+     * 사용자별 문제 상태 조회 (last_result, bookmarked 등)
+     * 
+     * @param int $user_id 사용자 ID
+     * @param array $question_ids 문제 ID 배열
+     * @return array [question_id => [last_result, bookmarked, needs_review, ...]]
+     */
+    public static function get_user_states($user_id, $question_ids) {
+        global $wpdb;
+        
+        if (empty($question_ids)) {
+            return [];
+        }
+
+        $states_table = 'ptgates_user_states';
+        $ids_placeholder = implode(',', array_fill(0, count($question_ids), '%d'));
+        
+        $sql = "
+            SELECT *
+            FROM {$states_table}
+            WHERE user_id = %d AND question_id IN ($ids_placeholder)
+        ";
+        
+        $query = $wpdb->prepare($sql, array_merge([$user_id], $question_ids));
+        $results = $wpdb->get_results($query, ARRAY_A);
+        
+        $states = [];
+        if (is_array($results)) {
+            foreach ($results as $row) {
+                $states[$row['question_id']] = $row;
+            }
+        }
+        
+        return $states;
     }
 }
 

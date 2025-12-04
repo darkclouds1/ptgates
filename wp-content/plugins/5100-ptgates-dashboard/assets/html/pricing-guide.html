@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ptGates 이용 가격 안내</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #f5f7fb;
+        font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system,
+          BlinkMacSystemFont, sans-serif;
+        color: #1f2933;
+        line-height: 1.7;
+      }
+
+      .ptg-membership-wrapper {
+        max-width: 960px;
+        margin: 40px auto 80px;
+        padding: 0 16px;
+      }
+
+      .ptg-section-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #4c51bf;
+        margin-bottom: 8px;
+      }
+
+      .ptg-section-sub {
+        font-size: 16px;
+        color: #4b5563;
+        margin-bottom: 32px;
+      }
+
+      .ptg-section-sub b {
+        font-weight: 600;
+      }
+
+      .ptg-card {
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 24px 24px 28px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.09);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .ptg-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          circle at top left,
+          rgba(129, 140, 248, 0.18),
+          transparent 52%
+        );
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .ptg-card-inner {
+        position: relative;
+        z-index: 1;
+      }
+
+      .ptg-plan-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .ptg-plan-title span {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .ptg-plan-title .badge-free {
+        color: #10b981;
+      }
+
+      .ptg-plan-title .badge-premium {
+        color: #7c3aed;
+      }
+
+      .ptg-plan-sub {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 12px;
+      }
+
+      .ptg-price {
+        font-size: 15px;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 12px;
+      }
+
+      .ptg-price small {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b21a8;
+      }
+
+      .ptg-benefits {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+      }
+
+      .ptg-benefits li {
+        position: relative;
+        padding-left: 18px;
+        font-size: 14px;
+        color: #374151;
+        margin-bottom: 4px;
+      }
+
+      .ptg-benefits li::before {
+        content: "•";
+        position: absolute;
+        left: 4px;
+        top: 0;
+        color: #a855f7;
+      }
+
+      .ptg-badge-line {
+        font-size: 13px;
+        color: #6b7280;
+        margin-top: 12px;
+      }
+
+      .ptg-badge-line strong {
+        color: #111827;
+        font-weight: 600;
+      }
+
+      .ptg-premium-highlight {
+        background: linear-gradient(135deg, #ede9fe, #e0f2fe);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        color: #4b5563;
+        margin-top: 14px;
+      }
+
+      .ptg-premium-highlight b {
+        color: #7c3aed;
+      }
+
+      .ptg-note {
+        font-size: 13px;
+        color: #6b7280;
+        margin-top: 10px;
+      }
+
+      /* 제한 초과 유입용 히어로 섹션 */
+      .ptg-limit-hero {
+        background: linear-gradient(135deg, #eef2ff, #fdf2ff);
+        border-radius: 18px;
+        padding: 20px 22px 22px;
+        border: 1px solid rgba(129, 140, 248, 0.35);
+        box-shadow: 0 18px 40px rgba(79, 70, 229, 0.17);
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .ptg-limit-hero::before {
+        content: "";
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(
+          circle,
+          rgba(129, 140, 248, 0.32),
+          transparent 60%
+        );
+        right: -80px;
+        top: -80px;
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      .ptg-limit-title {
+        position: relative;
+        z-index: 1;
+        font-size: 18px;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 6px;
+      }
+
+      .ptg-limit-text {
+        position: relative;
+        z-index: 1;
+        font-size: 14px;
+        color: #4b5563;
+        margin-bottom: 10px;
+      }
+
+      .ptg-limit-list {
+        position: relative;
+        z-index: 1;
+        font-size: 13px;
+        color: #374151;
+        margin: 0 0 14px;
+        padding-left: 18px;
+      }
+
+      .ptg-limit-list li {
+        margin-bottom: 3px;
+      }
+
+      .ptg-cta-row {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .ptg-cta-btn {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+        border: none;
+        cursor: pointer;
+        transition: transform 0.08s ease, box-shadow 0.08s ease,
+          opacity 0.08s ease;
+      }
+
+      .ptg-cta-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 30px rgba(79, 70, 229, 0.5);
+        opacity: 0.96;
+      }
+
+      .ptg-cta-caption {
+        font-size: 12px;
+        color: #4b5563;
+      }
+
+      /* 플랜 비교표 */
+      .ptg-plan-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .ptg-plan-cell {
+        background: #f9fafb;
+        border-radius: 14px;
+        padding: 10px 10px 12px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        font-size: 13px;
+      }
+
+      .ptg-plan-cell.popular {
+        border-color: #7c3aed;
+        box-shadow: 0 10px 30px rgba(124, 58, 237, 0.25);
+        background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+        position: relative;
+      }
+
+      .ptg-plan-name {
+        font-weight: 700;
+        margin-bottom: 4px;
+        color: #111827;
+      }
+
+      .ptg-plan-month {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 6px;
+      }
+
+      .ptg-plan-price {
+        font-size: 14px;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 4px;
+      }
+
+      .ptg-plan-monthly {
+        font-size: 12px;
+        color: #6b7280;
+      }
+
+      .ptg-plan-tag {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .ptg-plan-tag.popular-tag {
+        background: rgba(124, 58, 237, 0.1);
+        color: #7c3aed;
+      }
+
+      .ptg-plan-tag.value-tag {
+        background: rgba(16, 185, 129, 0.08);
+        color: #059669;
+      }
+
+      /* 반응형 */
+      @media (max-width: 768px) {
+        .ptg-membership-wrapper {
+          margin-top: 24px;
+        }
+        .ptg-card {
+          padding: 20px 18px 22px;
+        }
+        .ptg-limit-hero {
+          padding: 18px 16px 20px;
+        }
+        .ptg-cta-row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .ptg-plan-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 480px) {
+        .ptg-plan-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ptg-membership-wrapper">
+      <!-- 제한 초과 유입용 히어로 섹션 -->
+      <div class="ptg-limit-hero">
+        <div class="ptg-limit-title">
+          하루 20문제 정답 확인 제한에 도달했어요.
+        </div>
+        <p class="ptg-limit-text">
+          이 페이지는 <b>무료 Basic 회원 정답 보기 제한</b>을 넘긴 후에 표시되는
+          안내 페이지입니다.<br />
+          Premium으로 업그레이드하면 오늘부터는
+          <b>정답 · 해설 · 분석을 제한 없이</b> 사용할 수 있습니다.
+        </p>
+        <ul class="ptg-limit-list">
+          <li>
+            <b>정답/해설 보기 무제한</b> – 더 이상 “오늘은 여기까지” 메시지가
+            뜨지 않습니다.
+          </li>
+          <li>
+            <b>모의고사 · 분석 · 복습 기능 전체 개방</b> – 실제 시험처럼 끝까지
+            풀고, 취약 영역을 바로 보완.
+          </li>
+          <li>
+            <b>광고 없는 집중 학습 환경</b> – 문제 풀이에만 집중할 수 있습니다.
+          </li>
+        </ul>
+        <div class="ptg-cta-row">
+          <a href="#ptg-premium" class="ptg-cta-btn"
+            >Premium 혜택 자세히 보기</a
+          >
+          <div class="ptg-cta-caption">
+            지금 업그레이드하면
+            <b>오늘부터 남은 기간 동안 정답 보기 제한 없이</b> 학습을 이어갈 수
+            학습 기간과 예산에 맞게 Premium 이용 기간을 선택하세요. 기간이
+            길수록 <b>월 환산 비용은 더 저렴</b>해집니다.
+          </p>
+
+          <div class="ptg-plan-grid">
+            <div class="ptg-plan-cell">
+              <div class="ptg-plan-name">1개월</div>
+              <div class="ptg-plan-month">체험 · 막판 벼락치기용</div>
+              <div class="ptg-plan-price">24,000원</div>
+              <div class="ptg-plan-monthly">월 환산 약 24,000원</div>
+            </div>
+
+            <div class="ptg-plan-cell">
+              <div class="ptg-plan-name">3개월</div>
+              <div class="ptg-plan-month">단기 집중 학습 플랜</div>
+              <div class="ptg-plan-price">59,000원</div>
+              <div class="ptg-plan-monthly">월 환산 약 19,700원</div>
+            </div>
+
+            <div class="ptg-plan-cell popular">
+              <div class="ptg-plan-name">6개월</div>
+              <div class="ptg-plan-month">실습 이후 ~ 국시 직전까지</div>
+              <div class="ptg-plan-price">89,000원</div>
+              <div class="ptg-plan-monthly">월 환산 약 14,800원</div>
+              <span class="ptg-plan-tag popular-tag">가장 많이 선택</span>
+            </div>
+
+            <div class="ptg-plan-cell">
+              <div class="ptg-plan-name">12개월</div>
+              <div class="ptg-plan-month">장기 준비 · 재응시 대비</div>
+              <div class="ptg-plan-price">129,000원</div>
+              <div class="ptg-plan-monthly">월 환산 약 10,800원</div>
+              <span class="ptg-plan-tag value-tag">가성비 최고</span>
+            </div>
+          </div>
+
+          <p class="ptg-note" style="margin-top: 14px">
+            ※ 기간이 끝나면 자동 결제되지 않으며, 필요 시 다시 원하는 플랜으로
+            재결제해서 이용하실 수 있습니다.<br />
+            ※ 12개월 플랜은 한시적으로 <b>런칭 특가 110,000원</b> 옵션을 제공할
+            수 있습니다. (이벤트 기간 내 별도 안내)
+          </p>
+        </div>
+      </div>
+
+      <!-- Free 플랜 -->
+      <div class="ptg-card">
+        <div class="ptg-card-inner">
+          <div class="ptg-plan-title">
+            Free <span class="badge-free">(무료 체험)</span>
+          </div>
+          <p class="ptg-plan-sub">
+            처음 시작하는 분들을 위한 가볍고 넉넉한 체험용 플랜입니다.
+          </p>
+
+          <ul class="ptg-benefits">
+            <li>과목별 생성문항 <b>맛보기 문제</b> 제공</li>
+            <li><b>실전형 모의고사 1회</b> 무료 응시</li>
+            <li><b>개념 로드맵 일부 공개 (약 30%)</b></li>
+            <li>기본 정답/해설 보기 가능</li>
+            <li>일부 분석·복습 기능 제한</li>
+            <li>일부 화면에 광고 표시</li>
+            <li>언제든지 Premium으로 손쉽게 업그레이드 가능</li>
+          </ul>
+
+          <p class="ptg-badge-line">
+            ※ 비회원/Free 회원의 정답·해설 보기 횟수에는
+            <b>하루 20문제 제한</b>이 있으며,<br />
+            <strong>Premium에서 무제한 이용</strong>이 가능합니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- Premium 플랜 상세 -->
+      <div class="ptg-card" id="ptg-premium">
+        <div class="ptg-card-inner">
+          <div class="ptg-plan-title">
+            Premium <span class="badge-premium">(유료)</span>
+          </div>
+          <p class="ptg-plan-sub">
+            국시까지 끝까지 함께 가는 <b>완전 오픈·무제한 학습 플랜</b>입니다.
+          </p>
+
+          <p class="ptg-price">
+            1개월 24,000원 / 3개월 59,000원 / 6개월 89,000원 / 12개월
+            129,000원
+          </p>
+
+          <ul class="ptg-benefits">
+            <li>생성문항 전체 <b>무제한 학습</b></li>
+            <li><b>실전형 모의고사 무제한 응시</b></li>
+            <li><b>전 과목·전 단원 완전 오픈</b></li>
+            <li><b>개인별 학습 분석 리포트</b> 제공</li>
+            <li>취약 과목·단원별 <b>정답률/풀이 속도 분석</b></li>
+            <li><b>복습 스케줄러 전체 기능</b> 사용</li>
+            <li>오답·북마크·취약 문제 <b>자동 복습 큐</b> 구성</li>
+            <li>
+              <b>개인 대시보드</b>에서 오늘 할 일·진도율·남은 학습량 한눈에 확인
+            </li>
+            <li><b>광고 제거(Ad-free)</b> 환경</li>
+            <li>성적·오답 노트 등을 포함한 <b>PDF 리포트 출력</b></li>
+            <li><b>점수 예측·커트라인 시뮬레이터</b> 제공</li>
+          </ul>
+
+          <div class="ptg-premium-highlight">
+            <b>Premium</b>은 Free에서 제한되어 있던 정답·해설 보기 횟수,
+            분석/복습 기능, 모의고사 응시 횟수가 모두 <b>무제한</b>으로
+            풀리며,<br />
+            실제 국시 일정에 맞춘 학습 플랜과 복습 스케줄러까지 함께 제공합니다.
+          </div>
+
+          <p class="ptg-note">
+            결제 및 환불 규정은 <b>이용약관</b>과 <b>유료 결제 환불 정책</b>을
+            참고해 주세요.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

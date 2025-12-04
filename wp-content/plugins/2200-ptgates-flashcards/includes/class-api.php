@@ -136,15 +136,18 @@ class API {
 		$sql = "
 			SELECT s.*, 
 				COUNT(c.card_id) as total_cards,
-				SUM(CASE WHEN (c.next_due_date IS NULL OR c.next_due_date <= %s) THEN 1 ELSE 0 END) as due_cards
+				SUM(CASE WHEN c.card_id IS NOT NULL AND (c.next_due_date IS NULL OR c.next_due_date <= %s) THEN 1 ELSE 0 END) as due_cards
 			FROM {$sets_table} s
-			LEFT JOIN {$cards_table} c ON s.set_id = c.set_id
+			LEFT JOIN {$cards_table} c ON s.set_id = c.set_id AND c.user_id = %d
 			WHERE (s.user_id = %d OR s.set_id = 1)
 			GROUP BY s.set_id
 			ORDER BY s.created_at DESC
 		";
 		
-		$results = $wpdb->get_results( $wpdb->prepare( $sql, $today, $user_id ) );
+		$prepared_sql = $wpdb->prepare( $sql, $today, $user_id, $user_id );
+		// error_log( '[DEBUG] get_sets SQL: ' . $prepared_sql );
+		
+		$results = $wpdb->get_results( $prepared_sql );
         
         if ( $wpdb->last_error ) {
             error_log( 'PTG Flashcards API Error (get_sets): ' . $wpdb->last_error );
@@ -537,7 +540,10 @@ class API {
 
 		$sql .= " ORDER BY f.next_due_date ASC, f.card_id ASC";
 
-		$results = $wpdb->get_results( $wpdb->prepare( $sql, $args ) );
+		$prepared_sql = $wpdb->prepare( $sql, $args );
+		// error_log( '[DEBUG] get_cards SQL: ' . $prepared_sql );
+
+		$results = $wpdb->get_results( $prepared_sql );
 
 		return rest_ensure_response( $results );
 	}
@@ -553,6 +559,20 @@ class API {
 
 		if ( empty( $set_id ) ) {
 			$set_id = 1; // Default Set
+		}
+
+		// Ensure Default Set exists (if set_id is 1)
+		if ( $set_id == 1 ) {
+			$sets_table = 'ptgates_flashcard_sets';
+			$exists = $wpdb->get_var( $wpdb->prepare( "SELECT set_id FROM $sets_table WHERE set_id = %d", 1 ) );
+			
+			if ( ! $exists ) {
+				$wpdb->insert( $sets_table, [
+					'set_id'   => 1,
+					'user_id'  => 0, // System default
+					'set_name' => '학습 암기카드',
+				] );
+			}
 		}
 
 		$table = 'ptgates_flashcards';

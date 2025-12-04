@@ -1725,6 +1725,20 @@ function delete_exam_data($wpdb) {
         $question_ids_str = implode(',', $question_ids_int);
         
         // SQL 인젝션 방지: question_ids는 이미 intval로 정수 변환됨
+        // 사용자 데이터 테이블에서 삭제 (외래키 제약조건이 없거나 확실하지 않은 경우를 대비해 명시적 삭제)
+        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_notes', 'ptgates_user_states', 'ptgates_user_results'];
+        foreach ($user_tables as $table) {
+            // 테이블 존재 여부 확인
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
+                if ($table === 'ptgates_user_notes') {
+                    $wpdb->query("DELETE FROM {$table} WHERE ref_type = 'question' AND ref_id IN ({$question_ids_str})");
+                } else {
+                    $wpdb->query("DELETE FROM {$table} WHERE question_id IN ({$question_ids_str})");
+                }
+            }
+        }
+
+        // categories 테이블에서 삭제 (외래키 제약조건 때문에 먼저 삭제)
         $wpdb->query("DELETE FROM {$categories_table} WHERE question_id IN ({$question_ids_str})");
         
         // questions 테이블에서 삭제
@@ -2328,12 +2342,25 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
         <?php
         // 현재 문제은행 통계 조회
         $stats = get_question_statistics($wpdb);
+        
+        // 시험회차 갯수 계산
+        $unique_sessions = array();
+        if (!empty($stats['statistics'])) {
+            foreach ($stats['statistics'] as $stat) {
+                if ($stat->exam_session !== null) {
+                    $key = $stat->exam_year . '-' . $stat->exam_session;
+                    $unique_sessions[$key] = true;
+                }
+            }
+        }
+        $session_count = count($unique_sessions);
         ?>
         
         <div class="statistics-section" style="background: #e8f4f8; border: 1px solid #b3d9e6; border-radius: 4px; padding: 20px; margin-bottom: 20px;">
             <h3 style="margin-top: 0; color: #005a87;">📊 문제은행 현황 </h3>
             <span style="font-size: 16px;">
                 <strong>총 문항 수: <span style="color: #0073aa; font-size: 18px;"><?php echo number_format($stats['total_count']); ?></span>개</strong>
+                <strong style="margin-left: 15px;">시험회차 갯수: <span style="color: #0073aa; font-size: 18px;"><?php echo number_format($session_count); ?></span>개</strong>
             </span>
             
             <?php if (!empty($stats['statistics'])): ?>
@@ -2955,12 +2982,25 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                                 </div>
                             `;
                             
+                            // 시험회차 갯수 계산
+                            const uniqueSessions = new Set();
+                            if (response.statistics && response.statistics.length > 0) {
+                                response.statistics.forEach(function(stat) {
+                                    if (stat.exam_session !== null) {
+                                        uniqueSessions.add(stat.exam_year + '-' + stat.exam_session);
+                                    }
+                                });
+                            }
+                            const sessionCount = uniqueSessions.size;
+
                             // 통계 섹션 업데이트
                             statisticsSection.innerHTML = `
                                 <h3 style="margin-top: 0; color: #005a87;">📊 현재 문제은행 현황</h3>
-                                <p style="margin-bottom: 15px; font-size: 16px;">
+                                <span style="font-size: 16px;">
                                     <strong>총 문항 수: <span style="color: #0073aa; font-size: 18px;">${numberFormat(response.total_count)}</span>개</strong>
-                                </p>
+                                    <strong style="margin-left: 15px;">시험회차 갯수: <span style="color: #0073aa; font-size: 18px;">${numberFormat(sessionCount)}</span>개</strong>
+                                </span>
+                                <div style="margin-bottom: 15px;"></div>
                                 ${tableHtml}
                             `;
                             
@@ -2972,9 +3012,11 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
                         } else {
                             statisticsSection.innerHTML = `
                                 <h3 style="margin-top: 0; color: #005a87;">📊 현재 문제은행 현황</h3>
-                                <p style="margin-bottom: 15px; font-size: 16px;">
+                                <span style="font-size: 16px;">
                                     <strong>총 문항 수: <span style="color: #0073aa; font-size: 18px;">${numberFormat(response.total_count)}</span>개</strong>
-                                </p>
+                                    <strong style="margin-left: 15px;">시험회차 갯수: <span style="color: #0073aa; font-size: 18px;">0</span>개</strong>
+                                </span>
+                                <div style="margin-bottom: 15px;"></div>
                                 <p style="color: #666; font-style: italic;">아직 등록된 문제가 없습니다.</p>
                             `;
                             console.log('문제은행 현황이 새로고침되었습니다. (등록된 문제 없음)');

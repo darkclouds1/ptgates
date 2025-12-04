@@ -599,122 +599,100 @@
 
                     $status.text('세트 정보 확인 중...').css('color', '#666');
 
-                    // First, get the user's default set_id
+                    // Force set_id = 1 (Default Set)
+                    var setId = 1;
+
+                    $status.text('저장 중...').css('color', '#666');
+                    
+                    // Extract subject from study view header
+                    var subject = '';
+                    var $headerTitle = $('.ptg-lesson-header h3');
+                    if ($headerTitle.length > 0) {
+                        var fullTitle = $headerTitle.text().trim();
+                        // Format is usually "Category · Subject" or just "Subject"
+                        if (fullTitle.includes('·')) {
+                            subject = fullTitle.split('·').pop().trim();
+                        } else {
+                            subject = fullTitle;
+                        }
+                        // Remove " 전체 학습" suffix if present (for category view)
+                        subject = subject.replace(' 전체 학습', '');
+                    }
+
+                    // Now create the flashcard
                     $.ajax({
-                        url: (window.location.origin || '') + '/wp-json/ptg-flash/v1/sets',
-                        method: 'GET',
+                        url: (window.location.origin || '') + '/wp-json/ptg-flash/v1/cards',
+                        method: 'POST',
+                        data: JSON.stringify({
+                            set_id: setId,
+                            source_type: 'question',
+                            source_id: qId,
+                            front: frontText,
+                            back: backText,
+                            subject: subject // Add subject parameter
+                        }),
+                        contentType: 'application/json',
                         headers: {
                             'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
                         },
-                        success: function(sets) {
+                        success: function (response) {
 
-                            var setId = (sets && sets.length > 0) ? sets[0].set_id : 1;
-
+                            $status.text('✓ 저장되었습니다').css('color', '#10b981');
                             
-                            $status.text('저장 중...').css('color', '#666');
-                            
-                            // Extract subject from study view header
-                            var subject = '';
-                            var $headerTitle = $('.ptg-lesson-header h3');
-                            if ($headerTitle.length > 0) {
-                                var fullTitle = $headerTitle.text().trim();
-                                // Format is usually "Category · Subject" or just "Subject"
-                                if (fullTitle.includes('·')) {
-                                    subject = fullTitle.split('·').pop().trim();
-                                } else {
-                                    subject = fullTitle;
-                                }
-                                // Remove " 전체 학습" suffix if present (for category view)
-                                subject = subject.replace(' 전체 학습', '');
-                            }
-                            
+                            // Update toolbar icon status
+                            var $item = $('.ptg-lesson-item[data-lesson-id="' + qId + '"], .ptg-lesson-item[data-question-id="' + qId + '"]');
+                            var $toolbar = $item.find('.ptg-question-toolbar');
+                            $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
 
-
-                            // Now create the flashcard
-                            $.ajax({
-                                url: (window.location.origin || '') + '/wp-json/ptg-flash/v1/cards',
-                                method: 'POST',
-                                data: JSON.stringify({
-                                    set_id: setId,
-                                    source_type: 'question',
-                                    source_id: qId,
-                                    front: frontText,
-                                    back: backText,
-                                    subject: subject // Add subject parameter
-                                }),
-                                contentType: 'application/json',
-                                headers: {
-                                    'X-WP-Nonce': (window.ptgStudy && window.ptgStudy.api_nonce) || (window.wpApiSettings && window.wpApiSettings.nonce) || ''
-                                },
-                                success: function (response) {
-
-                                    $status.text('✓ 저장되었습니다').css('color', '#10b981');
-                                    
-                                    // Update toolbar icon status
-                                    var $item = $('.ptg-lesson-item[data-lesson-id="' + qId + '"], .ptg-lesson-item[data-question-id="' + qId + '"]');
-                                    var $toolbar = $item.find('.ptg-question-toolbar');
-                                    $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
-
-                                    setTimeout(function() {
-                                        $('#ptg-study-flashcard-modal').fadeOut(200, function() {
-                                            $status.text('').css('color', '#666');
-                                        });
-                                    }, 1500);
-                                },
-                                error: function (xhr, status, error) {
-                                    // Try to recover from JSON parse error (mixed HTML)
-                                    if (status === 'parsererror' && xhr.responseText) {
-                                        var jsonMatch = xhr.responseText.match(/\{.*"card_id".*\}/);
-                                        if (jsonMatch) {
-                                            try {
-                                                var response = JSON.parse(jsonMatch[0]);
-                                                // Manually trigger success logic
-                                                console.log('Recovered from JSON error:', response);
-                                                $status.text('✓ 저장되었습니다').css('color', '#10b981');
-                                                
-                                                var $item = $('.ptg-lesson-item[data-lesson-id="' + qId + '"], .ptg-lesson-item[data-question-id="' + qId + '"]');
-                                                var $toolbar = $item.find('.ptg-question-toolbar');
-                                                $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
-
-                                                setTimeout(function() {
-                                                    $('#ptg-study-flashcard-modal').fadeOut(200, function() {
-                                                        $status.text('').css('color', '#666');
-                                                    });
-                                                }, 1000);
-                                                return;
-                                            } catch (e) {
-                                                console.error('Failed to recover JSON', e);
-                                            }
-                                        }
-                                    }
-
-                                    console.error('Flashcard save failed:', {
-                                        status: xhr.status,
-                                        statusText: xhr.statusText,
-                                        response: xhr.responseJSON || xhr.responseText,
-                                        error: error
-                                    });
-                                    
-                                    var errorMsg = '✗ 저장 실패';
-                                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                                        errorMsg += ': ' + xhr.responseJSON.message;
-                                    } else if (xhr.status === 404) {
-                                        errorMsg += ': API 없음';
-                                    } else if (xhr.status === 401 || xhr.status === 403) {
-                                        errorMsg += ': 권한 없음';
-                                    }
-                                    $status.text(errorMsg).css('color', '#ef4444');
-                                }
-                            });
+                            setTimeout(function() {
+                                $('#ptg-study-flashcard-modal').fadeOut(200, function() {
+                                    $status.text('').css('color', '#666');
+                                });
+                            }, 1500);
                         },
-                        error: function(xhr, status, error) {
-                            console.error('Sets fetch failed:', {
+                        error: function (xhr, status, error) {
+                            // Try to recover from JSON parse error (mixed HTML)
+                            if (status === 'parsererror' && xhr.responseText) {
+                                var jsonMatch = xhr.responseText.match(/\{.*"card_id".*\}/);
+                                if (jsonMatch) {
+                                    try {
+                                        var response = JSON.parse(jsonMatch[0]);
+                                        // Manually trigger success logic
+                                        console.log('Recovered from JSON error:', response);
+                                        $status.text('✓ 저장되었습니다').css('color', '#10b981');
+                                        
+                                        var $item = $('.ptg-lesson-item[data-lesson-id="' + qId + '"], .ptg-lesson-item[data-question-id="' + qId + '"]');
+                                        var $toolbar = $item.find('.ptg-question-toolbar');
+                                        $toolbar.find('.ptg-btn-flashcard').addClass('is-active');
+
+                                        setTimeout(function() {
+                                            $('#ptg-study-flashcard-modal').fadeOut(200, function() {
+                                                $status.text('').css('color', '#666');
+                                            });
+                                        }, 1000);
+                                        return;
+                                    } catch (e) {
+                                        console.error('Failed to recover JSON', e);
+                                    }
+                                }
+                            }
+
+                            console.error('Flashcard save failed:', {
                                 status: xhr.status,
                                 statusText: xhr.statusText,
                                 response: xhr.responseJSON || xhr.responseText,
                                 error: error
                             });
-                            $status.text('✗ 세트 정보를 가져올 수 없습니다').css('color', '#ef4444');
+                            
+                            var errorMsg = '✗ 저장 실패';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMsg += ': ' + xhr.responseJSON.message;
+                            } else if (xhr.status === 404) {
+                                errorMsg += ': API 없음';
+                            } else if (xhr.status === 401 || xhr.status === 403) {
+                                errorMsg += ': 권한 없음';
+                            }
+                            $status.text(errorMsg).css('color', '#ef4444');
                         }
                     });
                 });

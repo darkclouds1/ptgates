@@ -31,6 +31,15 @@ final class PTG_Quiz_Plugin {
         return self::$instance;
     }
 
+    /**
+     * 설정 값을 가져옵니다.
+     * wp_options에 저장된 'ptg_custom_settings' 배열에서 값을 찾고, 없으면 기본값을 반환합니다.
+     */
+    public static function get_config( $key, $default = null ) {
+        $settings = get_option( 'ptg_custom_settings', [] );
+        return isset( $settings[ $key ] ) ? $settings[ $key ] : $default;
+    }
+
     private function __construct() {
         // 워드프레스 표준에 따라, 각 기능에 맞는 정확한 훅(hook)에 연결합니다.
         
@@ -184,10 +193,10 @@ final class PTG_Quiz_Plugin {
             wp_json_encode( $quiz_toolbar_url ),
             wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::MAP : [] ),
             wp_json_encode( $member_grade ),
-            self::LIMIT_MOCK_EXAM,
-            self::LIMIT_QUIZ_QUESTIONS,
-            self::LIMIT_TRIAL_QUESTIONS,
-            wp_json_encode( home_url( self::MEMBERSHIP_URL ) )
+            self::get_config('LIMIT_MOCK_EXAM', 1),
+            self::get_config('LIMIT_QUIZ_QUESTIONS', 20),
+            self::get_config('LIMIT_TRIAL_QUESTIONS', 50),
+            wp_json_encode( home_url( self::get_config('MEMBERSHIP_URL', '/membership') ) )
         );
 
         $template = plugin_dir_path( __FILE__ ) . 'templates/quiz-template.php';

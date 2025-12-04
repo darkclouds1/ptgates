@@ -105,7 +105,7 @@
             }
         }
 
-        // 카테고리(과목 카드) 클릭 → 해당 과목의 모든 세부과목을 한 번에 학습
+        // 카테고리 클릭 이벤트 (과목 클릭 시 중복 실행 방지)
         studyContainer.off('click', '.ptg-category');
         studyContainer.on('click', '.ptg-category', function(event) {
             if (PTG_STUDY_DEBUG) console.log('PTG Study: category clicked (DOM-based)', event.target);
@@ -140,7 +140,43 @@
                 subjects: subjectNames, // 문자열 배열로 전달
             };
 
-            fetchAndRenderCategoryLessons(studyContainer, category);
+            $('.ptg-category').removeClass('ptg-category--active');
+            $categoryCard.addClass('ptg-category--active');
+
+            // 전역 틀린문제만 체크박스 상태 확인
+            const isGlobalWrongOnly = $('#ptg-global-wrong-only').is(':checked');
+            if (PTG_STUDY_DEBUG) console.log('DEBUG: Category Clicked. WrongOnly: ' + isGlobalWrongOnly);
+
+            // 과목 카테고리 선택 시 항상 랜덤 모드(true)로 진입, 틀린문제만 필터 적용
+            fetchAndRenderCategoryLessons(studyContainer, category, 0, true, true, isGlobalWrongOnly);
+        });
+
+        // 과목 클릭 이벤트 바인딩 (중복 바인딩 방지)
+        studyContainer.off('click', '.ptg-subject-item');
+        studyContainer.on('click', '.ptg-subject-item', function(event) {
+            if (PTG_STUDY_DEBUG) console.log('PTG Study: subject item clicked', event.target);
+            event.stopPropagation();
+
+            const subjectId = $(this).data('subject-id');
+            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectId resolved =', subjectId);
+            if (!subjectId) {
+                console.warn('PTG Study: subjectId is missing on clicked element', this);
+                return;
+            }
+            const subjectLabel = $(this).text().trim();
+            const categoryLabel = $(this).closest('.ptg-category').find('.ptg-category-title').text().trim();
+            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectLabel =', subjectLabel, 'categoryLabel =', categoryLabel);
+            
+            // 전역 틀린문제만 체크박스 상태 확인 (DOM 삭제 전 읽기)
+            const isGlobalWrongOnly = $('#ptg-global-wrong-only').is(':checked');
+            alert('DEBUG: Subject Clicked. WrongOnly: ' + isGlobalWrongOnly); // Debug alert
+
+            // 즉시 로딩 상태 표시
+            const displayName = subjectLabel || decodeURIComponent(subjectId);
+            studyContainer.html(`<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`);
+            
+            // 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
+            fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, 0, true, true, isGlobalWrongOnly);
         });
     }
 
@@ -198,50 +234,7 @@
 
         studyContainer.html(html);
 
-        // 카테고리 클릭 이벤트 (과목 클릭 시 중복 실행 방지)
-        studyContainer.off('click', '.ptg-category');
-        studyContainer.on('click', '.ptg-category', function(event) {
-            console.log('PTG Study: category clicked', event.target);
 
-            if ($(event.target).closest('.ptg-subject-item').length) {
-                return;
-            }
-
-            const $categoryCard = $(this);
-            const categoryId = $categoryCard.data('category-id');
-            const category = categoryMap[categoryId];
-            if (!category) {
-                console.warn('PTG Study: category not found for id', categoryId, categoryMap);
-                return;
-            }
-
-            $('.ptg-category').removeClass('ptg-category--active');
-            $categoryCard.addClass('ptg-category--active');
-
-            fetchAndRenderCategoryLessons(studyContainer, category);
-        });
-
-        // 과목 클릭 이벤트 바인딩 (중복 바인딩 방지)
-        studyContainer.off('click', '.ptg-subject-item');
-        studyContainer.on('click', '.ptg-subject-item', function(event) {
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subject item clicked', event.target);
-            event.stopPropagation();
-
-            const subjectId = $(this).data('subject-id');
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectId resolved =', subjectId);
-            if (!subjectId) {
-                console.warn('PTG Study: subjectId is missing on clicked element', this);
-                return;
-            }
-            const subjectLabel = $(this).text().trim();
-            const categoryLabel = $(this).closest('.ptg-category').find('.ptg-category-title').text().trim();
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectLabel =', subjectLabel, 'categoryLabel =', categoryLabel);
-            // 즉시 로딩 상태 표시
-            const displayName = subjectLabel || decodeURIComponent(subjectId);
-            studyContainer.html(`<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`);
-            // 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
-            fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, 0, true);
-        });
     }
 
 	/**
@@ -476,7 +469,7 @@
      * @param {boolean} random
      * @param {boolean} initialInfiniteState // 무한 스크롤 초기 상태
      */
-    function fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, offset = 0, random = false, initialInfiniteState = true) {
+    function fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, offset = 0, random = false, initialInfiniteState = true, isWrongOnly = false) {
         const displayName = subjectLabel || decodeURIComponent(subjectId);
 
         const rest = getRestConfig();
@@ -499,8 +492,11 @@
         if (random) {
             params.set('random', '1');
         }
+        if (isWrongOnly) {
+            params.set('wrong_only', '1');
+        }
         const url = rest.baseUrl + 'courses/' + subjectId + '?' + params.toString();
-        if (PTG_STUDY_DEBUG) console.log('PTG Study: fetching lessons', { url, subjectId, subjectLabel, categoryLabel, rest, offset, random });
+        if (PTG_STUDY_DEBUG) console.log('PTG Study: fetching lessons', { url, subjectId, subjectLabel, categoryLabel, rest, offset, random, isWrongOnly });
         
         if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
             return;
@@ -532,6 +528,28 @@
             const total = typeof courseDetail.total === 'number' ? courseDetail.total : null;
             
             if (offset === 0 && (!lessons || lessons.length === 0)) {
+                if (isWrongOnly) {
+                    // 틀린 문제 필터링 결과가 없는 경우 -> 빈 화면 렌더링 (헤더 유지)
+                     renderLessons(studyContainer, courseDetail || { lessons: [], total: 0 }, {
+                        subjectId: subjectId,
+                        subjectLabel: displayName,
+                        categoryLabel: categoryLabel,
+                        isCategory: false,
+                        offset: offset,
+                        limit: pageSize,
+                        total: 0,
+                        random: random,
+                        wrongOnly: true,
+                        initialInfiniteState: initialInfiniteState
+                    });
+                    // 안내 메시지 표시
+                    setTimeout(function() {
+                        alert('틀린 문제가 없습니다.');
+                        // studyContainer.find('.ptg-lesson-list').html('<div style="padding:40px; text-align:center; color:#666; font-size:15px;">틀린 문제가 없습니다.<br>모든 문제를 맞추셨거나 아직 학습하지 않았습니다.</div>');
+                    }, 50);
+                    return;
+                }
+
                 alert(`${displayName} 과목의 학습 내용이 없습니다.`);
                 // 데이터가 없으면 자동으로 과목 목록 화면으로 복귀
                 if (initialCoursesHTML !== null) {
@@ -551,6 +569,7 @@
                 limit: pageSize,
                 total: total,
                 random: random,
+                wrongOnly: isWrongOnly,
                 initialInfiniteState: initialInfiniteState
             });
         }).fail(function(jqXHR, textStatus, errorThrown) {
@@ -569,7 +588,7 @@
         });
     }
 
-    function fetchAndRenderCategoryLessons(studyContainer, category, offset = 0, initialInfiniteState = true) {
+    function fetchAndRenderCategoryLessons(studyContainer, category, offset = 0, initialInfiniteState = true, isRandom = false, isWrongOnly = false) {
         const categoryTitle = category.title || category.label || '';
         const rawSubjects = Array.isArray(category.subjects) ? category.subjects : [];
 
@@ -618,9 +637,12 @@
             method: 'GET',
             data: {
 				subjects: subjectNames,
+                subject_category: category.id, // 최적화를 위해 대분류 ID 전달
                 limit: pageSize,
                 offset: offset,
-                exclude_ids: excludeIds
+                exclude_ids: excludeIds,
+                random: isRandom ? 1 : 0,
+                wrong_only: isWrongOnly ? 1 : 0
             },
             beforeSend: function(xhr) {
                 if (rest.nonce) {
@@ -637,6 +659,24 @@
             const total = typeof courseDetail.total === 'number' ? courseDetail.total : null;
             
             if (offset === 0 && (!lessons || lessons.length === 0)) {
+                if (isWrongOnly) {
+                     renderLessons(studyContainer, courseDetail || { lessons: [], total: 0 }, {
+                        categoryId: category.id,
+                        subjectLabel: categoryTitle,
+                        categoryLabel: categoryTitle,
+                        isCategory: true,
+                        offset: offset,
+                        limit: pageSize,
+                        total: 0,
+                        random: !!isRandom,
+                        wrongOnly: true,
+                        rawSubjects: rawSubjects,
+                        initialInfiniteState: initialInfiniteState
+                    });
+                    setTimeout(function() { alert('틀린 문제가 없습니다.'); }, 50);
+                    return;
+                }
+
                 alert('과목의 학습 내용이 없습니다.');
                 if (initialCoursesHTML !== null) {
                     studyContainer.html(initialCoursesHTML);
@@ -653,7 +693,8 @@
                 offset: offset,
                 limit: pageSize,
                 total: total,
-                random: false,
+                random: !!isRandom,
+                wrongOnly: !!isWrongOnly,
                 rawSubjects: rawSubjects,
                 initialInfiniteState: initialInfiniteState
             });
@@ -676,6 +717,7 @@
         const pageSize      = typeof meta.limit === 'number' ? meta.limit : 0;
         const totalCount    = typeof meta.total === 'number' ? meta.total : null;
         const isRandom      = !!(meta && meta.random);
+        const isWrongOnly   = !!(meta && meta.wrongOnly);
         const rawSubjects   = meta.rawSubjects || []; // For category context
         const initialInfiniteState = typeof meta.initialInfiniteState === 'boolean' ? meta.initialInfiniteState : true;
 
@@ -700,10 +742,14 @@
                                 <input type="checkbox" id="ptg-infinite-scroll-toggle" ${initialInfiniteState ? 'checked' : ''}>
                                 <span>무한스크롤</span>
                             </label>
-                            ${(!isCategory && subjectId) ? `
+                            ${(subjectId || isCategory) ? `
                                 <label class="ptg-random-toggle">
                                     <input type="checkbox" id="ptg-random-toggle" ${isRandom ? 'checked' : ''}>
                                     <span>랜덤 섞기</span>
+                                </label>
+                                <label class="ptg-wrong-only-toggle" style="margin-left: 10px;">
+                                    <input type="checkbox" id="ptg-wrong-only-toggle" ${isWrongOnly ? 'checked' : ''}>
+                                    <span>틀린문제만</span>
                                 </label>
                             ` : ''}
                         </div>
@@ -786,10 +832,37 @@
                 }
             });
 
-            if (!isCategory && subjectId) {
+            if (subjectId || isCategory) {
                 $('#ptg-random-toggle').on('change', function() {
                     const useRandom = $(this).is(':checked');
-                    fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, useRandom);
+                    const useWrongOnly = $('#ptg-wrong-only-toggle').is(':checked');
+                    const useInfinite = $('#ptg-infinite-scroll-toggle').is(':checked');
+                    
+                    if (isCategory) {
+                        fetchAndRenderCategoryLessons(studyContainer, {
+                            id: categoryId,
+                            title: categoryTitle,
+                            subjects: rawSubjects
+                        }, 0, useInfinite, useRandom, useWrongOnly);
+                    } else {
+                        fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, useRandom, useInfinite, useWrongOnly);
+                    }
+                });
+
+                $('#ptg-wrong-only-toggle').on('change', function() {
+                    const useWrongOnly = $(this).is(':checked');
+                    const useRandom = $('#ptg-random-toggle').is(':checked');
+                    const useInfinite = $('#ptg-infinite-scroll-toggle').is(':checked');
+                    
+                    if (isCategory) {
+                        fetchAndRenderCategoryLessons(studyContainer, {
+                            id: categoryId,
+                            title: categoryTitle,
+                            subjects: rawSubjects
+                        }, 0, useInfinite, useRandom, useWrongOnly);
+                    } else {
+                        fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, useRandom, useInfinite, useWrongOnly);
+                    }
                 });
             }
         }
@@ -884,15 +957,15 @@
         const isInfiniteEnabled = $toggle.length ? $toggle.is(':checked') : true;
         
         const loadNextBatch = () => {
-            const nextOffset = currentOffset + pageSize;
+            const nextOffset = currentOffset + lessons.length;
             if (isCategory) {
                 fetchAndRenderCategoryLessons(studyContainer, {
                     id: categoryId,
                     title: categoryTitle,
                     subjects: rawSubjects
-                }, nextOffset);
+                }, nextOffset, isInfiniteEnabled, isRandom, isWrongOnly);
             } else {
-                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, nextOffset, isRandom);
+                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, nextOffset, isRandom, isInfiniteEnabled, isWrongOnly);
             }
         };
 
@@ -908,9 +981,9 @@
                     id: categoryId,
                     title: categoryTitle,
                     subjects: rawSubjects
-                }, 0, currentState);
+                }, 0, currentState, isRandom, isWrongOnly);
             } else {
-                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, isRandom, currentState);
+                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, isRandom, currentState, isWrongOnly);
             }
         });
 

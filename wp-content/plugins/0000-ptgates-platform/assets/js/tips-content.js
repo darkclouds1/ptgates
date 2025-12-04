@@ -122,7 +122,20 @@
                         </div>
                     </section>
 
-                    <!-- 4. 참고사항 -->
+                    <!-- 4. 스마트 랜덤 -->
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 15px; color: #111;">🧠 스마트 랜덤 (로그인)</h4>
+                        <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 3px solid #0ea5e9; font-size: 13px;">
+                            <p style="margin: 0 0 8px 0; color: #0c4a6e;">'랜덤 퀴즈' 시 다음 우선순위로 문제가 노출됩니다:</p>
+                            <ol style="margin: 0; padding-left: 20px; color: #075985;">
+                                <li style="margin-bottom: 4px;"><strong>1순위 (최근 오답):</strong> 틀린 문제는 정답을 맞출 때까지 최우선으로 노출됩니다.</li>
+                                <li style="margin-bottom: 4px;"><strong>2순위 (미학습):</strong> 새로운 문제 도전</li>
+                                <li style="margin-bottom: 0;"><strong>3순위 (최근 정답):</strong> 아는 문제 가볍게 확인</li>
+                            </ol>
+                        </div>
+                    </section>
+
+                    <!-- 5. 참고사항 -->
                     <section style="font-size: 12px; color: #6b7280; background: #f9fafb; padding: 8px; border-radius: 4px;">
                         <p style="margin: 0 0 4px 0;">※ 기출문제는 자동 제외됩니다. (생성 문항 중심)</p>
                         <p style="margin: 0;">※ 전체 모의고사는 국가시험 문항 비율을 따릅니다.</p>
@@ -155,7 +168,7 @@
                         <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 3px solid #0ea5e9; font-size: 13px;">
                             <p style="margin: 0 0 8px 0; color: #0c4a6e;">'랜덤 섞기' 시 다음 우선순위로 문제가 노출됩니다:</p>
                             <ol style="margin: 0; padding-left: 20px; color: #075985;">
-                                <li style="margin-bottom: 4px;"><strong>1순위 (최근 오답):</strong> 틀린 문제 집중 복습</li>
+                                <li style="margin-bottom: 4px;"><strong>1순위 (최근 오답):</strong> 틀린 문제 집중 복습 (퀴즈에서 정답을 맞춰야 우선순위에서 내려갑니다)</li>
                                 <li style="margin-bottom: 4px;"><strong>2순위 (미학습):</strong> 새로운 문제 도전</li>
                                 <li style="margin-bottom: 0;"><strong>3순위 (최근 정답):</strong> 아는 문제 가볍게 확인</li>
                             </ol>

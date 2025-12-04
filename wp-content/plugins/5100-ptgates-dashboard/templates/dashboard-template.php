@@ -15,6 +15,97 @@ $nonce = wp_create_nonce('wp_rest');
 // Study 페이지 URL 가져오기
 $study_url = PTG_Dashboard::get_study_url();
 
+// --- Membership Logic Start ---
+$user = wp_get_current_user();
+$user_id = $user->ID;
+
+// Retrieve Member Grade
+$grade = 'basic';
+if (class_exists('\\PTG\\Platform\\Repo')) {
+    $member = \PTG\Platform\Repo::find_one('ptgates_user_member', ['user_id' => $user_id]);
+    if ($member && !empty($member['member_grade'])) {
+        $grade = $member['member_grade'];
+        // Check for Trial Expiry
+        if ($grade === 'trial' && !empty($member['billing_expiry_date']) && strtotime($member['billing_expiry_date']) < time()) {
+            $grade = 'basic';
+        }
+    }
+}
+
+// URL 설정
+$account_url = function_exists('um_get_core_page') ? um_get_core_page('account') : home_url('/account');
+$logout_url = add_query_arg([
+    'ptg_action' => 'logout',
+    '_wpnonce'   => wp_create_nonce('ptg_logout')
+], home_url());
+
+// 통계 데이터 조회
+global $wpdb;
+
+// 1. 과목|Study (Study Count > 0)
+$study_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(DISTINCT question_id) FROM ptgates_user_states WHERE user_id = %d AND study_count > 0",
+    $user_id
+));
+$study_count = $study_count ? intval($study_count) : 0;
+
+// 2. 실전|Quiz (Quiz Count > 0)
+$quiz_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(DISTINCT question_id) FROM ptgates_user_states WHERE user_id = %d AND quiz_count > 0",
+    $user_id
+));
+$quiz_count = $quiz_count ? intval($quiz_count) : 0;
+
+// 3. 암기카드 (Flashcards)
+$flashcard_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM ptgates_flashcards WHERE user_id = %d",
+    $user_id
+));
+$flashcard_count = $flashcard_count ? intval($flashcard_count) : 0;
+
+// --- Limit Calculation ---
+
+// 1. Study Limits
+$study_conf = get_option('ptg_conf_study', []);
+$study_limit_guest = isset($study_conf['LIMIT_GUEST_VIEW']) ? (int)$study_conf['LIMIT_GUEST_VIEW'] : 10;
+$study_limit_free = isset($study_conf['LIMIT_FREE_VIEW']) ? (int)$study_conf['LIMIT_FREE_VIEW'] : 20;
+
+$study_limit = $study_limit_guest; // Default guest
+if ($grade === 'basic' || $grade === 'trial') {
+    $study_limit = $study_limit_free;
+} elseif ($grade === 'premium' || $grade === 'pt_admin') {
+    $study_limit = 999999; // Unlimited
+}
+
+// 2. Quiz Limits
+$quiz_conf = get_option('ptg_conf_quiz', []);
+$quiz_limit_basic = isset($quiz_conf['LIMIT_QUIZ_QUESTIONS']) ? (int)$quiz_conf['LIMIT_QUIZ_QUESTIONS'] : 20;
+$quiz_limit_trial = isset($quiz_conf['LIMIT_TRIAL_QUESTIONS']) ? (int)$quiz_conf['LIMIT_TRIAL_QUESTIONS'] : 50;
+
+$quiz_limit = 0; // Guest has 0
+if ($grade === 'basic') {
+    $quiz_limit = $quiz_limit_basic;
+} elseif ($grade === 'trial') {
+    $quiz_limit = $quiz_limit_trial;
+} elseif ($grade === 'premium' || $grade === 'pt_admin') {
+    $quiz_limit = 999999;
+}
+
+// 3. Flashcards Limits
+$flash_conf = get_option('ptg_conf_flash', []);
+$flash_limit_basic = isset($flash_conf['LIMIT_BASIC_CARDS']) ? (int)$flash_conf['LIMIT_BASIC_CARDS'] : 20;
+$flash_limit_trial = isset($flash_conf['LIMIT_TRIAL_CARDS']) ? (int)$flash_conf['LIMIT_TRIAL_CARDS'] : 50;
+
+$flashcard_limit = 0;
+if ($grade === 'basic') {
+    $flashcard_limit = $flash_limit_basic;
+} elseif ($grade === 'trial') {
+    $flashcard_limit = $flash_limit_trial;
+} elseif ($grade === 'premium' || $grade === 'pt_admin') {
+    $flashcard_limit = 999999;
+}
+// --- Membership Logic End ---
+
 // 인라인 스타일 (간단한 스타일은 여기에 포함, 복잡하면 css 파일로 분리 권장)
 ?>
 <style>
@@ -34,7 +125,7 @@ $study_url = PTG_Dashboard::get_study_url();
         margin-top: 0;
         margin-bottom: 24px;
         padding: 24px 30px;
-        background: #ffffff;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
         border: 1px solid #e5e7eb;
         border-radius: 12px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
@@ -121,10 +212,21 @@ $study_url = PTG_Dashboard::get_study_url();
         border-color: #e5e7eb;
     }
     .ptg-badge-label {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
         width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    .ptg-settings-icon {
+        font-size: 12px;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+    }
+    .ptg-dash-premium-badge:hover .ptg-settings-icon {
+        opacity: 1;
     }
     .ptg-dash-premium-badge small {
         display: block;
@@ -223,6 +325,9 @@ $study_url = PTG_Dashboard::get_study_url();
             margin-top: 0;
             text-align: right;
             width: auto;
+            overflow: visible;
+            text-overflow: clip;
+            white-space: nowrap;
         }
         
         /* Force 2 columns for Stats and Actions on mobile */
@@ -725,6 +830,140 @@ $study_url = PTG_Dashboard::get_study_url();
         padding: 6px 12px;
         font-size: 0.875rem;
     }
+
+    /* --- Membership Toggle Styles --- */
+    #ptg-membership-details {
+        margin-bottom: 24px;
+        animation: ptg-slide-down 0.3s ease-out;
+    }
+    
+    @keyframes ptg-slide-down {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ptg-mb-section {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 24px;
+        margin-bottom: 24px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .ptg-mb-section-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 20px 0;
+        color: #374151;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ptg-usage-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+        .ptg-usage-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .ptg-usage-item {
+            padding: 12px;
+        }
+        .ptg-usage-value {
+            font-size: 14px;
+        }
+    }
+
+    .ptg-usage-item {
+        background: #f9fafb;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #f3f4f6;
+    }
+
+    .ptg-usage-label {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .ptg-usage-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .ptg-account-links {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+    }
+
+    .ptg-account-link {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #374151;
+        transition: all 0.2s;
+    }
+    .ptg-account-link:hover {
+        border-color: #d1d5db;
+        background: #f9fafb;
+        transform: translateY(-1px);
+    }
+
+    .ptg-footer-actions {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .ptg-footer-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    @media (max-width: 768px) {
+        .ptg-footer-actions {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 16px;
+        }
+        .ptg-footer-buttons {
+            width: 100%;
+            justify-content: flex-end;
+        }
+    }
+
+    .ptg-link-icon {
+        font-size: 20px;
+        margin-right: 12px;
+        color: #6b7280;
+    }
+    
+    .ptg-link-text {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .ptg-link-arrow {
+        color: #9ca3af;
+    }
+    /* --- End Membership Toggle Styles --- */
 </style>
 
 <div id="ptg-dashboard-app" class="ptg-dashboard-container">
@@ -735,7 +974,16 @@ $study_url = PTG_Dashboard::get_study_url();
 window.ptg_dashboard_vars = {
     rest_url: '<?php echo esc_url($rest_url); ?>',
     nonce: '<?php echo esc_js($nonce); ?>',
-    study_url: '<?php echo esc_url($study_url); ?>'
+    study_url: '<?php echo esc_url($study_url); ?>',
+    // Membership Data
+    study_count: <?php echo intval($study_count); ?>,
+    quiz_count: <?php echo intval($quiz_count); ?>,
+    flashcard_count: <?php echo intval($flashcard_count); ?>,
+    study_limit: <?php echo intval($study_limit); ?>,
+    quiz_limit: <?php echo intval($quiz_limit); ?>,
+    flashcard_limit: <?php echo intval($flashcard_limit); ?>,
+    account_url: '<?php echo esc_url($account_url); ?>',
+    logout_url: '<?php echo esc_url($logout_url); ?>'
 };
 
 // 인라인 스크립트 로더

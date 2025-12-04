@@ -65,6 +65,13 @@ jQuery(document).ready(function ($) {
                 self.startStudy(setId);
             });
 
+            // Study Button Click (Prevent double fire)
+            $('#ptg-sets-grid').on('click', '.ptg-btn-study', function(e) {
+                e.stopPropagation();
+                const setId = $(this).closest('.ptg-set-card').data('id');
+                self.startStudy(setId);
+            });
+
             // Create Set
             $('#ptg-create-set-btn').on('click', function(e) {
                 e.preventDefault();
@@ -500,7 +507,7 @@ jQuery(document).ready(function ($) {
                             </div>
                         </div>
                         <div class="ptg-flash-set-actions" style="margin-top: 15px; text-align: center;">
-                            <button class="ptg-btn-study" onclick="PTGFlashApp.startStudy(${set.set_id})" style="width: 100%;">학습하기</button>
+                            <button class="ptg-btn-study" style="width: 100%;">학습하기</button>
                         </div>
                     </div>
                 `;

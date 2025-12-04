@@ -276,6 +276,13 @@ class API {
                 ),
             ),
         ));
+
+        // 과목 카테고리 일괄 업데이트 (Backfill)
+        register_rest_route(self::NAMESPACE, '/backfill-categories', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'backfill_subject_categories'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
     }
     
     /**
@@ -721,11 +728,23 @@ class API {
             return Rest::error('not_found', '문제를 찾을 수 없습니다.', 404);
         }
         
-        // 카테고리 정보 가져오기 (이미지 경로 확인용)
+        // category info retrieval (for image path)
         $category = $wpdb->get_row($wpdb->prepare(
             "SELECT exam_year, exam_session FROM {$categories_table} WHERE question_id = %d LIMIT 1",
             $question_id
         ), ARRAY_A);
+        
+        // 0. 사용자 데이터 테이블에서 삭제 (외래키 제약조건이 없거나 확실하지 않은 경우를 대비해 명시적 삭제)
+        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_notes', 'ptgates_user_states', 'ptgates_user_results'];
+        foreach ($user_tables as $table) {
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
+                if ($table === 'ptgates_user_notes') {
+                    $wpdb->delete($table, array('ref_id' => $question_id, 'ref_type' => 'question'), array('%d', '%s'));
+                } else {
+                    $wpdb->delete($table, array('question_id' => $question_id), array('%d'));
+                }
+            }
+        }
         
         // 1. 카테고리 테이블에서 삭제
         $cat_result = $wpdb->delete(
@@ -819,16 +838,27 @@ class API {
         // DB 구조상 subject 컬럼에 세부과목이 저장됨
         $final_subject = $subsubject ? $subsubject : $subject;
         
+        // subject_category (대분류) 찾기
+        $subject_category = '';
+        if (class_exists('\PTG\Quiz\Subjects')) {
+            $subject_category = \PTG\Quiz\Subjects::get_subject_from_subsubject($final_subject);
+        }
+        // 찾지 못했다면 빈 문자열 또는 NULL (여기서는 빈 문자열)
+        if ($subject_category === null) {
+            $subject_category = '';
+        }
+
         $cat_result = $wpdb->insert(
             $categories_table,
             array(
                 'question_id' => $question_id,
                 'subject' => $final_subject,
+                'subject_category' => $subject_category,
                 'exam_year' => $exam_year,
                 'exam_session' => $exam_session,
                 'exam_course' => '1교시' // 기본값, 필요시 입력받아야 함
             ),
-            array( '%d', '%s', '%d', '%d', '%s' )
+            array( '%d', '%s', '%s', '%d', '%d', '%s' )
         );
         
         if ($cat_result === false) {
@@ -1073,6 +1103,58 @@ class API {
         } catch (\Error $e) {
             return Rest::error('server_error', '서버 오류: ' . $e->getMessage() . ' (File: ' . $e->getFile() . ', Line: ' . $e->getLine() . ')', 500);
         }
+    }
+
+    /**
+     * 과목 카테고리 일괄 업데이트 (Backfill)
+     */
+    public static function backfill_subject_categories($request) {
+        global $wpdb;
+        
+        if (!class_exists('\PTG\Quiz\Subjects')) {
+            return Rest::error('dependency_missing', 'Subjects 클래스를 찾을 수 없습니다.', 500);
+        }
+        
+        $categories_table = 'ptgates_categories';
+        
+        // subject_category가 비어있는 항목 조회
+        $rows = $wpdb->get_results("SELECT category_id, subject FROM {$categories_table} WHERE subject_category IS NULL OR subject_category = ''");
+        
+        if (!$rows) {
+            return Rest::success(array('message' => '업데이트할 항목이 없습니다.', 'count' => 0));
+        }
+        
+        $updated_count = 0;
+        $failed_count = 0;
+        
+        foreach ($rows as $row) {
+            $subject_category = \PTG\Quiz\Subjects::get_subject_from_subsubject($row->subject);
+            
+            if ($subject_category) {
+                $result = $wpdb->update(
+                    $categories_table,
+                    array('subject_category' => $subject_category),
+                    array('category_id' => $row->category_id),
+                    array('%s'),
+                    array('%d')
+                );
+                
+                if ($result !== false) {
+                    $updated_count++;
+                } else {
+                    $failed_count++;
+                }
+            } else {
+                // 매핑을 찾지 못한 경우
+                $failed_count++;
+            }
+        }
+        
+        return Rest::success(array(
+            'message' => "{$updated_count}개의 항목이 업데이트되었습니다. (실패/미매칭: {$failed_count})",
+            'count' => $updated_count,
+            'failed' => $failed_count
+        ));
     }
 }
 

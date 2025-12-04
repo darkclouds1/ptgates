@@ -14,6 +14,9 @@ class PTG_Admin_Members {
 	/**
 	 * 멤버십 관리 페이지 렌더링
 	 */
+	/**
+	 * 멤버십 관리 페이지 렌더링
+	 */
 	public static function render_page() {
 		// 권한 확인 로직
 		$is_wp_admin = current_user_can('manage_options');
@@ -23,23 +26,153 @@ class PTG_Admin_Members {
 			$is_pt_admin = \PTG\Platform\Permissions::is_pt_admin();
 		}
 
+		// 설정 저장 처리
+		if (isset($_POST['ptg_settings_action']) && check_admin_referer('ptg_save_settings')) {
+			self::save_settings();
+		}
+
+		$active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'users';
+
 		echo '<div class="wrap">';
 		echo '<h1 class="wp-heading-inline">ptGates 멤버십 관리</h1>';
 
-		// 1. pt_admin이 아닌 WP 관리자에게는 등급 할당 폼만 표시
-		if (!$is_pt_admin) {
+		// 탭 네비게이션
+		$tabs = [
+			'users' => '사용자 관리',
+			'study' => '1100-Study 설정',
+			'quiz'  => '1200-Quiz 설정',
+			'flash' => '2200-Flash 설정'
+		];
+
+		echo '<h2 class="nav-tab-wrapper">';
+		foreach ($tabs as $key => $title) {
+			$class = ($active_tab === $key) ? 'nav-tab-active' : '';
+			$url = add_query_arg(['page' => 'ptgates-admin-members', 'tab' => $key], admin_url('admin.php'));
+			echo '<a href="' . esc_url($url) . '" class="nav-tab ' . esc_attr($class) . '">' . esc_html($title) . '</a>';
+		}
+		echo '</h2>';
+
+		// 1. pt_admin이 아닌 WP 관리자에게는 등급 할당 폼만 표시 (사용자 관리 탭일 때만)
+		if (!$is_pt_admin && $active_tab === 'users') {
 			if ($is_wp_admin) {
 				self::render_assignment_form();
 			} else {
 				wp_die('접근 권한이 없습니다. (pt_admin 등급 필요)');
 			}
 		} else {
-			// 2. pt_admin에게는 전체 관리 대시보드 표시
-			// (WP 관리자라도 pt_admin 등급이 있으면 이 화면을 봄)
-			self::render_dashboard();
+			// 탭별 콘텐츠 렌더링
+			if ($active_tab === 'users') {
+				self::render_dashboard();
+			} else {
+				self::render_settings_tab($active_tab);
+			}
 		}
 		
 		echo '</div>';
+	}
+
+	/**
+	 * 설정 탭 렌더링
+	 */
+	private static function render_settings_tab($tab) {
+		$configs = [];
+		$option_name = '';
+		$descriptions = [];
+
+		if ($tab === 'study') {
+			$option_name = 'ptg_conf_study';
+			$defaults = [
+				'LIMIT_GUEST_VIEW' => 10,
+				'LIMIT_FREE_VIEW' => 20,
+				'MEMBERSHIP_URL' => '/membership'
+			];
+			$descriptions = [
+				'LIMIT_GUEST_VIEW' => '비회원(Guest)이 하루에 볼 수 있는 문제 수 제한',
+				'LIMIT_FREE_VIEW' => '무료회원(Basic)이 하루에 볼 수 있는 문제 수 제한',
+				'MEMBERSHIP_URL' => '멤버십 안내 페이지 URL'
+			];
+			$configs = get_option($option_name, $defaults);
+		} elseif ($tab === 'quiz') {
+			$option_name = 'ptg_conf_quiz';
+			$defaults = [
+				'LIMIT_MOCK_EXAM' => 1,
+				'LIMIT_QUIZ_QUESTIONS' => 20,
+				'LIMIT_TRIAL_QUESTIONS' => 50,
+				'MEMBERSHIP_URL' => '/membership'
+			];
+			$descriptions = [
+				'LIMIT_MOCK_EXAM' => 'Basic(로그인 무료회원) 1일 모의고사 응시 횟수 제한',
+				'LIMIT_QUIZ_QUESTIONS' => 'Basic(로그인 무료회원) 1일 일반 퀴즈 문제 수 제한',
+				'LIMIT_TRIAL_QUESTIONS' => 'Trial(체험판) 회원 1일 일반 퀴즈 문제 수 제한',
+				'MEMBERSHIP_URL' => '멤버십 안내 페이지 URL'
+			];
+			$configs = get_option($option_name, $defaults);
+		} elseif ($tab === 'flash') {
+			$option_name = 'ptg_conf_flash';
+			$defaults = [
+				'LIMIT_BASIC_CARDS' => 20,
+				'LIMIT_TRIAL_CARDS' => 50,
+				'MEMBERSHIP_URL' => '/membership'
+			];
+			$descriptions = [
+				'LIMIT_BASIC_CARDS' => 'Basic(로그인 무료회원) 1일 암기카드 학습 제한',
+				'LIMIT_TRIAL_CARDS' => 'Trial(체험판) 회원 1일 암기카드 학습 제한',
+				'MEMBERSHIP_URL' => '멤버십 안내 페이지 URL'
+			];
+			$configs = get_option($option_name, $defaults);
+		}
+
+		if (empty($option_name)) return;
+
+		?>
+		<form method="post" action="">
+			<?php wp_nonce_field('ptg_save_settings'); ?>
+			<input type="hidden" name="ptg_settings_action" value="save">
+			<input type="hidden" name="ptg_option_name" value="<?php echo esc_attr($option_name); ?>">
+			
+			<table class="form-table" role="presentation">
+				<tbody>
+					<?php foreach ($configs as $key => $value) : ?>
+						<tr>
+							<th scope="row">
+								<label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($key); ?></label>
+								<?php if (isset($descriptions[$key])) : ?>
+									<p class="description" style="font-weight: normal; color: #666; margin-top: 4px;">
+										<?php echo esc_html($descriptions[$key]); ?>
+									</p>
+								<?php endif; ?>
+							</th>
+							<td>
+								<input name="ptg_settings[<?php echo esc_attr($key); ?>]" type="text" id="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr($value); ?>" class="regular-text">
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php submit_button(); ?>
+		</form>
+		<?php
+	}
+
+	/**
+	 * 설정 저장 처리
+	 */
+	private static function save_settings() {
+		if (!current_user_can('manage_options')) {
+			return;
+		}
+
+		$option_name = sanitize_text_field($_POST['ptg_option_name']);
+		$settings = isset($_POST['ptg_settings']) ? $_POST['ptg_settings'] : [];
+
+		// Sanitize values
+		$clean_settings = [];
+		foreach ($settings as $key => $val) {
+			$clean_settings[sanitize_text_field($key)] = sanitize_text_field($val);
+		}
+
+		update_option($option_name, $clean_settings);
+		echo '<div class="notice notice-success is-dismissible"><p>설정이 저장되었습니다.</p></div>';
 	}
 
 	/**

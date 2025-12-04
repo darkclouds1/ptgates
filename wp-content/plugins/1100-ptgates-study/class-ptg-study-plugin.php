@@ -7,11 +7,12 @@ if (!defined('ABSPATH')) {
 class PTG_Study_Plugin {
     private static $instance;
 
-    // --- Configuration Constants ---
-    const LIMIT_GUEST_VIEW = 5;  // 비로그인 사용자 보기 제한 횟수
-    const LIMIT_FREE_VIEW  = 20; // 무료(Basic) 회원 보기 제한 횟수
-    const MEMBERSHIP_URL   = '/membership'; // 멤버십 안내 페이지 URL
-    // -------------------------------
+    // --- Configuration Helper ---
+    public static function get_config($key, $default = null) {
+        $options = get_option('ptg_conf_study', []);
+        return isset($options[$key]) ? $options[$key] : $default;
+    }
+    // ----------------------------
 
     public static function get_instance() {
         if (null === self::$instance) {
@@ -149,6 +150,10 @@ class PTG_Study_Plugin {
             <div class="ptg-study-header">
 			    <h2>🗝️학습할 과목을 선택하세요</h2>
                 <div class="ptg-study-header-right">
+                    <label style="display:flex; align-items:center; gap:5px; font-size:14px; cursor:pointer; margin-right:10px;">
+                        <input type="checkbox" id="ptg-global-wrong-only">
+                        <span>틀린문제만</span>
+                    </label>
                     <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link" aria-label="대시보드로 돌아가기">대시보드</a>
                     <button type="button" class="ptg-study-tip-trigger" data-ptg-tip-open>
                         [학습Tip]
@@ -215,17 +220,17 @@ class PTG_Study_Plugin {
                     is_user_logged_in: <?php echo is_user_logged_in() ? 'true' : 'false'; ?>,
                     is_premium: <?php echo \PTG\Platform\Permissions::can_access_feature('premium_content') ? 'true' : 'false'; ?>,
                     limits: {
-                        guest: <?php echo self::LIMIT_GUEST_VIEW; ?>,
-                        free: <?php echo self::LIMIT_FREE_VIEW; ?>
+                        guest: <?php echo self::get_config('LIMIT_GUEST_VIEW', 10); ?>,
+                        free: <?php echo self::get_config('LIMIT_FREE_VIEW', 20); ?>
                     },
-                    membership_url: '<?php echo esc_url( home_url( self::MEMBERSHIP_URL ) ); ?>',
+                    membership_url: '<?php echo esc_url( home_url( self::get_config('MEMBERSHIP_URL', '/membership') ) ); ?>',
                     login_url: '<?php echo esc_url( add_query_arg( 'redirect_to', urlencode( get_permalink() ), home_url( '/login/' ) ) ); ?>',
                     subjectMap: <?php echo json_encode( $subjects_map ); ?>
                 };
             </script>
-
+            
             <!-- 스터디 전용 스크립트 -->
-            <script src="<?php echo esc_url( $plugin_dir_url . 'assets/js/study.js' ); ?>?v=<?php echo esc_attr( $script_version ); ?>"></script>
+            <script src="<?php echo esc_url( $plugin_dir_url . 'assets/js/study.js' ); ?>?v=<?php echo time(); ?>"></script>
             
             <!-- 툴바 기능 스크립트 -->
             <script src="<?php echo esc_url( $plugin_dir_url . 'assets/js/study-toolbar.js' ); ?>?v=<?php echo esc_attr( $script_version ); ?>"></script>
@@ -696,7 +701,9 @@ class PTG_Study_Plugin {
                 .ptg-lesson-header-row h2 {
                     margin: 0 !important;
                 }
-                .ptg-random-toggle {
+                .ptg-random-toggle,
+                .ptg-infinite-toggle,
+                .ptg-wrong-only-toggle {
                     display: flex !important;
                     align-items: center !important;
                     gap: 8px !important;

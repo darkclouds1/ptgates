@@ -15,11 +15,12 @@ final class PTG_Flashcards_Plugin {
 
 	private static $instance = null;
 
-    // --- Configuration Constants ---
-    const LIMIT_BASIC_CARDS = 20; // Basic(로그인 무료회원) 1일 카드 제한
-    const LIMIT_TRIAL_CARDS = 50; // Trial 회원 1일 카드 제한
-    const MEMBERSHIP_URL    = '/membership'; // 멤버십 안내 페이지 URL
-    // -------------------------------
+    // --- Configuration Helper ---
+    public static function get_config($key, $default = null) {
+        $options = get_option('ptg_conf_flash', []);
+        return isset($options[$key]) ? $options[$key] : $default;
+    }
+    // ----------------------------
 
 	public static function get_instance() {
 		if ( is_null( self::$instance ) ) {
@@ -140,9 +141,9 @@ final class PTG_Flashcards_Plugin {
 			wp_json_encode( $flash_js ),
 			wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::MAP : [] ),
             wp_json_encode( $member_grade ),
-            self::LIMIT_BASIC_CARDS,
-            self::LIMIT_TRIAL_CARDS,
-            wp_json_encode( home_url( self::MEMBERSHIP_URL ) )
+            self::get_config('LIMIT_BASIC_CARDS', 20),
+            self::get_config('LIMIT_TRIAL_CARDS', 50),
+            wp_json_encode( home_url( self::get_config('MEMBERSHIP_URL', '/membership') ) )
 		);
 
 		ob_start();

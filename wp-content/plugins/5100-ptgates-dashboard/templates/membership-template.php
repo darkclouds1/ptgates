@@ -14,7 +14,7 @@ $expiry_date = null;
 
 // 1. DB 테이블 확인
 global $wpdb;
-$member_table = $wpdb->prefix . 'ptgates_user_member';
+$member_table = 'ptgates_user_member';
 $member_data = null;
 
 // 테이블 존재 여부 확인
@@ -65,16 +65,43 @@ if ($member_data) {
 // URL 설정
 $dashboard_url = remove_query_arg('view');
 $account_url = function_exists('um_get_core_page') ? um_get_core_page('account') : home_url('/account');
-$logout_url = wp_logout_url($dashboard_url);
+$logout_url = add_query_arg([
+    'ptg_action' => 'logout',
+    '_wpnonce'   => wp_create_nonce('ptg_logout')
+], home_url()); // 커스텀 로그아웃 핸들러 사용
+
+// 통계 데이터 조회
+// 1. 과목|Study (Study Count > 0)
+$study_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(DISTINCT question_id) FROM ptgates_user_states WHERE user_id = %d AND study_count > 0",
+    $user_id
+));
+$study_count = $study_count ? intval($study_count) : 0;
+
+// 2. 실전|Quiz (Quiz Count > 0)
+$quiz_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(DISTINCT question_id) FROM ptgates_user_states WHERE user_id = %d AND quiz_count > 0",
+    $user_id
+));
+$quiz_count = $quiz_count ? intval($quiz_count) : 0;
+
+// 3. 암기카드 (Flashcards)
+$flashcard_count = $wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM ptgates_flashcards WHERE user_id = %d",
+    $user_id
+));
+$flashcard_count = $flashcard_count ? intval($flashcard_count) : 0;
 
 ?>
 <style>
     .ptg-membership-container {
-        max-width: 800px;
-        margin: 20px auto;
-        padding: 20px;
+        max-width: 1000px !important;
+        width: 100%;
+        margin: 10px auto !important;
+        padding: 10px !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         color: #333;
+        box-sizing: border-box;
     }
 
     .ptg-mb-header {
@@ -352,13 +379,30 @@ $logout_url = wp_logout_url($dashboard_url);
         <?php endif; ?>
     </div>
 
-    <!-- 2. Usage Limits (JS populated) -->
+    <!-- 2. Usage Limits (PHP populated) -->
     <section class="ptg-mb-section">
         <h2 class="ptg-mb-section-title">📊 학습 이용 현황</h2>
         <div class="ptg-usage-grid" id="ptg-usage-stats">
-            <!-- Loading state -->
+            <!-- 과목|Study -->
             <div class="ptg-usage-item">
-                <span class="ptg-usage-label">데이터 불러오는 중...</span>
+                <span class="ptg-usage-label">과목|Study</span>
+                <div class="ptg-usage-value">
+                    <?php echo number_format($study_count); ?> 문제
+                </div>
+            </div>
+            <!-- 실전|Quiz -->
+            <div class="ptg-usage-item">
+                <span class="ptg-usage-label">실전|Quiz</span>
+                <div class="ptg-usage-value">
+                    <?php echo number_format($quiz_count); ?> 문제
+                </div>
+            </div>
+            <!-- 암기카드 -->
+            <div class="ptg-usage-item">
+                <span class="ptg-usage-label">암기카드</span>
+                <div class="ptg-usage-value">
+                    <?php echo number_format($flashcard_count); ?> 개
+                </div>
             </div>
         </div>
     </section>
@@ -377,88 +421,253 @@ $logout_url = wp_logout_url($dashboard_url);
                 <span class="ptg-link-text">비밀번호 변경</span>
                 <span class="ptg-link-arrow">→</span>
             </a>
-            <a href="<?php echo esc_url($account_url . '/notifications'); ?>" class="ptg-account-link">
-                <span class="ptg-link-icon">🔔</span>
-                <span class="ptg-link-text">알림 설정</span>
-                <span class="ptg-link-arrow">→</span>
-            </a>
+            <button type="button" class="ptg-account-link" onclick="togglePaymentManagement()">
+                <span class="ptg-link-icon">💳</span>
+                <span class="ptg-link-text">결제 관리</span>
+                <span class="ptg-link-arrow">▼</span>
+            </button>
+        </div>
+
+        <!-- Payment Management Section (Hidden by default) -->
+        <div id="ptg-payment-management" style="display: none; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 24px;">
+            
+            <!-- Tabs -->
+            <div class="ptg-pm-tabs">
+                <button type="button" class="ptg-pm-tab is-active" onclick="switchPmTab('product')">상품 선택 및 결제</button>
+                <button type="button" class="ptg-pm-tab" onclick="switchPmTab('history')">결제 내역</button>
+            </div>
+
+            <!-- Tab Content: Product Selection -->
+            <div id="ptg-pm-content-product" class="ptg-pm-content is-active">
+                <div class="ptg-pricing-card">
+                    <div class="ptg-pricing-header">
+                        <h3 class="ptg-pricing-title">Premium Membership</h3>
+                        <div class="ptg-pricing-price">₩9,900 <span class="ptg-pricing-period">/ 월</span></div>
+                        <p class="ptg-pricing-desc">모든 학습 기능을 제한 없이 이용하세요.</p>
+                    </div>
+                    <ul class="ptg-pricing-features">
+                        <li>✅ <strong>무제한</strong> 문제 풀이 (Study & Quiz)</li>
+                        <li>✅ <strong>무제한</strong> 암기카드 생성 및 학습</li>
+                        <li>✅ <strong>모의고사</strong> 무제한 응시</li>
+                        <li>✅ <strong>오답노트</strong> 및 학습 통계 제공</li>
+                        <li>✅ <strong>광고 없는</strong> 쾌적한 학습 환경</li>
+                    </ul>
+                    <a href="/checkout?product_id=premium" class="ptg-pricing-btn">지금 시작하기</a>
+                </div>
+            </div>
+
+            <!-- Tab Content: Payment History -->
+            <div id="ptg-pm-content-history" class="ptg-pm-content">
+                <table class="ptg-history-table">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>상품명</th>
+                            <th>결제 금액</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Placeholder Data -->
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 30px; color: #6b7280;">
+                                결제 내역이 없습니다.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="font-size: 13px; color: #6b7280;">
+                    <a href="<?php echo esc_url($account_url . '/delete'); ?>" 
+                       style="color: #991b1b; font-weight: bold; text-decoration: underline; margin-right: 4px;"
+                       onclick="return confirm('정말로 계정을 삭제하시겠습니까?\n\n삭제된 계정과 모든 학습 데이터는 복구할 수 없습니다.');">
+                        계정 탈퇴
+                    </a>
+                    계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.
+                </div>
+                <a href="<?php echo esc_url($logout_url); ?>" 
+                   style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap;">
+                    로그아웃
+                </a>
+            </div>
         </div>
     </section>
-
-    <!-- 4. Danger Zone -->
-    <section class="ptg-mb-section ptg-danger-zone">
-        <h2 class="ptg-mb-section-title">⚠️ 위험 구역</h2>
-        <p style="font-size: 14px; color: #7f1d1d; margin-bottom: 12px;">
-            계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.
-        </p>
-        <a href="<?php echo esc_url($account_url . '/delete'); ?>" class="ptg-delete-account">
-            계정 탈퇴하기
-        </a>
-    </section>
-
-    <a href="<?php echo esc_url($logout_url); ?>" class="ptg-logout-btn">
-        로그아웃
-    </a>
 </div>
 
 <script>
-(function($) {
-    $(document).ready(function() {
-        // Load Usage Stats from localStorage
-        loadUsageStats();
+function togglePaymentManagement() {
+    var el = document.getElementById('ptg-payment-management');
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        // Smooth scroll to section
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function switchPmTab(tabName) {
+    // Update Tab Buttons
+    var tabs = document.querySelectorAll('.ptg-pm-tab');
+    tabs.forEach(function(t) {
+        t.classList.remove('is-active');
     });
+    event.target.classList.add('is-active');
 
-    function loadUsageStats() {
-        const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-        
-        // Keys from ptgates-quiz.php / quiz.js
-        const mockKey = 'ptg_mock_exam_count_' + today;
-        const quizKey = 'ptg_quiz_question_count_' + today;
-        
-        const mockCount = parseInt(localStorage.getItem(mockKey) || 0);
-        const quizCount = parseInt(localStorage.getItem(quizKey) || 0);
-        
-        // Limits (Hardcoded for display, ideally passed from PHP)
-        // Basic: Mock 1, Quiz 20
-        // Premium: Unlimited
-        const isPremium = '<?php echo $premium_status; ?>' === 'active';
-        
-        let html = '';
-        
-        if (isPremium) {
-            html += createUsageItem('모의고사', mockCount, '무제한', 0);
-            html += createUsageItem('퀴즈 풀이', quizCount, '무제한', 0);
-        } else {
-            // Basic Limits
-            const limitMock = 1;
-            const limitQuiz = 20;
-            
-            html += createUsageItem('모의고사 (일일)', mockCount, limitMock, (mockCount / limitMock) * 100);
-            html += createUsageItem('퀴즈 풀이 (일일)', quizCount, limitQuiz, (quizCount / limitQuiz) * 100);
-        }
-        
-        $('#ptg-usage-stats').html(html);
-    }
-
-    function createUsageItem(label, current, max, percent) {
-        const isUnlimited = max === '무제한';
-        const displayMax = isUnlimited ? '∞' : max + '회';
-        const barWidth = isUnlimited ? 0 : Math.min(100, percent);
-        const barColor = percent >= 100 ? '#ef4444' : '#3b82f6';
-        
-        return `
-            <div class="ptg-usage-item">
-                <span class="ptg-usage-label">${label}</span>
-                <div class="ptg-usage-value">
-                    ${current} / ${displayMax}
-                </div>
-                ${!isUnlimited ? `
-                <div class="ptg-usage-bar">
-                    <div class="ptg-usage-fill" style="width: ${barWidth}%; background-color: ${barColor}"></div>
-                </div>
-                ` : ''}
-            </div>
-        `;
-    }
-})(jQuery);
+    // Update Content
+    var contents = document.querySelectorAll('.ptg-pm-content');
+    contents.forEach(function(c) {
+        c.classList.remove('is-active');
+    });
+    document.getElementById('ptg-pm-content-' + tabName).classList.add('is-active');
+}
 </script>
+
+<style>
+    /* Payment Management Styles */
+    .ptg-account-link {
+        background: none;
+        border: 1px solid #e5e7eb;
+        font: inherit;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+    }
+
+    .ptg-pm-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .ptg-pm-tab {
+        padding: 10px 20px;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        font-size: 15px;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .ptg-pm-tab:hover {
+        color: #374151;
+    }
+
+    .ptg-pm-tab.is-active {
+        color: #4f46e5;
+        border-bottom-color: #4f46e5;
+    }
+
+    .ptg-pm-content {
+        display: none;
+        animation: ptg-fade-in 0.3s ease;
+    }
+
+    .ptg-pm-content.is-active {
+        display: block;
+    }
+
+    @keyframes ptg-fade-in {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Pricing Card */
+    .ptg-pricing-card {
+        background: linear-gradient(145deg, #ffffff, #f9fafb);
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 30px;
+        text-align: center;
+        max-width: 400px;
+        margin: 0 auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    }
+
+    .ptg-pricing-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0 0 10px;
+    }
+
+    .ptg-pricing-price {
+        font-size: 36px;
+        font-weight: 800;
+        color: #4f46e5;
+        margin-bottom: 10px;
+    }
+
+    .ptg-pricing-period {
+        font-size: 16px;
+        font-weight: 500;
+        color: #6b7280;
+    }
+
+    .ptg-pricing-desc {
+        color: #4b5563;
+        margin-bottom: 24px;
+    }
+
+    .ptg-pricing-features {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 30px;
+        text-align: left;
+    }
+
+    .ptg-pricing-features li {
+        margin-bottom: 12px;
+        color: #374151;
+        font-size: 15px;
+    }
+
+    .ptg-pricing-btn {
+        display: block;
+        width: 100%;
+        padding: 14px;
+        background: #4f46e5;
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: background 0.2s;
+    }
+
+    .ptg-pricing-btn:hover {
+        background: #4338ca;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    }
+
+    /* History Table */
+    .ptg-history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .ptg-history-table th {
+        text-align: left;
+        padding: 12px;
+        background: #f9fafb;
+        color: #6b7280;
+        font-weight: 600;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .ptg-history-table td {
+        padding: 12px;
+        border-bottom: 1px solid #f3f4f6;
+        color: #374151;
+    }
+</style>

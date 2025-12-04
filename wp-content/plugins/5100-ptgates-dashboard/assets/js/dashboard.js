@@ -9,6 +9,490 @@
 
       this.fetchSummary();
       this.bindEvents();
+      this.injectStyles();
+    },
+
+    injectStyles: function() {
+        const styles = `
+            /* Payment Management Styles */
+            .ptg-account-link {
+                background: none;
+                border: 1px solid #e5e7eb;
+                font: inherit;
+                cursor: pointer;
+                width: 100%;
+                text-align: left;
+            }
+
+            .ptg-pm-tabs {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .ptg-pm-tab {
+                padding: 10px 20px;
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                font-size: 15px;
+                font-weight: 600;
+                color: #6b7280;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .ptg-pm-tab:hover {
+                color: #374151;
+            }
+
+            .ptg-pm-tab.is-active {
+                color: #4f46e5;
+                border-bottom-color: #4f46e5;
+            }
+
+            .ptg-pm-content {
+                display: none;
+                animation: ptg-fade-in 0.3s ease;
+            }
+
+            .ptg-pm-content.is-active {
+                display: block;
+            }
+
+            @keyframes ptg-fade-in {
+                from { opacity: 0; transform: translateY(5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            /* History Table */
+            /* History Table */
+            .ptg-history-wrapper {
+                background: #ffffff;
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                overflow: hidden;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+
+            .ptg-history-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+            }
+
+            .ptg-history-table th {
+                text-align: left;
+                padding: 14px 16px;
+                background: #f9fafb;
+                color: #6b7280;
+                font-weight: 500;
+                font-size: 13px;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            .ptg-history-table td {
+                padding: 14px 16px;
+                border-bottom: 1px solid #f3f4f6;
+                color: #374151;
+            }
+            
+            .ptg-history-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .ptg-history-table tr:hover td {
+                background-color: #f9fafb;
+            }
+
+            /* User Provided Styles (Scoped) */
+            .ptg-membership-wrapper {
+                font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+                color: #1f2933;
+                line-height: 1.7;
+            }
+
+            .ptg-section-title {
+                font-size: 24px;
+                font-weight: 700;
+                color: #4c51bf;
+                margin-bottom: 8px;
+            }
+
+            .ptg-section-sub {
+                font-size: 16px;
+                color: #4b5563;
+                margin-bottom: 32px;
+            }
+
+            .ptg-section-sub b {
+                font-weight: 600;
+            }
+
+            .ptg-card {
+                background: #ffffff;
+                border-radius: 18px;
+                padding: 24px 24px 28px;
+                box-shadow: 0 18px 45px rgba(15, 23, 42, 0.09);
+                border: 1px solid rgba(148, 163, 184, 0.3);
+                margin-bottom: 24px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .ptg-card::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(circle at top left, rgba(129, 140, 248, 0.18), transparent 52%);
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            .ptg-card-inner {
+                position: relative;
+                z-index: 1;
+            }
+
+            .ptg-plan-title {
+                font-size: 18px;
+                font-weight: 700;
+                margin-bottom: 8px;
+            }
+
+            .ptg-plan-title span {
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .ptg-plan-title .badge-free {
+                color: #10b981;
+            }
+
+            .ptg-plan-title .badge-premium {
+                color: #7c3aed;
+            }
+
+            .ptg-plan-sub {
+                font-size: 14px;
+                color: #6b7280;
+                margin-bottom: 12px;
+            }
+
+            .ptg-price {
+                font-size: 15px;
+                font-weight: 600;
+                color: #111827;
+                margin-bottom: 12px;
+            }
+
+            .ptg-price small {
+                font-size: 13px;
+                font-weight: 500;
+                color: #6b21a8;
+            }
+
+            .ptg-benefits {
+                list-style: none;
+                padding-left: 0;
+                margin: 0;
+            }
+
+            .ptg-benefits li {
+                position: relative;
+                padding-left: 18px;
+                font-size: 14px;
+                color: #374151;
+                margin-bottom: 4px;
+            }
+
+            .ptg-benefits li::before {
+                content: "•";
+                position: absolute;
+                left: 4px;
+                top: 0;
+                color: #a855f7;
+            }
+
+            .ptg-badge-line {
+                font-size: 13px;
+                color: #6b7280;
+                margin-top: 12px;
+            }
+
+            .ptg-badge-line strong {
+                color: #111827;
+                font-weight: 600;
+            }
+
+            .ptg-premium-highlight {
+                background: linear-gradient(135deg, #ede9fe, #e0f2fe);
+                border-radius: 12px;
+                padding: 10px 12px;
+                font-size: 13px;
+                color: #4b5563;
+                margin-top: 14px;
+            }
+
+            .ptg-premium-highlight b {
+                color: #7c3aed;
+            }
+
+            .ptg-note {
+                font-size: 13px;
+                color: #6b7280;
+                margin-top: 10px;
+            }
+
+            /* 제한 초과 유입용 히어로 섹션 */
+            .ptg-limit-hero {
+                background: linear-gradient(135deg, #eef2ff, #fdf2ff);
+                border-radius: 18px;
+                padding: 20px 22px 22px;
+                border: 1px solid rgba(129, 140, 248, 0.35);
+                box-shadow: 0 18px 40px rgba(79, 70, 229, 0.17);
+                margin-bottom: 28px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .ptg-limit-hero::before {
+                content: "";
+                position: absolute;
+                width: 220px;
+                height: 220px;
+                background: radial-gradient(circle, rgba(129, 140, 248, 0.32), transparent 60%);
+                right: -80px;
+                top: -80px;
+                opacity: 0.9;
+                pointer-events: none;
+            }
+
+            .ptg-limit-title {
+                position: relative;
+                z-index: 1;
+                font-size: 18px;
+                font-weight: 700;
+                color: #1f2937;
+                margin-bottom: 6px;
+            }
+
+            .ptg-limit-text {
+                position: relative;
+                z-index: 1;
+                font-size: 14px;
+                color: #4b5563;
+                margin-bottom: 10px;
+            }
+
+            .ptg-limit-list {
+                position: relative;
+                z-index: 1;
+                font-size: 13px;
+                color: #374151;
+                margin: 0 0 14px;
+                padding-left: 18px;
+            }
+
+            .ptg-limit-list li {
+                margin-bottom: 3px;
+            }
+
+            .ptg-cta-row {
+                position: relative;
+                z-index: 1;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .ptg-cta-btn {
+                display: inline-block;
+                padding: 8px 16px;
+                border-radius: 999px;
+                background: linear-gradient(135deg, #4f46e5, #7c3aed);
+                color: #ffffff;
+                font-size: 14px;
+                font-weight: 600;
+                text-decoration: none;
+                box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+                border: none;
+                cursor: pointer;
+                transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.08s ease;
+            }
+
+            .ptg-cta-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 14px 30px rgba(79, 70, 229, 0.5);
+                opacity: 0.96;
+            }
+
+            .ptg-cta-caption {
+                font-size: 12px;
+                color: #4b5563;
+            }
+
+            .ptg-btn-secondary {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 6px 16px;
+                background-color: #ffffff;
+                color: #6b7280;
+                border: 1px solid #e5e7eb;
+                border-radius: 999px;
+                font-size: 13px;
+                font-weight: 400;
+                text-decoration: none;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .ptg-btn-secondary:hover {
+                background-color: #f9fafb;
+                border-color: #d1d5db;
+                color: #374151;
+            }
+
+            /* Plan Selection Card (Gradient Wrapper) */
+            .ptg-plan-selection-card {
+                background: #ffffff;
+                border-radius: 20px;
+                padding: 30px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+                border: 1px solid rgba(229, 231, 235, 0.5);
+                position: relative;
+                overflow: hidden;
+            }
+            .ptg-plan-selection-card::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(800px circle at top left, rgba(129, 140, 248, 0.12), transparent 40%);
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            .ptg-link-arrow {
+                display: inline-block;
+                width: 6px;
+                height: 6px;
+                border-right: 2px solid #9ca3af;
+                border-bottom: 2px solid #9ca3af;
+                transform: rotate(45deg);
+                margin-left: auto;
+                transition: transform 0.2s;
+                margin-bottom: 2px;
+            }
+            
+            button[data-toggle-payment][aria-expanded="true"] .ptg-link-arrow {
+                transform: rotate(-135deg);
+                margin-bottom: -2px;
+            }
+
+            /* 플랜 비교표 */
+            .ptg-plan-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 12px;
+            }
+
+            .ptg-plan-cell {
+                background: #f9fafb;
+                border-radius: 14px;
+                padding: 10px 10px 12px;
+                border: 1px solid rgba(148, 163, 184, 0.4);
+                font-size: 13px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .ptg-plan-cell:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                border-color: #4f46e5;
+            }
+
+            .ptg-plan-cell.popular {
+                border-color: #7c3aed;
+                box-shadow: 0 10px 30px rgba(124, 58, 237, 0.25);
+                background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+                position: relative;
+            }
+
+            .ptg-plan-name {
+                font-weight: 700;
+                margin-bottom: 4px;
+                color: #111827;
+            }
+
+            .ptg-plan-month {
+                font-size: 12px;
+                color: #6b7280;
+                margin-bottom: 6px;
+            }
+
+            .ptg-plan-price {
+                font-size: 14px;
+                font-weight: 700;
+                color: #111827;
+                margin-bottom: 4px;
+            }
+
+            .ptg-plan-monthly {
+                font-size: 12px;
+                color: #6b7280;
+            }
+
+            .ptg-plan-tag {
+                display: inline-block;
+                margin-top: 6px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            .ptg-plan-tag.popular-tag {
+                background: rgba(124, 58, 237, 0.1);
+                color: #7c3aed;
+            }
+
+            .ptg-plan-tag.value-tag {
+                background: rgba(16, 185, 129, 0.08);
+                color: #059669;
+            }
+
+            /* 반응형 */
+            @media (max-width: 768px) {
+                .ptg-membership-wrapper {
+                    margin-top: 24px;
+                }
+                .ptg-card {
+                    padding: 20px 18px 22px;
+                }
+                .ptg-limit-hero {
+                    padding: 18px 16px 20px;
+                }
+                .ptg-cta-row {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+                .ptg-plan-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+
+            @media (max-width: 480px) {
+                .ptg-plan-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        `;
+        $("<style>").text(styles).appendTo("head");
     },
 
     bindEvents: function () {
@@ -17,6 +501,17 @@
         e.preventDefault();
         const action = $(this).data("action");
         const url = $(this).data("url");
+
+        if (action === 'scroll-top') {
+            const target = document.querySelector('.e-n-tabs-heading');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                console.warn('Target element .e-n-tabs-heading not found');
+            }
+            return;
+        }
+
         if (url) {
           window.location.href = url;
         }
@@ -81,6 +576,130 @@
           }
         }
       );
+
+      // Payment Management Toggle
+      this.$container.on("click", "[data-toggle-payment]", function (e) {
+        e.preventDefault();
+        const $btn = $(this);
+        const $section = $("#ptg-payment-management");
+        
+        if ($section.is(":visible")) {
+            $section.hide();
+            $btn.attr("aria-expanded", "false");
+        } else {
+            $section.show();
+            $btn.attr("aria-expanded", "true");
+            // Smooth scroll
+            $section[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+
+      // Payment Management Tabs
+      this.$container.on("click", "[data-pm-tab]", function (e) {
+        e.preventDefault();
+        const tabName = $(this).data("pm-tab");
+        
+        // Update Tabs
+        $(".ptg-pm-tab").removeClass("is-active");
+        $(this).addClass("is-active");
+
+        // Update Content
+        $(".ptg-pm-content").removeClass("is-active");
+        $("#ptg-pm-content-" + tabName).addClass("is-active");
+      });
+    },
+
+    initiatePayment: function(plan) {
+        console.log("Initiating payment for plan:", plan);
+        alert("선택하신 플랜 (" + plan + ") 결제 페이지로 이동합니다. (준비중)");
+        // TODO: KG Inicis integration
+    },
+
+    openPricingGuide: function() {
+        const modalId = 'ptg-pricing-modal';
+        if ($('#' + modalId).length > 0) {
+            $('#' + modalId).fadeIn();
+            return;
+        }
+
+        // Fetch the HTML content
+        $.get('/wp-content/plugins/5100-ptgates-dashboard/assets/html/pricing-guide.html', function(data) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(data, 'text/html');
+            
+            // Extract styles and remove body selector to prevent global override
+            let styles = doc.querySelector('style').innerHTML;
+            styles = styles.replace(/body\s*{[^}]*}/, ''); 
+            
+            const content = doc.querySelector('.ptg-membership-wrapper').outerHTML;
+            
+            // Create Modal HTML
+            const modalHtml = `
+                <div id="${modalId}" class="ptg-modal-overlay" style="display:none;">
+                    <div class="ptg-modal-container">
+                        <button type="button" class="ptg-modal-close">×</button>
+                        <div class="ptg-modal-content">
+                            ${content}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Inject Styles
+            $('head').append(`<style>${styles}</style>`);
+            $('head').append(`
+                <style>
+                    .ptg-modal-overlay {
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0, 0, 0, 0.5); z-index: 9999;
+                        display: flex; justify-content: center; align-items: center;
+                        backdrop-filter: blur(5px);
+                    }
+                    .ptg-modal-container {
+                        background: #f5f7fb; width: 90%; max-width: 1000px; max-height: 90vh;
+                        border-radius: 12px; position: relative; overflow: hidden;
+                        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                        display: flex; flex-direction: column;
+                    }
+                    .ptg-modal-close {
+                        position: absolute; top: 15px; right: 20px;
+                        background: none; border: none; font-size: 28px; color: #6b7280;
+                        cursor: pointer; z-index: 10; line-height: 1;
+                    }
+                    .ptg-modal-content {
+                        overflow-y: auto; padding: 20px; height: 100%;
+                    }
+                    /* Override wrapper margin for modal */
+                    .ptg-modal-content .ptg-membership-wrapper {
+                        margin: 0 auto !important;
+                        padding: 20px 0 !important;
+                    }
+                </style>
+            `);
+            
+            $('body').append(modalHtml);
+            
+            const $modal = $('#' + modalId);
+            
+            // Close function
+            const closeModal = () => {
+                $modal.fadeOut();
+                $(document).off('keydown.ptgModal');
+            };
+
+            // Event Handlers
+            $modal.on('click', function(e) {
+                if (e.target === this) closeModal();
+            });
+            
+            $modal.find('.ptg-modal-close').on('click', closeModal);
+            
+            $(document).on('keydown.ptgModal', function(e) {
+                if (e.key === 'Escape') closeModal();
+            });
+
+            $modal.fadeIn();
+        });
     },
 
     fetchSummary: function () {
@@ -223,16 +842,190 @@
                         <h2>${this.formatName(user_name)}님,</h2>
                         <div class="ptg-greeting-wrapper">${greetingHtml}</div>
                     </div>
-                    <div class="ptg-dash-premium-badge ${
+                    <div id="ptg-membership-toggle" class="ptg-dash-premium-badge ${
                       premium.status === "active" ? "is-active" : "is-free"
-                    }" data-url="?view=membership" style="cursor: pointer;">
-                        <span class="ptg-badge-label">${membershipLabel}</span>
+                    }" style="cursor: pointer;" onclick="document.getElementById('ptg-membership-details').style.display = document.getElementById('ptg-membership-details').style.display === 'none' ? 'block' : 'none';">
+                        <span class="ptg-badge-label">
+                            ${membershipLabel}
+                            <span class="ptg-settings-icon">⚙️</span>
+                        </span>
                         ${
                           premium.expiry
                             ? `<small>(${premium.expiry} 만료)</small>`
                             : ""
                         }
                     </div>
+                </div>
+
+                <!-- Membership Details Toggle Section -->
+                <div id="ptg-membership-details" style="display: none;">
+                            <!-- Usage Limits -->
+                    <section class="ptg-mb-section">
+                        <h2 class="ptg-mb-section-title">📊 학습 이용 현황</h2>
+                        <div class="ptg-usage-grid">
+                            <div class="ptg-usage-item">
+                                <span class="ptg-usage-label">과목|Study</span>
+                                <div class="ptg-usage-value">
+                                    ${(window.ptg_dashboard_vars?.study_count || 0).toLocaleString()} / ${
+                                        (window.ptg_dashboard_vars?.study_limit === -1 || window.ptg_dashboard_vars?.study_limit >= 999999) 
+                                        ? '무제한' 
+                                        : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString()
+                                    } 문제
+                                </div>
+                            </div>
+                            <div class="ptg-usage-item">
+                                <span class="ptg-usage-label">실전|Quiz</span>
+                                <div class="ptg-usage-value">
+                                    ${(window.ptg_dashboard_vars?.quiz_count || 0).toLocaleString()} / ${
+                                        (window.ptg_dashboard_vars?.quiz_limit === -1 || window.ptg_dashboard_vars?.quiz_limit >= 999999) 
+                                        ? '무제한' 
+                                        : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString()
+                                    } 문제
+                                </div>
+                            </div>
+                            <div class="ptg-usage-item">
+                                <span class="ptg-usage-label">암기카드</span>
+                                <div class="ptg-usage-value">
+                                    ${(window.ptg_dashboard_vars?.flashcard_count || 0).toLocaleString()} / ${
+                                        (window.ptg_dashboard_vars?.flashcard_limit === -1 || window.ptg_dashboard_vars?.flashcard_limit >= 999999) 
+                                        ? '무제한' 
+                                        : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString()
+                                    } 개
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Account Management -->
+                    <section class="ptg-mb-section">
+                        <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2>
+                        <div class="ptg-account-links">
+                            <a href="${window.ptg_dashboard_vars?.account_url || '#'}/general" class="ptg-account-link">
+                                <span class="ptg-link-icon">👤</span>
+                                <span class="ptg-link-text">프로필 수정</span>
+                                <span class="ptg-link-arrow">→</span>
+                            </a>
+                            <a href="${window.ptg_dashboard_vars?.account_url || '#'}/password" class="ptg-account-link">
+                                <span class="ptg-link-icon">🔒</span>
+                                <span class="ptg-link-text">비밀번호 변경</span>
+                                <span class="ptg-link-arrow">→</span>
+                            </a>
+                            <button type="button" class="ptg-account-link" data-toggle-payment>
+                                <span class="ptg-link-icon">💳</span>
+                                <span class="ptg-link-text">결제 관리</span>
+                                <span class="ptg-link-arrow"></span>
+                            </button>
+                        </div>
+
+                        <!-- Payment Management Section (Hidden by default) -->
+                        <div id="ptg-payment-management" style="display: none; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 24px;">
+                            
+                            <!-- Tabs -->
+                            <div class="ptg-pm-tabs">
+                                <button type="button" class="ptg-pm-tab is-active" data-pm-tab="product">상품 선택 및 결제</button>
+                                <button type="button" class="ptg-pm-tab" data-pm-tab="history">결제 내역</button>
+                            </div>
+
+                            <!-- Tab Content: Product Selection -->
+                            <div id="ptg-pm-content-product" class="ptg-pm-content is-active">
+                                <div class="ptg-membership-wrapper" style="margin: 0; padding: 0;">
+                                    
+                                    <!-- Plan Grid (Always Visible) -->
+                                    <div class="ptg-plan-selection-card">
+                                        <div class="ptg-card-inner">
+                                            <div class="ptg-plan-title">Premium 플랜 선택</div>
+                                            <p class="ptg-plan-sub">
+                                                학습 기간과 예산에 맞게 Premium 이용 기간을 선택하세요.
+                                            </p>
+
+                                            <div class="ptg-plan-grid">
+                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('1month')">
+                                                    <div class="ptg-plan-name">1개월</div>
+                                                    <div class="ptg-plan-month">체험 · 막판 벼락치기용</div>
+                                                    <div class="ptg-plan-price">24,000원</div>
+                                                    <div class="ptg-plan-monthly">월 환산 약 24,000원</div>
+                                                </div>
+
+                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('3month')">
+                                                    <div class="ptg-plan-name">3개월</div>
+                                                    <div class="ptg-plan-month">단기 집중 학습 플랜</div>
+                                                    <div class="ptg-plan-price">59,000원</div>
+                                                    <div class="ptg-plan-monthly">월 환산 약 19,700원</div>
+                                                </div>
+
+                                                <div class="ptg-plan-cell popular" onclick="Dashboard.initiatePayment('6month')">
+                                                    <div class="ptg-plan-name">6개월</div>
+                                                    <div class="ptg-plan-month">실습 이후 ~ 국시 직전까지</div>
+                                                    <div class="ptg-plan-price">89,000원</div>
+                                                    <div class="ptg-plan-monthly">월 환산 약 14,800원</div>
+                                                    <span class="ptg-plan-tag popular-tag">가장 많이 선택</span>
+                                                </div>
+
+                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('12month')">
+                                                    <div class="ptg-plan-name">12개월</div>
+                                                    <div class="ptg-plan-month">장기 준비 · 재응시 대비</div>
+                                                    <div class="ptg-plan-price">129,000원</div>
+                                                    <div class="ptg-plan-monthly">월 환산 약 10,800원</div>
+                                                    <span class="ptg-plan-tag value-tag">가성비 최고</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style="text-align: center; margin-top: 20px;">
+                                                <button type="button" class="ptg-cta-btn" style="background: #f3f4f6; color: #4b5563; box-shadow: none;" onclick="Dashboard.openPricingGuide()">
+                                                    ℹ️ 이용가격 안내 보기
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab Content: Payment History -->
+                            <div id="ptg-pm-content-history" class="ptg-pm-content">
+                                <div class="ptg-history-wrapper">
+                                    <table class="ptg-history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>날짜</th>
+                                                <th>상품명</th>
+                                                <th>결제금액</th>
+                                                <th>상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Placeholder Data -->
+                                            <tr>
+                                                <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
+                                                    결제 내역이 없습니다.
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ptg-footer-actions">
+                            <div style="font-size: 13px; color: #6b7280;">
+                                <a href="${window.ptg_dashboard_vars?.account_url || '#'}/delete" 
+                                   style="color: #991b1b; font-weight: bold; text-decoration: underline; margin-right: 4px;"
+                                   onclick="return confirm('정말로 계정을 삭제하시겠습니까?\n\n삭제된 계정과 모든 학습 데이터는 복구할 수 없습니다.');">
+                                    계정 탈퇴
+                                </a>
+                                계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.
+                            </div>
+                            <div class="ptg-footer-buttons">
+                                <button type="button" onclick="document.getElementById('ptg-membership-details').style.display = 'none';" 
+                                   class="ptg-btn-secondary">
+                                    닫기
+                                </button>
+                                <a href="${window.ptg_dashboard_vars?.logout_url || '#'}" 
+                                   class="ptg-btn-secondary">
+                                    로그아웃
+                                </a>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             `;
 
@@ -279,7 +1072,7 @@
                         }">
                             <div class="ptg-action-icon">📚</div>
                             <div class="ptg-action-info">
-                                <span class="ptg-action-label">학습하기</span>
+                                <span class="ptg-action-label">과목|Study</span>
                                 <div class="ptg-progress-bar ptg-progress-sm">
                                     <div class="ptg-progress-fill" style="width: ${studyPercent}%"></div>
                                 </div>
@@ -289,7 +1082,7 @@
                         <div class="ptg-action-card" data-url="/ptg_quiz/">
                             <div class="ptg-action-icon">📝</div>
                             <div class="ptg-action-info">
-                                <span class="ptg-action-label">모의고사</span>
+                                <span class="ptg-action-label">실전|Quiz</span>
                                 <div class="ptg-progress-bar ptg-progress-sm">
                                     <div class="ptg-progress-fill" style="width: ${quizPercent}%"></div>
                                 </div>
@@ -306,7 +1099,7 @@
                                 <span class="ptg-action-percent">${flashcardPercent}%</span>
                             </div>
                         </div>
-                        <div class="ptg-action-card" style="cursor: default;">
+                        <div class="ptg-action-card" style="cursor: pointer;" data-action="scroll-top">
                             <div class="ptg-action-icon">📈</div>
                             <div class="ptg-action-info">
                                 <span class="ptg-action-label">전체 진도율</span>
@@ -616,6 +1409,9 @@
       };
     },
   };
+
+  // Expose Dashboard to global scope for inline event handlers
+  window.Dashboard = Dashboard;
 
   $(document).ready(function () {
     Dashboard.init();

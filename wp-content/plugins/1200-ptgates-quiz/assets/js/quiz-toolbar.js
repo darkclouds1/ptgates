@@ -592,10 +592,8 @@
         }
 
         try {
-            // First, get the user's default set_id
-            const setsResponse = await window.PTGPlatform.get('ptg-flash/v1/sets');
-            const sets = setsResponse.data || setsResponse;
-            const setId = (sets && Array.isArray(sets) && sets.length > 0) ? sets[0].set_id : 1;
+            // Force set_id = 1 (Default Set)
+            const setId = 1;
             
             if (statusEl) {
                 statusEl.textContent = '저장 중...';

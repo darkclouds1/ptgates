@@ -62,6 +62,19 @@ class PTG_Dashboard {
 
         add_shortcode('ptg_dashboard', [$this, 'render_shortcode']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_assets']);
+        
+        // Custom Logout Handler
+        add_action('init', [$this, 'handle_custom_logout']);
+    }
+
+    public function handle_custom_logout() {
+        if (isset($_GET['ptg_action']) && $_GET['ptg_action'] === 'logout') {
+            if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'ptg_logout')) {
+                wp_logout();
+                wp_safe_redirect(home_url());
+                exit;
+            }
+        }
     }
 
     private function boot_rest_api() {

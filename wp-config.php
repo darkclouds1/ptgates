@@ -97,7 +97,7 @@ $table_prefix = 'wp_';
 
 // 개발 중 캐시 비활성화
 define( 'LITESPEED_DISABLE_ALL', true ); // LiteSpeed Cache 완전 비활성화
-define( 'WP_CACHE', false ); // WordPress 캐시 비활성화
+define( 'WP_CACHE', true ); // WordPress 캐시 활성화
 
 /* That's all, stop editing! Happy publishing. */
 
@@ -128,3 +128,5 @@ add_action( 'admin_menu', function() {
     remove_menu_page( 'litespeed-settings' );
     remove_menu_page( 'litespeed-toolbox' );
 }, 999 );
+
+define('DISABLE_WP_CRON', true);

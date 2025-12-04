@@ -303,6 +303,16 @@ final class PTG_Admin_Plugin {
 			[ $this, 'render_members_page' ]
 		);
 
+		// 다섯 번째 서브메뉴: 도구 (Tools)
+		add_submenu_page(
+			'ptgates-admin',
+			'관리 도구',
+			'관리 도구',
+			'manage_options',
+			'ptgates-admin-tools',
+			[ $this, 'render_tools_page' ]
+		);
+
 		// 기본 상위 메뉴(첫 번째 하위) 중복 제거
 		remove_submenu_page( 'ptgates-admin', 'ptgates-admin' );
 	}
@@ -713,6 +723,87 @@ final class PTG_Admin_Plugin {
 		} else {
 			echo '<div class="error"><p>멤버십 관리 클래스 파일을 찾을 수 없습니다.</p></div>';
 		}
+	}
+
+	/**
+	 * 관리 도구 페이지 렌더링
+	 */
+	public function render_tools_page() {
+		// ptGates 관리자 권한 확인
+		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
+		}
+
+		?>
+		<div class="wrap">
+			<h1>🛠️ 관리 도구</h1>
+			
+			<div class="card" style="max-width: 600px; margin-top: 20px;">
+				<h2>과목 카테고리 일괄 업데이트 (Backfill)</h2>
+				<p>기존 문제 데이터 중 <code>subject_category</code> (대분류) 필드가 비어있는 항목을 찾아 자동으로 채워넣습니다.</p>
+				<p>이 작업은 <code>0000-ptgates-platform/includes/class-subjects.php</code>의 매핑 정보를 사용합니다.</p>
+				
+				<div style="margin-top: 15px;">
+					<button id="ptg-backfill-btn" class="button button-primary">업데이트 실행</button>
+					<span id="ptg-backfill-status" style="margin-left: 10px;"></span>
+				</div>
+				
+				<div id="ptg-backfill-result" style="margin-top: 15px; display: none; padding: 10px; background: #f0f0f1; border: 1px solid #ccd0d4;"></div>
+			</div>
+			
+			<script>
+			jQuery(document).ready(function($) {
+				$('#ptg-backfill-btn').on('click', function() {
+					if (!confirm('업데이트를 실행하시겠습니까?')) return;
+					
+					const $btn = $(this);
+					const $status = $('#ptg-backfill-status');
+					const $result = $('#ptg-backfill-result');
+					
+					$btn.prop('disabled', true);
+					$status.text('처리 중...');
+					$result.hide();
+					
+					$.ajax({
+						url: '<?php echo rest_url('ptg-admin/v1/backfill-categories'); ?>',
+						method: 'POST',
+						beforeSend: function(xhr) {
+							xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+						},
+						success: function(response) {
+							$btn.prop('disabled', false);
+							$status.text('완료');
+							
+							let msg = '';
+							if (response.message) {
+								msg = response.message;
+							} else if (response.data && response.data.message) {
+								msg = response.data.message;
+							} else {
+								msg = JSON.stringify(response);
+							}
+							
+							$result.html('<p><strong>결과:</strong> ' + msg + '</p>').show();
+						},
+						error: function(xhr, status, error) {
+							$btn.prop('disabled', false);
+							$status.text('오류 발생');
+							
+							let errorMsg = '알 수 없는 오류';
+							if (xhr.responseJSON && xhr.responseJSON.message) {
+								errorMsg = xhr.responseJSON.message;
+							} else {
+								errorMsg = error;
+							}
+							
+							$result.html('<p style="color: red;"><strong>오류:</strong> ' + errorMsg + '</p>').show();
+						}
+					});
+				});
+			});
+			</script>
+		</div>
+		<?php
 	}
 	private function init_cli() {
 		$import_file = plugin_dir_path( __FILE__ ) . 'includes/class-import.php';
