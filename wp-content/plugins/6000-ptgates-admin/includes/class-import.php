@@ -1726,15 +1726,11 @@ function delete_exam_data($wpdb) {
         
         // SQL 인젝션 방지: question_ids는 이미 intval로 정수 변환됨
         // 사용자 데이터 테이블에서 삭제 (외래키 제약조건이 없거나 확실하지 않은 경우를 대비해 명시적 삭제)
-        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_notes', 'ptgates_user_states', 'ptgates_user_results'];
+        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_states', 'ptgates_user_results'];
         foreach ($user_tables as $table) {
             // 테이블 존재 여부 확인
             if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
-                if ($table === 'ptgates_user_notes') {
-                    $wpdb->query("DELETE FROM {$table} WHERE ref_type = 'question' AND ref_id IN ({$question_ids_str})");
-                } else {
-                    $wpdb->query("DELETE FROM {$table} WHERE question_id IN ({$question_ids_str})");
-                }
+                $wpdb->query("DELETE FROM {$table} WHERE question_id IN ({$question_ids_str})");
             }
         }
 
@@ -1844,6 +1840,11 @@ function update_exam_session($wpdb) {
 
 // 웹 인터페이스 표시 (GET 요청)
 if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    // WordPress 관리자 페이지에서 사용되는지 확인
+    $is_wp_admin = defined('ABSPATH') && function_exists('is_admin') && is_admin();
+    
+    // 독립 페이지로 사용될 때만 html/head/body 태그 출력
+    if (!$is_wp_admin) {
 ?>
 <!DOCTYPE html>
 <html lang="ko">
@@ -1867,18 +1868,25 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
         
         .container {
             max-width: 900px;
-            margin: 0 auto;
+            margin: 0;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             padding: 30px;
         }
         
+        /* WordPress 관리자 페이지의 .wrap 안에서 컨테이너 스타일 조정 */
+        .wrap .container {
+            margin: 0;
+            max-width: 100%;
+        }
+        
         h1 {
             color: #333;
-            margin-bottom: 10px;
+            margin: 0;
             font-size: 28px;
             display: inline-block;
+            vertical-align: middle;
         }
         
         .subtitle {
@@ -2334,9 +2342,478 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
 </head>
 <body>
     <div class="container">
-        <div style="margin-bottom: 10px;">
-            <h1 style="margin-bottom: 0; display: inline-block;">📚 ptgates 문제은행 DB 일괄 삽입</h1>
-            <a href="<?php echo home_url(); ?>" class="home-btn">HOME (ptgates.com)</a>
+<?php
+    } else {
+        // WordPress 관리자 페이지에서 사용될 때는 style 태그만 출력 (body 스타일 제외)
+?>
+    <style>
+        .ptg-import-container {
+            max-width: 100%;
+            margin: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        .ptg-import-container h1 {
+            color: #333;
+            margin: 0;
+            font-size: 28px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .ptg-import-container .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .ptg-import-container .upload-section {
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .ptg-import-container .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+        
+        .ptg-import-container input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .ptg-import-container .file-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #0073aa;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        .ptg-import-container .file-label:hover {
+            background: #005a87;
+        }
+        
+        .ptg-import-container .file-name {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .ptg-import-container .btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .ptg-import-container .btn-primary {
+            background: #00a32a;
+            color: white;
+        }
+        
+        .ptg-import-container .btn-primary:hover:not(:disabled) {
+            background: #008a20;
+        }
+        
+        .ptg-import-container .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .ptg-import-container .btn-secondary {
+            background: #666;
+            color: white;
+            margin-left: 10px;
+        }
+        
+        .ptg-import-container .btn-secondary:hover {
+            background: #555;
+        }
+        
+        .ptg-import-container .log-section {
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        
+        .ptg-import-container .log-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .ptg-import-container .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            min-height: 100px;
+        }
+        
+        .ptg-import-container .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        
+        .ptg-import-container .log-entry.success {
+            color: #4ec9b0;
+        }
+        
+        .ptg-import-container .log-entry.error {
+            color: #f48771;
+        }
+        
+        .ptg-import-container .log-entry.info {
+            color: #569cd6;
+        }
+        
+        .ptg-import-container .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .ptg-import-container .progress-fill {
+            height: 100%;
+            background: #00a32a;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        
+        .ptg-import-container .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .ptg-import-container .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .ptg-import-container .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .ptg-import-container .download-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #0073aa;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+        
+        .ptg-import-container .download-btn:hover {
+            background: #005a87;
+        }
+        
+        .ptg-import-container .required-fields {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .ptg-import-container .required-fields h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #856404;
+        }
+        
+        .ptg-import-container .required-fields ul {
+            margin-left: 20px;
+            font-size: 13px;
+            color: #856404;
+            list-style: none;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .ptg-import-container .required-fields ul li {
+            flex: 0 1 auto;
+        }
+        
+        .ptg-import-container .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .ptg-import-container .modal-overlay.active {
+            display: flex;
+        }
+        
+        .ptg-import-container .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        .ptg-import-container .modal-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .ptg-import-container .modal-header h3 {
+            margin: 0;
+            color: #005a87;
+            font-size: 20px;
+        }
+        
+        .ptg-import-container .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        
+        .ptg-import-container .modal-close:hover {
+            background: #f0f0f0;
+        }
+        
+        .ptg-import-container .modal-body {
+            margin-bottom: 20px;
+        }
+        
+        .ptg-import-container .subject-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .ptg-import-container .subject-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .ptg-import-container .subject-item:last-child {
+            border-bottom: none;
+        }
+        
+        .ptg-import-container .subject-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .ptg-import-container .subject-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .ptg-import-container .subject-count {
+            font-weight: bold;
+            color: #0073aa;
+            font-size: 16px;
+        }
+        
+        .ptg-import-container .modal-footer {
+            padding-top: 15px;
+            border-top: 2px solid #e0e0e0;
+            text-align: right;
+        }
+        
+        .ptg-import-container .modal-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #005a87;
+        }
+        
+        .ptg-import-container .clickable-count {
+            cursor: pointer;
+            color: #0073aa;
+            text-decoration: underline;
+            transition: color 0.3s;
+        }
+        
+        .ptg-import-container .clickable-count:hover {
+            color: #005a87;
+        }
+        
+        .ptg-import-container .clickable-course {
+            cursor: pointer;
+            color: #005a87;
+            text-decoration: underline;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+        
+        .ptg-import-container .clickable-course:hover {
+            color: #0073aa;
+        }
+        
+        .ptg-import-container .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .ptg-import-container .delete-row-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .ptg-import-container .delete-row-btn:hover {
+            background: #c82333;
+        }
+        
+        .ptg-import-container .delete-row-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .ptg-import-container .collapsible-section {
+            margin-bottom: 15px;
+        }
+        
+        .ptg-import-container .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            padding: 15px;
+            background: #fff9e6;
+            border: 2px dashed #ffc107;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.3s;
+        }
+        
+        .ptg-import-container .collapsible-header:hover {
+            background: #fff3cd;
+        }
+        
+        .ptg-import-container .collapsible-header h3 {
+            margin: 0;
+            color: #856404;
+            font-size: 16px;
+        }
+        
+        .ptg-import-container .collapsible-toggle {
+            font-size: 18px;
+            color: #856404;
+            transition: transform 0.3s;
+        }
+        
+        .ptg-import-container .collapsible-section.expanded .collapsible-toggle {
+            transform: rotate(180deg);
+        }
+        
+        .ptg-import-container .collapsible-content {
+            display: none;
+            padding: 20px;
+            background: #fff9e6;
+            border: 2px dashed #ffc107;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .ptg-import-container .collapsible-section.expanded .collapsible-content {
+            display: block !important;
+        }
+        
+        .ptg-import-container #csvColumnsSection .collapsible-content {
+            display: none;
+        }
+        
+        .ptg-import-container #csvColumnsSection.expanded .collapsible-content {
+            display: block !important;
+        }
+        
+        .ptg-import-container .home-btn {
+            display: inline-block;
+            margin-left: 15px;
+            padding: 6px 12px;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+            vertical-align: middle;
+        }
+        
+        .ptg-import-container .home-btn:hover {
+            background: #005a87;
+            color: white;
+        }
+    </style>
+    <div class="ptg-import-container">
+        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <h1 style="margin: 0; display: inline-block;">📚 ptgates 문제은행 DB 일괄 삽입</h1>
+            <a href="<?php echo home_url(); ?>" class="home-btn" style="margin-left: 0;">HOME (ptgates.com)</a>
         </div>
         
         <?php
@@ -4008,8 +4485,7 @@ if (!$is_cli && $_SERVER['REQUEST_METHOD'] === 'GET') {
             });
         });
     </script>
-</body>
-</html>
 <?php
+    } // else 블록 닫기 (WordPress 관리자 페이지)
 }
 ?>

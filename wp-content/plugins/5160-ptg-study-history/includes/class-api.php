@@ -105,7 +105,7 @@ class API {
         $rows = $wpdb->get_results($sql);
         $wpdb->suppress_errors(false);
 
-        return ($rows && !$wpdb->last_error) ? $rows : [];
+        return ($rows && is_array($rows) && !$wpdb->last_error) ? $rows : [];
     }
 
     /**
@@ -116,9 +116,9 @@ class API {
             return [];
         }
 
-        $map          = Subjects::MAP;
-        $subject_meta = self::get_subject_meta();
-        $structure    = [];
+        // Use dynamic map from DB
+        $map = Subjects::get_map();
+        $structure = [];
         $subject_index = [];
 
         foreach ($map as $session => $session_data) {
@@ -134,8 +134,15 @@ class API {
             }
 
             foreach ($session_data['subjects'] as $subject_name => $subject_data) {
-                $category_id = isset($subject_meta[$subject_name]['id']) ? $subject_meta[$subject_name]['id'] : sanitize_title($subject_name);
-                $description = $subject_meta[$subject_name]['description'] ?? '';
+                // Generate ID and Description dynamically if possible, or use defaults
+                $category_id = sanitize_title($subject_name);
+                
+                // Build description from sub-subjects
+                $sub_names = !empty($subject_data['subs']) ? array_keys($subject_data['subs']) : [];
+                $description = implode(' · ', array_slice($sub_names, 0, 4));
+                if (count($sub_names) > 4) {
+                    $description .= ' 등';
+                }
 
                 $subject_entry = [
                     'id' => $category_id,
@@ -167,6 +174,8 @@ class API {
         $apply_counts = function($rows, $type) use (&$structure, $subject_index) {
             foreach ($rows as $row) {
                 $subsubject = $row->subsubject_name ?: '';
+                
+                // Try to find parent subject dynamically
                 $subject_name = Subjects::get_subject_from_subsubject($subsubject);
 
                 if (!$subject_name || !isset($subject_index[$subject_name])) {
@@ -205,30 +214,6 @@ class API {
         }
 
         return $result;
-    }
-
-    /**
-     * 과목 메타 정보 반환
-     */
-    private static function get_subject_meta() {
-        return [
-            '물리치료 기초'   => [
-                'id'          => 'ptg-foundation',
-                'description' => '해부생리 · 운동학 · 물리적 인자치료 · 공중보건학',
-            ],
-            '물리치료 진단평가' => [
-                'id'          => 'ptg-assessment',
-                'description' => '근골격 · 신경계 · 원리 · 심폐혈관 · 기타 · 임상의사결정',
-            ],
-            '물리치료 중재'   => [
-                'id'          => 'ptg-intervention',
-                'description' => '근골격 · 신경계 · 심폐혈관 · 림프·피부 · 문제해결',
-            ],
-            '의료관계법규'    => [
-                'id'          => 'ptg-law',
-                'description' => '의료법 · 의료기사법 · 노인복지법 · 장애인복지법 · 건보법',
-            ],
-        ];
     }
 
     /**

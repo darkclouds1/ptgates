@@ -12,9 +12,6 @@ RENAME TABLE `wp_ptgates_exam_session_items` TO `ptgates_exam_session_items`;
 DROP TABLE IF EXISTS `ptgates_user_states`;
 RENAME TABLE `wp_ptgates_user_states` TO `ptgates_user_states`;
 
-DROP TABLE IF EXISTS `ptgates_user_notes`;
-RENAME TABLE `wp_ptgates_user_notes` TO `ptgates_user_notes`;
-
 DROP TABLE IF EXISTS `ptgates_user_drawings`;
 RENAME TABLE `wp_ptgates_user_drawings` TO `ptgates_user_drawings`;
 

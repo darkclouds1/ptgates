@@ -851,14 +851,52 @@ if ($grade === 'basic') {
         border: 1px solid #e5e7eb;
     }
 
+    .ptg-mb-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        gap: 16px;
+    }
+
     .ptg-mb-section-title {
         font-size: 18px;
         font-weight: 600;
-        margin: 0 0 20px 0;
+        margin: 0;
         color: #374151;
         display: flex;
         align-items: center;
         gap: 8px;
+        flex: 1;
+    }
+
+    .ptg-reset-data-btn {
+        padding: 8px 16px;
+        background: #ffffff;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .ptg-reset-data-btn:hover {
+        background: #f9fafb;
+        border-color: #d1d5db;
+    }
+
+    .ptg-reset-data-btn:active {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .ptg-reset-data-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: #ffffff;
     }
 
     .ptg-usage-grid {
@@ -967,7 +1005,7 @@ if ($grade === 'basic') {
 </style>
 
 <div id="ptg-dashboard-app" class="ptg-dashboard-container">
-    <div class="ptg-loading">대시보드를 불러오는 중...</div>
+    <div class="ptg-loading">학습현황을 불러오는 중...</div>
 </div>
 
 <script>

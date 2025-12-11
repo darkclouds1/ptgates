@@ -93,30 +93,36 @@ class PTG_Study_Plugin {
 		$platform_quizui_url   = WP_PLUGIN_URL . $platform_quizui_rel;
 		$platform_quizui_ver   = file_exists($platform_quizui_path) ? filemtime($platform_quizui_path) : '1.0.0';
 
-        // 교시/과목/세부과목 정의를 quiz 모듈의 Subjects::MAP에서 가져옴
+        // 교시/과목/세부과목 정의를 quiz 모듈의 Subjects 클래스에서 가져옴
         // 주의: 최초 로드는 0000-ptgates-platform에서 수행됨
         $subjects_map = [];
-        if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
-            $subjects_map = \PTG\Quiz\Subjects::MAP;
-        } else {
-            // 플랫폼 코어에서 로드 시도
+        
+        // 1. 플랫폼 코어 로드 시도
+        if ( ! class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
             $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
             if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
                 require_once $platform_subjects_file;
-                if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
-                    $subjects_map = \PTG\Quiz\Subjects::MAP;
-                }
             }
-            // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
-            if ( empty( $subjects_map ) ) {
-                $subjects_class_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-                if ( file_exists( $subjects_class_file ) && is_readable( $subjects_class_file ) ) {
-                    require_once $subjects_class_file;
-                    if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
-                        $subjects_map = \PTG\Quiz\Subjects::MAP;
-                    }
-                }
-            }
+        }
+
+        // 2. Subjects 클래스가 존재하면 get_map() 호출
+        if ( class_exists( '\\PTG\\Quiz\\Subjects' ) && method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
+            $subjects_map = \PTG\Quiz\Subjects::get_map();
+        } 
+        // 3. 호환성: 기존 1200-ptgates-quiz 플러그인의 Subjects 클래스 확인 (구버전)
+        elseif ( empty( $subjects_map ) ) {
+             $subjects_class_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
+             if ( file_exists( $subjects_class_file ) && is_readable( $subjects_class_file ) ) {
+                 require_once $subjects_class_file;
+                 if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+                     // 구버전은 상수가 있을 수 있음
+                     if ( defined( '\\PTG\\Quiz\\Subjects::MAP' ) ) {
+                         $subjects_map = \PTG\Quiz\Subjects::MAP;
+                     } elseif ( method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
+                         $subjects_map = \PTG\Quiz\Subjects::get_map();
+                     }
+                 }
+             }
         }
 
         // 과목 카드 ID 및 설명 매핑 (키: 세부 과목 그룹명)
@@ -154,7 +160,7 @@ class PTG_Study_Plugin {
                         <input type="checkbox" id="ptg-global-wrong-only">
                         <span>틀린문제만</span>
                     </label>
-                    <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link" aria-label="대시보드로 돌아가기">대시보드</a>
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link" aria-label="학습현황으로 돌아가기">학습현황</a>
                     <button type="button" class="ptg-study-tip-trigger" data-ptg-tip-open>
                         [학습Tip]
                     </button>
@@ -319,7 +325,6 @@ class PTG_Study_Plugin {
                     gap: 8px !important;
                 }
                 .ptg-study-header h2::after {
-                    content: " - 과목을 선택하면 10문제씩 학습합니다" !important;
                     font-size: 12px !important;
                     font-weight: 500 !important;
                     color: #64748b !important;
@@ -718,6 +723,29 @@ class PTG_Study_Plugin {
                 .ptg-question-option {
                     padding: 4px 10px !important;
                     line-height: 1.4 !important;
+                }
+
+                /* Mobile Layout Adjustments */
+                @media (max-width: 768px) {
+                    /* First Image Header: Study Selection */
+                    .ptg-study-header {
+                        flex-wrap: wrap !important;
+                    }
+                    .ptg-study-header-right {
+                        width: 100% !important;
+                        justify-content: flex-end !important;
+                        margin-top: 8px !important;
+                    }
+
+                    /* Second Image Header: Lesson View */
+                    .ptg-lesson-header {
+                        flex-wrap: wrap !important;
+                    }
+                    .ptg-controls-wrapper {
+                        width: 100% !important;
+                        justify-content: flex-start !important;
+                        margin-top: 8px !important;
+                    }
                 }
             </style>
             <?php

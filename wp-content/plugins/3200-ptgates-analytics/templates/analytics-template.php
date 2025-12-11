@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 .ptg-analytics-container {
     max-width: 1000px;
-    margin: 40px auto;
+    margin: 20px auto;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     color: var(--ptg-dark);
 }
@@ -308,6 +308,41 @@ if ( ! defined( 'ABSPATH' ) ) {
     background: #fffbeb !important; /* Amber-50 */
     color: #92400e !important; /* Amber-800 */
     border-bottom-color: #fde68a !important;
+}
+
+/* Mobile Stats Layout */
+@media (max-width: 768px) {
+    .ptg-stats-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 8px !important;
+    }
+    .ptg-stat-card {
+        padding: 12px 4px !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 80px;
+    }
+    .ptg-stat-card h3 {
+        font-size: 0.7rem !important;
+        margin-bottom: 4px !important;
+        white-space: nowrap;
+        letter-spacing: -0.5px;
+    }
+    .ptg-stat-value {
+        font-size: 1.1rem !important;
+        line-height: 1.2;
+    }
+    .ptg-stat-sub {
+        font-size: 0.6rem !important;
+        margin-top: 2px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        opacity: 0.8;
+    }
 }
 </style>
 

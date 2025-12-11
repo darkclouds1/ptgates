@@ -11,7 +11,7 @@ class Analyzer {
 		return [
 			'all_subject_stats' => self::get_all_subject_stats( $user_id ),
 			'recent_accuracy' => self::get_recent_accuracy( $user_id ),
-			'predicted_score' => self::get_predicted_score( $user_id ),
+			// 'predicted_score' => self::get_predicted_score( $user_id ), // 예상 점수 카드 제거로 인해 API에서도 제거
 			'learning_streak' => self::get_learning_streak( $user_id ),
 			'learning_velocity' => self::get_learning_velocity( $user_id ),
 			'subject_radar' => self::get_subject_radar_data( $user_id ),
@@ -33,6 +33,10 @@ class Analyzer {
 				GROUP BY c.subject";
 		
 		$user_results = $wpdb->get_results( $wpdb->prepare( $sql_user, $user_id ), OBJECT_K ); // Key by subject
+		
+		if ( ! is_array( $user_results ) ) {
+			$user_results = [];
+		}
 
 		// 2. Get Total Available Questions per Subject from DB (Dynamic)
 		// Note: We could use Subjects::MAP for static totals, but DB is more accurate for actual available content
@@ -40,6 +44,10 @@ class Analyzer {
 					  FROM $table_c 
 					  GROUP BY subject";
 		$total_results = $wpdb->get_results( $sql_total, OBJECT_K );
+		
+		if ( ! is_array( $total_results ) ) {
+			$total_results = [];
+		}
 
 		// 3. Build Master List from Subjects::MAP to ensure order and completeness
 		$data = [];
@@ -50,7 +58,7 @@ class Analyzer {
 			return [];
 		}
 
-		$sessions = \PTG\Quiz\Subjects::MAP;
+		$sessions = \PTG\Quiz\Subjects::get_map();
 
 		foreach ( $sessions as $session_id => $session_data ) {
 			foreach ( $session_data['subjects'] as $subject_name => $subject_info ) {
@@ -90,6 +98,10 @@ class Analyzer {
 		$sql = "SELECT is_correct, attempted_at FROM $table_r WHERE user_id = %d ORDER BY attempted_at DESC LIMIT 50";
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $user_id ) );
+
+		if ( ! is_array( $results ) ) {
+			return 0;
+		}
 
 		if ( ! empty( $wpdb->last_error ) ) {
 			return 0;
@@ -163,6 +175,10 @@ class Analyzer {
 		
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $user_id ) );
 		
+		if ( ! is_array( $results ) ) {
+			$results = [];
+		}
+		
 		$data = [];
 		for ($i = 6; $i >= 0; $i--) {
 			$date = date('Y-m-d', strtotime("-$i days"));
@@ -199,6 +215,10 @@ class Analyzer {
 				LIMIT 6"; 
 		
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $user_id ) );
+		
+		if ( ! is_array( $results ) ) {
+			$results = [];
+		}
 		
 		$data = [];
 		foreach ( $results as $row ) {

@@ -43,6 +43,7 @@ CREATE TABLE `ptgates_questions` (
 ```
 
 **주요 컬럼:**
+
 - `question_id`: 문제 고유 ID (Primary Key)
 - `content`: 문제 본문 전체 (지문, 보기, 이미지 경로 등 포함)
 - `answer`: 정답 (객관식 번호 또는 주관식 답)
@@ -53,6 +54,7 @@ CREATE TABLE `ptgates_questions` (
 - `question_image`: 문제 이미지 파일명
 
 **변경 시 주의사항:**
+
 - `question_id`는 모든 모듈에서 FK로 사용되므로 변경 불가
 - `content`, `answer`, `explanation`은 여러 모듈에서 참조하므로 변경 시 영향도 분석 필수
 
@@ -83,6 +85,7 @@ CREATE TABLE `ptgates_categories` (
 ```
 
 **주요 컬럼:**
+
 - `category_id`: 분류 고유 ID (Primary Key) ⚠️ **실제 DB에서는 PK입니다**
 - `question_id`: ptgates_questions 테이블의 외래키
 - `exam_year`: 시험 시행 연도
@@ -92,11 +95,13 @@ CREATE TABLE `ptgates_categories` (
 - `source_company`: 문제 출처 (회사별 구분용)
 
 **중요 사항:**
+
 - `category_id`가 **Primary Key**입니다
 - 한 문제에 여러 분류 정보가 있을 수 있습니다 (1:N 관계)
 - `exam_session` 필터링 로직이 여러 모듈에 있으므로 변경 시 모든 모듈 확인 필수
 
 **기출문제 정책:**
+
 - `exam_session < 1000`: 기출문제 (DB에 유지, 내부 분석용)
 - `exam_session >= 1000`: 생성문항 (사용자 노출용)
 
@@ -126,6 +131,7 @@ CREATE TABLE `ptgates_user_results` (
 ```
 
 **주요 컬럼:**
+
 - `result_id`: 결과 고유 ID (Primary Key)
 - `user_id`: 워드프레스 사용자 ID
 - `question_id`: 풀이한 문제 ID
@@ -135,6 +141,7 @@ CREATE TABLE `ptgates_user_results` (
 - `attempted_at`: 풀이를 시도한 일시
 
 **변경 시 주의사항:**
+
 - `question_id` FK는 변경 불가
 - 통계/분석 모듈에서 집계에 사용되므로 변경 시 영향도 분석 필수
 
@@ -171,6 +178,7 @@ KEY `idx_user_review_count_date` (`user_id`,`review_count`,`last_review_date`),
 ```
 
 **자동 업데이트 트리거:**
+
 - `ptgates_update_last_study_date`: `study_count` 변경 시 `last_study_date`와 `updated_at` 자동 업데이트
 - `ptgates_update_last_quiz_date`: `quiz_count` 변경 시 `last_quiz_date`와 `updated_at` 자동 업데이트
 - `ptgates_update_last_review_date`: `review_count` 변경 시 `last_review_date`와 `updated_at` 자동 업데이트
@@ -185,6 +193,7 @@ KEY `idx_user_review_count_date` (`user_id`,`review_count`,`last_review_date`),
 ### 3.1 3100-ptgates-selftest (셀프 모의고사)
 
 #### ptgates_exam_sessions
+
 교시별 전체 풀기 세션 관리 및 타이머/진행 상태를 저장합니다.
 
 ```sql
@@ -207,6 +216,7 @@ CREATE TABLE `ptgates_exam_sessions` (
 ```
 
 #### ptgates_exam_session_items
+
 세션 내 문항 구성 및 사용자 응답을 저장합니다.
 
 ```sql
@@ -229,6 +239,7 @@ CREATE TABLE `ptgates_exam_session_items` (
 ```
 
 #### ptgates_exam_presets
+
 모의고사 프리셋 설정을 저장합니다.
 
 ```sql
@@ -248,6 +259,7 @@ CREATE TABLE `ptgates_exam_presets` (
 ### 3.2 2200-ptgates-flashcards (암기카드)
 
 #### ptgates_flashcard_sets
+
 암기카드 세트를 저장합니다.
 
 ```sql
@@ -262,6 +274,7 @@ CREATE TABLE `ptgates_flashcard_sets` (
 ```
 
 #### ptgates_flashcards
+
 암기카드를 저장합니다. 문제 참조 방식(`source_id`로 `question_id` 참조).
 
 ```sql
@@ -287,25 +300,9 @@ CREATE TABLE `ptgates_flashcards` (
 
 ### 3.3 2100-ptgates-mynote (마이노트)
 
-#### ptgates_user_notes
-사용자 노트를 저장합니다.
-
-```sql
-CREATE TABLE `ptgates_user_notes` (
-  `note_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` bigint(20) unsigned NOT NULL,
-  `ref_type` enum('question','theory','notebook') NOT NULL DEFAULT 'question',
-  `ref_id` bigint(20) unsigned NOT NULL COMMENT 'question_id 또는 이론ID 등',
-  `text` longtext NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`note_id`),
-  KEY `idx_user_ref` (`user_id`,`ref_type`,`ref_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
-```
-
 #### ptgates_user_memos
-사용자 메모를 저장합니다 (레거시 테이블, `ptgates_user_notes`로 통합 권장).
+
+사용자 메모를 저장합니다.
 
 ```sql
 CREATE TABLE `ptgates_user_memos` (
@@ -324,6 +321,7 @@ CREATE TABLE `ptgates_user_memos` (
 ### 3.4 1200-ptgates-quiz (문제 풀이)
 
 #### ptgates_user_drawings
+
 문항별 사용자 드로잉(펜 필기 저장)을 저장합니다.
 
 ```sql
@@ -354,6 +352,7 @@ CREATE TABLE `ptgates_user_drawings` (
 ### 3.5 4100-ptgates-reviewer (복습 스케줄러)
 
 #### ptgates_review_schedule
+
 스페이싱 복습 스케줄(오늘의 문제 큐)을 관리합니다.
 
 ```sql
@@ -382,6 +381,7 @@ CREATE TABLE `ptgates_review_schedule` (
 ### 3.6 1100-ptgates-study (이론 학습)
 
 #### ptgates_highlights
+
 이론 하이라이트를 저장합니다.
 
 ```sql
@@ -402,6 +402,7 @@ CREATE TABLE `ptgates_highlights` (
 ### 3.7 기타 (B2B, 결제, 과목)
 
 #### ptgates_subject
+
 교시/과목/세부과목 정적 정의 테이블.
 
 ```sql
@@ -420,6 +421,7 @@ CREATE TABLE `ptgates_subject` (
 ```
 
 #### ptgates_organization
+
 B2B 기관 정보를 저장합니다.
 
 ```sql
@@ -442,6 +444,7 @@ CREATE TABLE `ptgates_organization` (
 ```
 
 #### ptgates_org_member_link
+
 B2B 기관-회원 연결을 저장합니다.
 
 ```sql
@@ -459,6 +462,7 @@ CREATE TABLE `ptgates_org_member_link` (
 ```
 
 #### ptgates_user_member
+
 사용자 멤버십 정보를 저장합니다.
 
 ```sql
@@ -487,6 +491,7 @@ CREATE TABLE `ptgates_user_member` (
 ```
 
 #### ptgates_billing_history
+
 결제 내역을 저장합니다.
 
 ```sql
@@ -502,6 +507,7 @@ CREATE TABLE `ptgates_billing_history` (
   `currency` varchar(10) NOT NULL DEFAULT 'KRW',
   `status` varchar(20) NOT NULL COMMENT '결제 처리 상태 (paid, failed, refunded, pending)',
   `transaction_date` datetime NOT NULL COMMENT '결제 또는 트랜잭션 발생 시점',
+  `expiry_date` datetime DEFAULT NULL COMMENT '멤버십/상품 만료일',
   `memo` text DEFAULT NULL COMMENT '관리자용 특이사항 메모',
   PRIMARY KEY (`id`),
   UNIQUE KEY `order_id_unique` (`order_id`),
@@ -517,6 +523,7 @@ CREATE TABLE `ptgates_billing_history` (
 ### 4.1 트리거
 
 #### ptgates_update_last_study_date
+
 `ptgates_user_states` 테이블의 `study_count`가 변경될 때 `last_study_date`와 `updated_at`을 자동으로 업데이트합니다.
 
 ```sql
@@ -531,6 +538,7 @@ END;
 ```
 
 #### ptgates_update_last_quiz_date
+
 `ptgates_user_states` 테이블의 `quiz_count`가 변경될 때 `last_quiz_date`와 `updated_at`을 자동으로 업데이트합니다.
 
 ```sql
@@ -545,6 +553,7 @@ END;
 ```
 
 #### ptgates_insert_last_study_date
+
 `ptgates_user_states` 테이블에 INSERT 시 `study_count > 0`이면 `last_study_date`와 `updated_at`을 자동으로 설정합니다.
 
 ```sql
@@ -560,6 +569,7 @@ END;
 ```
 
 #### ptgates_insert_last_quiz_date
+
 `ptgates_user_states` 테이블에 INSERT 시 `quiz_count > 0`이면 `last_quiz_date`와 `updated_at`을 자동으로 설정합니다.
 
 ```sql
@@ -577,6 +587,7 @@ END;
 ### 4.2 뷰
 
 #### ptgates_today_queue
+
 오늘의 문제 큐를 빠르게 조회하기 위한 뷰입니다.
 
 ```sql
@@ -602,7 +613,6 @@ ptgates_questions (기본 문제 테이블)
   ├── ptgates_user_states (N) ── question_id (FK)
   ├── ptgates_exam_session_items (N) ── question_id (FK)
   ├── ptgates_flashcards (N) ── source_id (참조)
-  ├── ptgates_user_notes (N) ── ref_id (참조)
   ├── ptgates_user_memos (N) ── question_id (FK)
   ├── ptgates_user_drawings (N) ── question_id (FK)
   └── ptgates_review_schedule (N) ── question_id (FK)
@@ -628,17 +638,20 @@ ptgates_organization (B2B 기관)
 ### 6.1 기본 테이블 변경 시
 
 **절대 변경 불가:**
+
 - `ptgates_questions.question_id` (모든 모듈에서 FK 사용)
 - `ptgates_categories.question_id` (FK)
 - `ptgates_user_results.question_id` (FK)
 
 **변경 시 모든 모듈 영향도 분석 필수:**
+
 - `ptgates_questions.content`, `answer`, `explanation`
 - `ptgates_categories.exam_session` (기출문제 정책 필터링 로직)
 
 ### 6.2 인덱스 활용
 
 **복합 인덱스 활용:**
+
 - `ptgates_categories`: `idx_exam_meta` (`exam_year`, `exam_session`, `exam_course`)
 - `ptgates_categories`: `idx_year_subject` (`exam_year`, `subject`)
 - `ptgates_user_states`: `idx_user_study_count_date` (`user_id`, `study_count`, `last_study_date`)
@@ -647,19 +660,23 @@ ptgates_organization (B2B 기관)
 ### 6.3 외래키 제약 조건
 
 **CASCADE DELETE 적용:**
+
 - `ptgates_questions` 삭제 시 관련 테이블 자동 삭제
 - `ptgates_exam_sessions` 삭제 시 `ptgates_exam_session_items` 자동 삭제
 
 **SET NULL 적용:**
+
 - `ptgates_user_results` 삭제 시 `ptgates_review_schedule.origin_result_id`는 NULL로 변경
 
 ### 6.4 트리거 활용
 
 **자동 업데이트:**
+
 - `study_count` 변경 시 `last_study_date` 자동 업데이트
 - `quiz_count` 변경 시 `last_quiz_date` 자동 업데이트
 
 **PHP 코드에서:**
+
 - 트리거가 자동으로 처리하므로 `last_study_date`/`last_quiz_date`를 명시적으로 업데이트할 필요 없음
 - `study_count`/`quiz_count`만 업데이트하면 됨
 

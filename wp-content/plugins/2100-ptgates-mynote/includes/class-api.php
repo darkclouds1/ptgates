@@ -122,43 +122,107 @@ class API {
 			$order_by = 'm.updated_at ' . strtoupper( $order );
 		}
 
-		// JOIN으로 과목 정보 가져오기
-		// ptgates_ 테이블은 prefix 없이 직접 사용 (백틱으로 감싸기)
-		// ptgates_categories는 한 question_id에 여러 행이 있을 수 있으므로 첫 번째 행만 가져오기
-		// 성능 최적화: 서브쿼리로 첫 번째 category_id만 선택 후 JOIN
-		$sql = "
-			SELECT 
-				m.id,
-				m.user_id,
-				m.question_id,
-				m.content,
-				m.updated_at,
-				c.subject as sub_subject,
-				c.exam_course,
-				c.exam_session
-			FROM `ptgates_user_memos` m
-			LEFT JOIN (
-				SELECT 
-					c1.question_id,
-					c1.subject,
-					c1.exam_course,
-					c1.exam_session
-				FROM `ptgates_categories` c1
-				INNER JOIN (
-					SELECT question_id, MIN(category_id) as min_category_id
-					FROM `ptgates_categories`
-					GROUP BY question_id
-				) c2 ON c1.question_id = c2.question_id AND c1.category_id = c2.min_category_id
-			) c ON m.question_id = c.question_id
-			WHERE {$where_sql}
-			ORDER BY {$order_by}
-			LIMIT %d OFFSET %d
-		";
-		
-		$args[] = $limit;
-		$args[] = $offset;
 
-		$results = $wpdb->get_results( $wpdb->prepare( $sql, $args ) );
+		if ( $sort === 'date' ) {
+			// [성능 최적화] 날짜순 정렬일 경우: 메모 테이블만 먼저 조회하고 카테고리는 별도로 가져옴 (JOIN 부하 제거)
+			$sql = "
+				SELECT 
+					m.id,
+					m.user_id,
+					m.question_id,
+					m.content,
+					m.updated_at
+				FROM `ptgates_user_memos` m
+				WHERE {$where_sql}
+				ORDER BY {$order_by}
+				LIMIT %d OFFSET %d
+			";
+			
+			// 쿼리 파라미터 준비 (LIMIT, OFFSET 추가)
+			$query_args = $args;
+			$query_args[] = $limit;
+			$query_args[] = $offset;
+			
+			$results = $wpdb->get_results( $wpdb->prepare( $sql, $query_args ) );
+			
+			if ( $results ) {
+				// 조회된 메모들의 question_id 수집
+				$question_ids = array_column( $results, 'question_id' );
+				// 정수형으로 변환하여 안전하게 처리
+				$question_ids = array_map( 'intval', $question_ids );
+				$question_ids_str = implode( ',', $question_ids );
+				
+				if ( $question_ids_str ) {
+					// 해당 문제들의 카테고리 정보 조회
+					$cat_sql = "
+						SELECT 
+							c1.question_id,
+							c1.subject,
+							c1.exam_course,
+							c1.exam_session
+						FROM `ptgates_categories` c1
+						INNER JOIN (
+							SELECT question_id, MIN(category_id) as min_category_id
+							FROM `ptgates_categories`
+							WHERE question_id IN ($question_ids_str)
+							GROUP BY question_id
+						) c2 ON c1.question_id = c2.question_id AND c1.category_id = c2.min_category_id
+					";
+					$categories = $wpdb->get_results( $cat_sql, OBJECT_K ); // question_id를 키로 사용
+					
+					// 결과 합치기
+					foreach ( $results as $memo ) {
+						if ( isset( $categories[ $memo->question_id ] ) ) {
+							$cat = $categories[ $memo->question_id ];
+							$memo->sub_subject = $cat->subject;
+							$memo->exam_course = $cat->exam_course;
+							$memo->exam_session = $cat->exam_session;
+						} else {
+							$memo->sub_subject = null;
+							$memo->exam_course = null;
+							$memo->exam_session = null;
+						}
+					}
+				}
+			}
+		} else {
+			// [기본] 다른 정렬 기준일 경우: JOIN 쿼리 사용 (기존 로직 유지)
+			$sql = "
+				SELECT 
+					m.id,
+					m.user_id,
+					m.question_id,
+					m.content,
+					m.updated_at,
+					c.subject as sub_subject,
+					c.exam_course,
+					c.exam_session
+				FROM `ptgates_user_memos` m
+				LEFT JOIN (
+					SELECT 
+						c1.question_id,
+						c1.subject,
+						c1.exam_course,
+						c1.exam_session
+					FROM `ptgates_categories` c1
+					INNER JOIN (
+						SELECT question_id, MIN(category_id) as min_category_id
+						FROM `ptgates_categories`
+						GROUP BY question_id
+					) c2 ON c1.question_id = c2.question_id AND c1.category_id = c2.min_category_id
+				) c ON m.question_id = c.question_id
+				WHERE {$where_sql}
+				ORDER BY {$order_by}
+				LIMIT %d OFFSET %d
+			";
+			
+			// 쿼리 파라미터 준비 (LIMIT, OFFSET 추가)
+			$query_args = $args;
+			$query_args[] = $limit;
+			$query_args[] = $offset;
+			
+			$results = $wpdb->get_results( $wpdb->prepare( $sql, $query_args ) );
+		}
 
 		// 대분류 과목 정보 추가 (Map에서 역추적)
 		// 성능 최적화: exam_course로 교시를 파악하여 해당 세션만 확인, 없을 때만 모든 세션 확인

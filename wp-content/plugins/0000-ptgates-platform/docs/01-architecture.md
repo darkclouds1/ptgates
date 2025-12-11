@@ -113,7 +113,7 @@ class Quiz_Handler {
 ```sql
 -- ✅ 각 모듈 독립 테이블
 ptgates_flashcard_sets  -- 2200 전용
-ptgates_user_notes     -- 2100 전용
+ptgates_user_memos      -- 2100 전용
 ptgates_user_states    -- 4100 전용
 
 -- ✅ 공통 테이블 (읽기 전용, 변경 가능하나 영향도 분석 필수)
@@ -424,14 +424,12 @@ ptgates_flashcards
 ### 2100-ptgates-mynote
 
 ```sql
-ptgates_user_notes
-├── note_id (PK)
+ptgates_user_memos
+├── id (PK)
 ├── user_id
-├── source_type: 'question' | 'theory' | 'custom'
-├── source_id: question_id 또는 theory_id (NULL 가능)
+├── question_id
 ├── content
-├── tags
-└── created_at
+└── updated_at
 ```
 
 ### 4100-ptgates-reviewer

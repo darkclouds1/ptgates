@@ -71,6 +71,12 @@ final class PTG_Analytics_Plugin {
 		$platform_url = plugins_url( '0000-ptgates-platform/assets/js/platform.js' );
 		// Use plugins_url for more reliable URL generation
 		$analytics_js = plugins_url( 'assets/js/analytics.js', __FILE__ );
+		
+		// 스크립트 버전 관리 (파일 수정 시간 사용)
+		$analytics_js_file = plugin_dir_path( __FILE__ ) . 'assets/js/analytics.js';
+		$analytics_js_ver = file_exists( $analytics_js_file ) ? filemtime( $analytics_js_file ) : '0.1.0';
+		$analytics_js_with_ver = $analytics_js . '?ver=' . $analytics_js_ver;
+		
 		$rest_url     = esc_url_raw( rest_url( 'ptg-analytics/v1/' ) );
 		$nonce        = wp_create_nonce( 'wp_rest' );
 		
@@ -107,7 +113,7 @@ final class PTG_Analytics_Plugin {
 			wp_json_encode( $rest_url ),
 			wp_json_encode( $nonce ),
 			wp_json_encode( $platform_url ),
-			wp_json_encode( $analytics_js )
+			wp_json_encode( $analytics_js_with_ver )
 		);
 
 		ob_start();

@@ -12,8 +12,95 @@
       this.injectStyles();
     },
 
-    injectStyles: function() {
-        const styles = `
+    injectStyles: function () {
+      const styles = `
+            /* New Dashboard Grid Layout */
+            .ptg-dash-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+                margin-bottom: 30px;
+            }
+
+            .ptg-dash-card {
+                background: #ffffff;
+                padding: 16px 20px;
+                border-radius: 12px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                display: flex;
+                flex-direction: row; /* Horizontal layout */
+                align-items: center;
+                justify-content: flex-start;
+                text-align: left;
+                border: 1px solid #e5e7eb;
+                transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+                cursor: pointer;
+                height: auto;
+                min-height: auto; /* Remove fixed height */
+                text-decoration: none;
+                color: inherit;
+            }
+
+            .ptg-dash-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                border-color: #d1d5db;
+            }
+
+            .ptg-card-icon {
+                font-size: 1.6rem; /* Smaller icon */
+                margin-bottom: 0;
+                margin-right: 14px;
+                line-height: 1;
+                flex-shrink: 0;
+            }
+
+            .ptg-card-title {
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: #374151;
+                margin-bottom: 0;
+                flex: 1; /* Push stat to the right */
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .ptg-card-stat {
+                font-size: 0.9rem;
+                color: #6b7280;
+                font-weight: 500;
+                margin-left: 10px;
+                white-space: nowrap;
+            }
+
+            .ptg-card-stat strong {
+                color: #111827;
+                font-weight: 700;
+            }
+
+            /* Hide progress bar for compact single-row layout */
+            .ptg-card-progress {
+                display: none; 
+            }
+            
+            /* Responsive */
+            @media (max-width: 1024px) {
+                .ptg-dash-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            @media (max-width: 640px) {
+                .ptg-dash-grid {
+                    grid-template-columns: 1fr; /* Stack on mobile for better horizontal space */
+                    gap: 10px;
+                }
+                
+                .ptg-dash-card {
+                    padding: 14px 16px;
+                }
+            }
             /* Payment Management Styles */
             .ptg-account-link {
                 background: none;
@@ -66,44 +153,60 @@
                 to { opacity: 1; transform: translateY(0); }
             }
 
-            /* History Table */
-            /* History Table */
-            .ptg-history-wrapper {
-                background: #ffffff;
-                border-radius: 12px;
-                border: 1px solid #e5e7eb;
-                overflow: hidden;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            /* History List */
+            .ptg-history-list {
+                border-top: 1px solid #e5e7eb;
             }
 
-            .ptg-history-table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 14px;
-            }
-
-            .ptg-history-table th {
-                text-align: left;
-                padding: 14px 16px;
-                background: #f9fafb;
-                color: #6b7280;
-                font-weight: 500;
-                font-size: 13px;
+            .ptg-history-item {
+                padding: 16px 0;
                 border-bottom: 1px solid #e5e7eb;
-            }
-
-            .ptg-history-table td {
-                padding: 14px 16px;
-                border-bottom: 1px solid #f3f4f6;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                font-size: 14px;
                 color: #374151;
             }
-            
-            .ptg-history-table tr:last-child td {
-                border-bottom: none;
+
+            .ptg-history-item.ptg-history-empty {
+                text-align: center;
+                padding: 40px 0;
+                color: #6b7280;
+                font-style: italic;
             }
 
-            .ptg-history-table tr:hover td {
-                background-color: #f9fafb;
+            .ptg-history-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .ptg-history-date {
+                font-size: 13px;
+                color: #6b7280;
+            }
+
+            .ptg-history-product {
+                font-weight: 600;
+                color: #111827;
+                font-size: 15px;
+            }
+
+            .ptg-history-amount {
+                font-weight: 600;
+                color: #374151;
+            }
+
+            .ptg-history-status {
+                font-size: 13px;
+                padding: 2px 8px;
+                border-radius: 9999px;
+                background-color: #f3f4f6;
+                color: #4b5563;
+            }
+            .ptg-history-status.completed {
+                background-color: #dcfce7;
+                color: #166534;
             }
 
             /* User Provided Styles (Scoped) */
@@ -492,7 +595,7 @@
                 }
             }
         `;
-        $("<style>").text(styles).appendTo("head");
+      $("<style>").text(styles).appendTo("head");
     },
 
     bindEvents: function () {
@@ -502,14 +605,14 @@
         const action = $(this).data("action");
         const url = $(this).data("url");
 
-        if (action === 'scroll-top') {
-            const target = document.querySelector('.e-n-tabs-heading');
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } else {
-                console.warn('Target element .e-n-tabs-heading not found');
-            }
-            return;
+        if (action === "scroll-top") {
+          const target = document.querySelector(".e-n-tabs-heading");
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          } else {
+            console.warn("Target element .e-n-tabs-heading not found");
+          }
+          return;
         }
 
         if (url) {
@@ -582,15 +685,15 @@
         e.preventDefault();
         const $btn = $(this);
         const $section = $("#ptg-payment-management");
-        
+
         if ($section.is(":visible")) {
-            $section.hide();
-            $btn.attr("aria-expanded", "false");
+          $section.hide();
+          $btn.attr("aria-expanded", "false");
         } else {
-            $section.show();
-            $btn.attr("aria-expanded", "true");
-            // Smooth scroll
-            $section[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+          $section.show();
+          $btn.attr("aria-expanded", "true");
+          // Smooth scroll
+          $section[0].scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
 
@@ -598,7 +701,7 @@
       this.$container.on("click", "[data-pm-tab]", function (e) {
         e.preventDefault();
         const tabName = $(this).data("pm-tab");
-        
+
         // Update Tabs
         $(".ptg-pm-tab").removeClass("is-active");
         $(this).addClass("is-active");
@@ -607,34 +710,62 @@
         $(".ptg-pm-content").removeClass("is-active");
         $("#ptg-pm-content-" + tabName).addClass("is-active");
       });
-    },
 
-    initiatePayment: function(plan) {
-        console.log("Initiating payment for plan:", plan);
-        alert("선택하신 플랜 (" + plan + ") 결제 페이지로 이동합니다. (준비중)");
-        // TODO: KG Inicis integration
-    },
-
-    openPricingGuide: function() {
-        const modalId = 'ptg-pricing-modal';
-        if ($('#' + modalId).length > 0) {
-            $('#' + modalId).fadeIn();
-            return;
+      // 사용자 데이터 초기화 버튼
+      const self = this;
+      $(document).on("click", "#ptg-reset-user-data-btn", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const confirmed = confirm(
+          "모든 학습 기록과 데이터가 삭제됩니다.\n\n" +
+          "삭제되는 데이터:\n" +
+          "- 학습 기록 (ptgates_user_states)\n" +
+          "- 퀴즈 결과 (ptgates_user_results)\n" +
+          "- 암기카드 (ptgates_flashcards, ptgates_flashcard_sets)\n" +
+          "- 마이노트 메모 (ptgates_user_memos)\n" +
+          "- 드로잉 데이터 (ptgates_user_drawings)\n\n" +
+          "이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?"
+        );
+        
+        if (!confirmed) {
+          return;
         }
+        
+        self.resetUserData();
+      });
+    },
 
-        // Fetch the HTML content
-        $.get('/wp-content/plugins/5100-ptgates-dashboard/assets/html/pricing-guide.html', function(data) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(data, 'text/html');
-            
-            // Extract styles and remove body selector to prevent global override
-            let styles = doc.querySelector('style').innerHTML;
-            styles = styles.replace(/body\s*{[^}]*}/, ''); 
-            
-            const content = doc.querySelector('.ptg-membership-wrapper').outerHTML;
-            
-            // Create Modal HTML
-            const modalHtml = `
+    initiatePayment: function (plan) {
+      console.log("Initiating payment for plan:", plan);
+      alert("선택하신 플랜 (" + plan + ") 결제 페이지로 이동합니다. (준비중)");
+      // TODO: KG Inicis integration
+    },
+
+    openPricingGuide: function () {
+      const modalId = "ptg-pricing-modal";
+      if ($("#" + modalId).length > 0) {
+        $("#" + modalId).fadeIn();
+        return;
+      }
+
+      // Fetch the HTML content
+      $.get(
+        "/wp-content/plugins/5100-ptgates-dashboard/assets/html/pricing-guide.html",
+        function (data) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(data, "text/html");
+
+          // Extract styles and remove body selector to prevent global override
+          let styles = doc.querySelector("style").innerHTML;
+          styles = styles.replace(/body\s*{[^}]*}/, "");
+
+          const content = doc.querySelector(
+            ".ptg-membership-wrapper"
+          ).outerHTML;
+
+          // Create Modal HTML
+          const modalHtml = `
                 <div id="${modalId}" class="ptg-modal-overlay" style="display:none;">
                     <div class="ptg-modal-container">
                         <button type="button" class="ptg-modal-close">×</button>
@@ -644,10 +775,10 @@
                     </div>
                 </div>
             `;
-            
-            // Inject Styles
-            $('head').append(`<style>${styles}</style>`);
-            $('head').append(`
+
+          // Inject Styles
+          $("head").append(`<style>${styles}</style>`);
+          $("head").append(`
                 <style>
                     .ptg-modal-overlay {
                         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -676,30 +807,127 @@
                     }
                 </style>
             `);
-            
-            $('body').append(modalHtml);
-            
-            const $modal = $('#' + modalId);
-            
-            // Close function
-            const closeModal = () => {
-                $modal.fadeOut();
-                $(document).off('keydown.ptgModal');
-            };
 
-            // Event Handlers
-            $modal.on('click', function(e) {
-                if (e.target === this) closeModal();
-            });
-            
-            $modal.find('.ptg-modal-close').on('click', closeModal);
-            
-            $(document).on('keydown.ptgModal', function(e) {
-                if (e.key === 'Escape') closeModal();
-            });
+          $("body").append(modalHtml);
 
-            $modal.fadeIn();
-        });
+          const $modal = $("#" + modalId);
+
+          // Close function
+          const closeModal = () => {
+            $modal.fadeOut();
+            $(document).off("keydown.ptgModal");
+          };
+
+          // Event Handlers
+          $modal.on("click", function (e) {
+            if (e.target === this) closeModal();
+          });
+
+          $modal.find(".ptg-modal-close").on("click", closeModal);
+
+          $(document).on("keydown.ptgModal", function (e) {
+            if (e.key === "Escape") closeModal();
+          });
+
+          $modal.fadeIn();
+        }
+      );
+    },
+
+    resetUserData: function () {
+      const self = this;
+      const restUrl = window.ptg_dashboard_vars
+        ? window.ptg_dashboard_vars.rest_url
+        : "/wp-json/ptg-dash/v1/";
+      const nonce = window.ptg_dashboard_vars
+        ? window.ptg_dashboard_vars.nonce
+        : "";
+
+      const $btn = $("#ptg-reset-user-data-btn");
+      const originalText = $btn.text();
+      
+      // 버튼 비활성화
+      $btn.prop("disabled", true).text("처리 중...");
+
+      $.ajax({
+        url: restUrl + "reset-user-data",
+        method: "POST",
+        dataType: "json",
+        beforeSend: function (xhr) {
+          if (nonce) {
+            xhr.setRequestHeader("X-WP-Nonce", nonce);
+          }
+        },
+        success: function (response) {
+          if (response && response.success) {
+            // window.ptg_dashboard_vars 업데이트 (즉시 반영)
+            if (window.ptg_dashboard_vars) {
+              window.ptg_dashboard_vars.study_count = 0;
+              window.ptg_dashboard_vars.quiz_count = 0;
+              window.ptg_dashboard_vars.flashcard_count = 0; // 암기카드도 삭제됨
+            }
+            
+            // 멤버십 섹션의 "학습 이용 현황" 숫자 즉시 업데이트
+            const $usageItems = $("#ptg-membership-details .ptg-usage-item");
+            if ($usageItems.length >= 2) {
+              // 과목|Study 업데이트
+              const $studyValue = $usageItems.eq(0).find(".ptg-usage-value");
+              if ($studyValue.length) {
+                const studyLimit = window.ptg_dashboard_vars?.study_limit >= 999999 
+                  ? "무제한" 
+                  : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString();
+                $studyValue.html(`0 / ${studyLimit}`);
+              }
+              
+              // 실전|Quiz 업데이트
+              const $quizValue = $usageItems.eq(1).find(".ptg-usage-value");
+              if ($quizValue.length) {
+                const quizLimit = window.ptg_dashboard_vars?.quiz_limit >= 999999 
+                  ? "무제한" 
+                  : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString();
+                $quizValue.html(`0 / ${quizLimit}`);
+              }
+              
+              // 암기카드 업데이트
+              const $flashcardValue = $usageItems.eq(2).find(".ptg-usage-value");
+              if ($flashcardValue.length) {
+                const flashcardLimit = window.ptg_dashboard_vars?.flashcard_limit >= 999999 
+                  ? "무제한" 
+                  : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString();
+                $flashcardValue.html(`0 / ${flashcardLimit}`);
+              }
+            }
+            
+            // REST API로 최신 데이터 다시 가져오기 (캐시 무시)
+            self.fetchSummary();
+            
+            alert("데이터가 성공적으로 초기화되었습니다.");
+            $btn.prop("disabled", false).text(originalText);
+          } else {
+            alert(response && response.message 
+              ? response.message 
+              : "데이터 초기화 중 오류가 발생했습니다.");
+            $btn.prop("disabled", false).text(originalText);
+          }
+        },
+        error: function (xhr, status, error) {
+          let errorMessage = "데이터 초기화 중 오류가 발생했습니다.";
+          
+          try {
+            if (xhr.responseText) {
+              const errorData = JSON.parse(xhr.responseText);
+              if (errorData && errorData.message) {
+                errorMessage = errorData.message;
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing response:", e);
+          }
+          
+          alert(errorMessage);
+          $btn.prop("disabled", false).text(originalText);
+        }
+      });
     },
 
     fetchSummary: function () {
@@ -711,8 +939,11 @@
         ? window.ptg_dashboard_vars.nonce
         : "";
 
+      // 캐시 무시를 위한 타임스탬프 추가 (초기화 후 즉시 반영)
+      const cacheBuster = new Date().getTime();
+      
       $.ajax({
-        url: restUrl + "summary",
+        url: restUrl + "summary?force_refresh=1&_t=" + cacheBuster,
         method: "GET",
         dataType: "json",
         beforeSend: function (xhr) {
@@ -722,7 +953,53 @@
         },
         success: function (data) {
           if (data && typeof data === "object") {
+            // window.ptg_dashboard_vars 업데이트 (최신 데이터 반영)
+            if (window.ptg_dashboard_vars) {
+              if (data.flashcard && data.flashcard.total !== undefined) {
+                window.ptg_dashboard_vars.flashcard_count = data.flashcard.total || 0;
+              }
+              if (data.study_progress !== undefined) {
+                window.ptg_dashboard_vars.study_count = data.study_progress || 0;
+              }
+              if (data.quiz_progress !== undefined) {
+                window.ptg_dashboard_vars.quiz_count = data.quiz_progress || 0;
+              }
+            }
+            
             self.render(data);
+            
+            // render() 후 멤버십 섹션의 숫자 다시 업데이트 (render()가 전체를 다시 렌더링하므로)
+            if (window.ptg_dashboard_vars) {
+              const $usageItems = $("#ptg-membership-details .ptg-usage-item");
+              if ($usageItems.length >= 3) {
+                // 과목|Study 업데이트
+                const $studyValue = $usageItems.eq(0).find(".ptg-usage-value");
+                if ($studyValue.length) {
+                  const studyLimit = window.ptg_dashboard_vars?.study_limit >= 999999 
+                    ? "무제한" 
+                    : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString();
+                  $studyValue.html(`${(window.ptg_dashboard_vars?.study_count || 0).toLocaleString()} / ${studyLimit}`);
+                }
+                
+                // 실전|Quiz 업데이트
+                const $quizValue = $usageItems.eq(1).find(".ptg-usage-value");
+                if ($quizValue.length) {
+                  const quizLimit = window.ptg_dashboard_vars?.quiz_limit >= 999999 
+                    ? "무제한" 
+                    : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString();
+                  $quizValue.html(`${(window.ptg_dashboard_vars?.quiz_count || 0).toLocaleString()} / ${quizLimit}`);
+                }
+                
+                // 암기카드 업데이트
+                const $flashcardValue = $usageItems.eq(2).find(".ptg-usage-value");
+                if ($flashcardValue.length) {
+                  const flashcardLimit = window.ptg_dashboard_vars?.flashcard_limit >= 999999 
+                    ? "무제한" 
+                    : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString();
+                  $flashcardValue.html(`${(window.ptg_dashboard_vars?.flashcard_count || 0).toLocaleString()} / ${flashcardLimit}`);
+                }
+              }
+            }
           } else {
             console.error("Invalid response data:", data);
             self.$container.html("<p>데이터 형식이 올바르지 않습니다.</p>");
@@ -798,6 +1075,77 @@
       // Calculate Percentages
       const totalQuestions = progress.total || 1; // Avoid division by zero
 
+      // Billing History HTML Generation
+      const billingHistory = Array.isArray(data.billing_history)
+        ? data.billing_history
+        : [];
+
+      const historyHtml =
+        billingHistory.length > 0
+          ? billingHistory
+              .map((item) => {
+                const date = new Date(item.transaction_date);
+                const formattedDate =
+                  date.getFullYear() +
+                  "." +
+                  String(date.getMonth() + 1).padStart(2, "0") +
+                  "." +
+                  String(date.getDate()).padStart(2, "0") +
+                  " " +
+                  String(date.getHours()).padStart(2, "0") +
+                  ":" +
+                  String(date.getMinutes()).padStart(2, "0");
+
+                const statusMap = {
+                  paid: "결제완료",
+                  failed: "실패",
+                  refunded: "환불",
+                  pending: "대기",
+                };
+                const statusText = statusMap[item.status] || item.status;
+                const statusClass = item.status === "paid" ? "completed" : "";
+                const amount = Number(item.amount).toLocaleString();
+
+                // Expiry Date Formatting
+                let expiryHtml = "";
+                if (item.expiry_date) {
+                  const expDate = new Date(item.expiry_date);
+                  const formattedExp =
+                    expDate.getFullYear() +
+                    "." +
+                    String(expDate.getMonth() + 1).padStart(2, "0") +
+                    "." +
+                    String(expDate.getDate()).padStart(2, "0");
+                  expiryHtml = ` <span style="color: #6b7280; font-weight: normal; font-size: 13px;">(~ ${formattedExp})</span>`;
+                }
+
+                return `
+                <div class="ptg-history-item">
+                    <div class="ptg-history-row">
+                        <span class="ptg-history-date">${this.escapeHtml(
+                          formattedDate
+                        )}</span>
+                        <span class="ptg-history-status ${statusClass}">${this.escapeHtml(
+                  statusText
+                )}</span>
+                    </div>
+                    <div class="ptg-history-row" style="margin-top: 6px;">
+                        <span class="ptg-history-product">
+                            ${this.escapeHtml(item.product_name)}
+                            ${expiryHtml}
+                        </span>
+                        <span class="ptg-history-amount">${amount}원</span>
+                    </div>
+                </div>
+            `;
+              })
+              .join("")
+          : `
+            <div class="ptg-history-item ptg-history-empty">
+                아직 결제 내역이 없습니다.
+            </div>
+        `;
+
       // 1. Study Progress: (study_count > 0) / totalQuestions
       const studyPercent = Math.min(
         100,
@@ -830,11 +1178,12 @@
       }"${greetingAttr}>${greetingText}</span>`;
 
       // 멤버십 등급 라벨 (API에서 전달받은 값 사용)
+      // 모든 등급에서 "멤버십" 단어 제거
       const membershipLabel = premium.grade
-        ? `${premium.grade} 멤버십`
+        ? premium.grade
         : premium.status === "active"
-        ? "Premium 멤버십"
-        : "Free 멤버십";
+        ? "Premium"
+        : "Free";
 
       const welcomeHtml = `
                 <div class="ptg-dash-welcome">
@@ -861,36 +1210,57 @@
                 <div id="ptg-membership-details" style="display: none;">
                             <!-- Usage Limits -->
                     <section class="ptg-mb-section">
-                        <h2 class="ptg-mb-section-title">📊 학습 이용 현황</h2>
+                        <div class="ptg-mb-section-header">
+                            <h2 class="ptg-mb-section-title">📊 학습 이용 현황</h2>
+                            ${
+                              premium.status === "active" &&
+                              (premium.grade === "Premium" || premium.grade === "Admin")
+                                ? `<button type="button" id="ptg-reset-user-data-btn" class="ptg-reset-data-btn" title="모든 학습 기록과 데이터를 초기화합니다">
+                                    초기화
+                                  </button>`
+                                : ""
+                            }
+                        </div>
                         <div class="ptg-usage-grid">
                             <div class="ptg-usage-item">
                                 <span class="ptg-usage-label">과목|Study</span>
                                 <div class="ptg-usage-value">
-                                    ${(window.ptg_dashboard_vars?.study_count || 0).toLocaleString()} / ${
-                                        (window.ptg_dashboard_vars?.study_limit === -1 || window.ptg_dashboard_vars?.study_limit >= 999999) 
-                                        ? '무제한' 
-                                        : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString()
-                                    } 문제
+                                    ${(
+                                      window.ptg_dashboard_vars?.study_count ||
+                                      0
+                                    ).toLocaleString()} / ${
+        window.ptg_dashboard_vars?.study_limit === -1 ||
+        window.ptg_dashboard_vars?.study_limit >= 999999
+          ? "무제한"
+          : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString()
+      }
                                 </div>
                             </div>
                             <div class="ptg-usage-item">
                                 <span class="ptg-usage-label">실전|Quiz</span>
                                 <div class="ptg-usage-value">
-                                    ${(window.ptg_dashboard_vars?.quiz_count || 0).toLocaleString()} / ${
-                                        (window.ptg_dashboard_vars?.quiz_limit === -1 || window.ptg_dashboard_vars?.quiz_limit >= 999999) 
-                                        ? '무제한' 
-                                        : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString()
-                                    } 문제
+                                    ${(
+                                      window.ptg_dashboard_vars?.quiz_count || 0
+                                    ).toLocaleString()} / ${
+        window.ptg_dashboard_vars?.quiz_limit === -1 ||
+        window.ptg_dashboard_vars?.quiz_limit >= 999999
+          ? "무제한"
+          : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString()
+      }
                                 </div>
                             </div>
                             <div class="ptg-usage-item">
                                 <span class="ptg-usage-label">암기카드</span>
                                 <div class="ptg-usage-value">
-                                    ${(window.ptg_dashboard_vars?.flashcard_count || 0).toLocaleString()} / ${
-                                        (window.ptg_dashboard_vars?.flashcard_limit === -1 || window.ptg_dashboard_vars?.flashcard_limit >= 999999) 
-                                        ? '무제한' 
-                                        : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString()
-                                    } 개
+                                    ${(
+                                      window.ptg_dashboard_vars
+                                        ?.flashcard_count || 0
+                                    ).toLocaleString()} / ${
+        window.ptg_dashboard_vars?.flashcard_limit === -1 ||
+        window.ptg_dashboard_vars?.flashcard_limit >= 999999
+          ? "무제한"
+          : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString()
+      }
                                 </div>
                             </div>
                         </div>
@@ -900,12 +1270,16 @@
                     <section class="ptg-mb-section">
                         <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2>
                         <div class="ptg-account-links">
-                            <a href="${window.ptg_dashboard_vars?.account_url || '#'}/general" class="ptg-account-link">
+                            <a href="${
+                              window.ptg_dashboard_vars?.account_url || "#"
+                            }/general" class="ptg-account-link">
                                 <span class="ptg-link-icon">👤</span>
                                 <span class="ptg-link-text">프로필 수정</span>
                                 <span class="ptg-link-arrow">→</span>
                             </a>
-                            <a href="${window.ptg_dashboard_vars?.account_url || '#'}/password" class="ptg-account-link">
+                            <a href="${
+                              window.ptg_dashboard_vars?.account_url || "#"
+                            }/password" class="ptg-account-link">
                                 <span class="ptg-link-icon">🔒</span>
                                 <span class="ptg-link-text">비밀번호 변경</span>
                                 <span class="ptg-link-arrow">→</span>
@@ -982,32 +1356,17 @@
 
                             <!-- Tab Content: Payment History -->
                             <div id="ptg-pm-content-history" class="ptg-pm-content">
-                                <div class="ptg-history-wrapper">
-                                    <table class="ptg-history-table">
-                                        <thead>
-                                            <tr>
-                                                <th>날짜</th>
-                                                <th>상품명</th>
-                                                <th>결제금액</th>
-                                                <th>상태</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <!-- Placeholder Data -->
-                                            <tr>
-                                                <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
-                                                    결제 내역이 없습니다.
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <div class="ptg-history-list">
+                                    ${historyHtml}
                                 </div>
                             </div>
                         </div>
 
                         <div class="ptg-footer-actions">
                             <div style="font-size: 13px; color: #6b7280;">
-                                <a href="${window.ptg_dashboard_vars?.account_url || '#'}/delete" 
+                                <a href="${
+                                  window.ptg_dashboard_vars?.account_url || "#"
+                                }/delete" 
                                    style="color: #991b1b; font-weight: bold; text-decoration: underline; margin-right: 4px;"
                                    onclick="return confirm('정말로 계정을 삭제하시겠습니까?\n\n삭제된 계정과 모든 학습 데이터는 복구할 수 없습니다.');">
                                     계정 탈퇴
@@ -1019,111 +1378,74 @@
                                    class="ptg-btn-secondary">
                                     닫기
                                 </button>
-                                <a href="${window.ptg_dashboard_vars?.logout_url || '#'}" 
-                                   class="ptg-btn-secondary">
-                                    로그아웃
-                                </a>
+
                             </div>
                         </div>
                     </section>
                 </div>
             `;
 
-      // 2. Stats Cards (Row 3: Bookmarks, Review, My Note, Progress)
-      // Buttons removed, cards are clickable.
-      const statsHtml = `
-                <div class="ptg-dash-stats">
-                    <div class="ptg-dash-card ptg-card-bookmark" data-url="/bookmark/">
-                        <div class="ptg-card-icon">🔖</div>
-                        <div class="ptg-card-content">
-                            <h3>북마크</h3>
-                            <p class="ptg-stat-value">${this.escapeHtml(
-                              bookmarks?.count ?? 0
-                            )} <span class="ptg-stat-unit">문제</span></p>
-                        </div>
-                    </div>
-                    <div class="ptg-dash-card ptg-card-review" data-url="/ptg_quiz/?needs_review=1&wrong_only=1">
-                        <div class="ptg-card-icon">🔁</div>
-                        <div class="ptg-card-content">
-                            <h3>복습|Quiz</h3>
-                            <p class="ptg-stat-value">${today_reviews} <span class="ptg-stat-unit">문제</span></p>
-                        </div>
-                    </div>
-                    <div class="ptg-dash-card ptg-card-mynote" data-url="/mynote/">
-                        <div class="ptg-card-icon">🗒️</div>
-                        <div class="ptg-card-content">
-                            <h3>마이노트</h3>
-                            <p class="ptg-stat-value">${
-                              mynote_count || 0
-                            } <span class="ptg-stat-unit">문제</span></p>
-                        </div>
-                    </div>
-                </div>
-            `;
+      // 2. Cards Grid (Merged Stats & Actions)
+      // Order: Study, Quiz, Bookmark, Review, My Note, Flashcard
+      const cardsHtml = `
+            <div class="ptg-dash-grid">
+                <!-- 1. Subject | Study -->
+                <a href="${
+                  (window.ptg_dashboard_vars &&
+                    window.ptg_dashboard_vars.study_url) ||
+                  "/ptg_study/"
+                }" class="ptg-dash-card">
+                    <div class="ptg-card-icon">📚</div>
+                    <div class="ptg-card-title">과목|Study</div>
+                    <div class="ptg-card-stat">${studyPercent}%</div>
+                </a>
 
-      // 3. Quick Actions (Row 2: Study, Mock Exam, Flashcards)
-      const actionsHtml = `
-                <div class="ptg-dash-actions">
-                    <div class="ptg-action-grid">
-                        <div class="ptg-action-card" data-url="${
-                          (window.ptg_dashboard_vars &&
-                            window.ptg_dashboard_vars.study_url) ||
-                          "/ptg_study/"
-                        }">
-                            <div class="ptg-action-icon">📚</div>
-                            <div class="ptg-action-info">
-                                <span class="ptg-action-label">과목|Study</span>
-                                <div class="ptg-progress-bar ptg-progress-sm">
-                                    <div class="ptg-progress-fill" style="width: ${studyPercent}%"></div>
-                                </div>
-                                <span class="ptg-action-percent">${studyPercent}%</span>
-                            </div>
-                        </div>
-                        <div class="ptg-action-card" data-url="/ptg_quiz/">
-                            <div class="ptg-action-icon">📝</div>
-                            <div class="ptg-action-info">
-                                <span class="ptg-action-label">실전|Quiz</span>
-                                <div class="ptg-progress-bar ptg-progress-sm">
-                                    <div class="ptg-progress-fill" style="width: ${quizPercent}%"></div>
-                                </div>
-                                <span class="ptg-action-percent">${quizPercent}%</span>
-                            </div>
-                        </div>
-                        <div class="ptg-action-card" data-url="/flashcards/">
-                            <div class="ptg-action-icon">🃏</div>
-                            <div class="ptg-action-info">
-                                <span class="ptg-action-label">암기카드</span>
-                                <div class="ptg-progress-bar ptg-progress-sm">
-                                    <div class="ptg-progress-fill" style="width: ${flashcardPercent}%"></div>
-                                </div>
-                                <span class="ptg-action-percent">${flashcardPercent}%</span>
-                            </div>
-                        </div>
-                        <div class="ptg-action-card" style="cursor: pointer;" data-action="scroll-top">
-                            <div class="ptg-action-icon">📈</div>
-                            <div class="ptg-action-info">
-                                <span class="ptg-action-label">전체 진도율</span>
-                                <div class="ptg-progress-bar ptg-progress-sm">
-                                    <div class="ptg-progress-fill" style="width: ${
-                                      progress.percent
-                                    }%"></div>
-                                </div>
-                                <span class="ptg-action-percent">${
-                                  progress.percent
-                                }% (${progress.solved}/${progress.total})</span>
-                            </div>
-                        </div>
-                    </div> 
-                </div>
-            `;
+                <!-- 2. Practice | Quiz -->
+                <a href="/ptg_quiz/" class="ptg-dash-card">
+                    <div class="ptg-card-icon">📝</div>
+                    <div class="ptg-card-title">실전|Quiz</div>
+                    <div class="ptg-card-stat">${quizPercent}%</div>
+                </a>
+
+                <!-- 3. Bookmark -->
+                <a href="/bookmark/" class="ptg-dash-card">
+                    <div class="ptg-card-icon">🔖</div>
+                    <div class="ptg-card-title">북마크</div>
+                    <div class="ptg-card-stat"><strong>${this.escapeHtml(
+                      bookmarks?.count ?? 0
+                    )}</strong> 문제</div>
+                </a>
+
+                <!-- 4. Review | Quiz -->
+                <a href="/ptg_quiz/?needs_review=1&wrong_only=1" class="ptg-dash-card">
+                    <div class="ptg-card-icon">🔁</div>
+                    <div class="ptg-card-title">복습|Quiz</div>
+                    <div class="ptg-card-stat"><strong>${today_reviews}</strong> 문제</div>
+                </a>
+
+                <!-- 5. My Note -->
+                <a href="/mynote/" class="ptg-dash-card">
+                    <div class="ptg-card-icon">🗒️</div>
+                    <div class="ptg-card-title">마이노트</div>
+                    <div class="ptg-card-stat"><strong>${
+                      mynote_count || 0
+                    }</strong> 문제</div>
+                </a>
+
+                <!-- 6. Flashcard -->
+                <a href="/flashcards/" class="ptg-dash-card">
+                    <div class="ptg-card-icon">🃏</div>
+                    <div class="ptg-card-title">암기카드</div>
+                    <div class="ptg-card-stat">${flashcardPercent}%</div>
+                </a>
+            </div>
+      `;
 
       // 5. Subject Learning Records
       const learningHtml = this.renderLearningRecords(learningRecords);
 
-      // Combine all sections (Row 1: Welcome, Row 2: Actions, Row 3: Stats, Row 4: Learning)
-      this.$container.html(
-        welcomeHtml + actionsHtml + statsHtml + learningHtml
-      );
+      // Combine all sections (Row 1: Welcome, Row 2: Cards Grid, Row 3: Learning)
+      this.$container.html(welcomeHtml + cardsHtml + learningHtml);
       this.bindLearningTipModal();
     },
 

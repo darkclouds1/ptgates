@@ -34,6 +34,8 @@ if (class_exists('PTG_Dashboard')) {
     $dashboard_url = PTG_Dashboard::get_dashboard_url();
 }
 
+$is_admin = current_user_can('manage_options');
+
 ?>
 
 <!-- 디버깅: 템플릿 변수 확인 -->
@@ -52,17 +54,18 @@ if (class_exists('PTG_Dashboard')) {
      data-session="<?php echo esc_attr($session); ?>"
      data-full-session="<?php echo esc_attr($full_session ? '1' : '0'); ?>"
      data-bookmarked="<?php echo esc_attr($bookmarked ? '1' : '0'); ?>"
-     data-needs-review="<?php echo esc_attr($needs_review ? '1' : '0'); ?>">
+     data-needs-review="<?php echo esc_attr($needs_review ? '1' : '0'); ?>"
+     data-is-admin="<?php echo esc_attr($is_admin ? '1' : '0'); ?>">
     
     <!-- 플러그인 헤더 -->
     <div class="ptg-quiz-header">
         <h1>실전 모의 학습</h1>
         <div class="ptg-quiz-header-right">
-            <!-- 활성 필터 표시 영역 -->
-            <div id="ptg-quiz-active-filters" class="ptg-quiz-active-filters"></div>
-            <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link" aria-label="대시보드로 돌아가기">대시보드</a>
+            <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link" aria-label="학습현황으로 돌아가기">학습현황</a>
             <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습Tip]</a>
         </div>
+        <!-- 활성 필터 표시 영역 (모바일에서 두 번째 줄로 표시) -->
+        <div id="ptg-quiz-active-filters" class="ptg-quiz-active-filters"></div>
     </div>
     
     <!-- 필터 섹션 -->
@@ -95,12 +98,27 @@ if (class_exists('PTG_Dashboard')) {
                 <option value="30">30문제</option>
                 <option value="50">50문제</option>
                 <option value="full">전체 (모의고사)</option>
+                <option value="unsolved">안푼 문제만(10문제)</option>
             </select>
         </div>
         
 
         
-        <button id="ptg-quiz-start-btn" class="ptgates-btn ptgates-btn-primary">조회</button>
+        <div class="ptgates-filter-actions">
+            <button id="ptg-quiz-start-btn" class="ptgates-btn ptgates-btn-primary">조회</button>
+            <button id="ptg-quiz-search-toggle" class="ptgates-btn ptgates-btn-icon" aria-label="검색" title="문제ID·검색어로 빠른 검색">
+                <span class="dashicons dashicons-search"></span>
+            </button>
+        </div>
+    </div>
+    
+    <div id="ptg-quiz-search-container" class="ptgates-filter-container ptgates-search-container" style="display: none;">
+        <div class="ptgates-filter-row" style="flex: 0 0 80px;">
+            <input type="text" id="ptg-quiz-search-id" class="ptgates-filter-input" placeholder="ID">
+        </div>
+        <div class="ptgates-filter-row" style="flex: 1;">
+            <input type="text" id="ptg-quiz-search-keyword" class="ptgates-filter-input" placeholder="지문 또는 해설 검색...">
+        </div>
     </div>
     
     <!-- 문제 ID 확인 메시지 제거: 기본값으로 자동 처리됨 -->
@@ -208,9 +226,17 @@ if (class_exists('PTG_Dashboard')) {
                             <input type="range" class="ptg-pen-alpha-slider" id="ptg-pen-alpha-slider" min="0" max="100" value="20" aria-label="펜 불투명도" title="펜 불투명도 (높을수록 진함)">
                         </div>
                     </div>
+                    <div class="ptg-pen-menu-section">
+                        <label class="ptg-pen-auto-mode-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #333;">
+                            <input type="checkbox" id="ptg-pen-auto-mode" checked>
+                            <span>자동 보정 (직선/도형)</span>
+                        </label>
+                    </div>
                 </div>
             </div>
-            <button type="button" class="ptg-btn-draw" data-tool="eraser" aria-label="지우개" title="지우개">🧹</button>
+            <button type="button" class="ptg-btn-draw" data-tool="eraser" aria-label="지우개" title="지우개">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="18" height="18" fill="currentColor"><path d="M290.7 57.4L57.4 290.7c-25 25-25 65.5 0 90.5l80 80c12 12 28.3 18.7 45.3 18.7H288h9.4H512c17.7 0 32-14.3 32-32s-14.3-32-32-32H387.9L518.6 285.3c25-25 25-65.5 0-90.5L381.3 57.4c-25-25-65.5-25-90.5 0zM297.4 416H288l-105.4 0-80-80L227.3 211.3 364.7 348.7 297.4 416z"/></svg>
+            </button>
             <button type="button" class="ptg-btn-draw" data-tool="undo" aria-label="실행 취소" title="실행 취소">↶</button>
             <button type="button" class="ptg-btn-draw" data-tool="redo" aria-label="다시 실행" title="다시 실행">↷</button>
             <button type="button" class="ptg-btn-draw" data-tool="clear" aria-label="전체 지우기" title="전체 지우기">🗑️</button>
@@ -237,11 +263,25 @@ if (class_exists('PTG_Dashboard')) {
         </div>
     </div>
     
+    <!-- 메모 패널 (툴바 바로 아래로 이동) -->
+    <div class="ptg-notes-panel" id="ptg-notes-panel" style="display: none;">
+        <div class="ptg-notes-content">
+            <textarea 
+                id="ptg-notes-textarea" 
+                class="ptg-notes-textarea" 
+                placeholder="메모를 입력하세요..."
+                rows="8"></textarea>
+        </div>
+    </div>
+    
     <!-- 문제 카드 영역 (드로잉 오버레이 포함) -->
     <div class="ptg-quiz-card-wrapper">
         <div class="ptg-quiz-card" id="ptg-quiz-card">
             <!-- 문제 콘텐츠가 여기에 동적으로 로드됨 -->
             <div class="ptg-quiz-loading">
+                <div class="ptg-loading-logo">
+                    <div class="ptg-logo-text">ptGates</div>
+                </div>
                 <div class="ptg-spinner"></div>
                 <p>문제를 불러오는 중...</p>
             </div>
@@ -265,24 +305,26 @@ if (class_exists('PTG_Dashboard')) {
     
     <!-- 답안 제출 버튼 -->
     <div class="ptg-quiz-actions">
-        <button type="button" class="ptg-btn ptg-btn-primary" id="ptg-btn-check-answer" disabled>
-            답안 제출
+        <?php if ($is_admin): ?>
+        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-edit-question">
+            [편집]
         </button>
-        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-next-question" style="display: none;">
+        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-cancel-edit" style="display: none;">
+            [취소]
+        </button>
+        <?php endif; ?>
+        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-prev-question">
+            이전 문제
+        </button>
+        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-check-answer">
+            정답 확인(해설)
+        </button>
+        <button type="button" class="ptg-btn ptg-btn-secondary" id="ptg-btn-next-question">
             다음 문제
         </button>
     </div>
     
-    <!-- 메모 패널 -->
-    <div class="ptg-notes-panel" id="ptg-notes-panel" style="display: none;">
-        <div class="ptg-notes-content">
-            <textarea 
-                id="ptg-notes-textarea" 
-                class="ptg-notes-textarea" 
-                placeholder="메모를 입력하세요..."
-                rows="8"></textarea>
-        </div>
-    </div>
+
     
     <!-- 결과 요약 (완료 화면) -->
     <div id="ptg-quiz-result-section" class="ptg-quiz-result-section" style="display: none;">
@@ -296,7 +338,7 @@ if (class_exists('PTG_Dashboard')) {
                 <span class="ptg-quiz-stat-label">맞힌 문제:</span>
                 <span id="ptg-quiz-result-correct" class="ptg-quiz-stat-value">0개</span>
             </div>
-            <div class="ptg-quiz-stat-item">
+            <div class="ptg-quiz-stat-item ptg-quiz-stat-incorrect" id="ptg-quiz-stat-incorrect" style="cursor: pointer;">
                 <span class="ptg-quiz-stat-label">틀린 문제:</span>
                 <span id="ptg-quiz-result-incorrect" class="ptg-quiz-stat-value">0개</span>
             </div>
@@ -305,7 +347,10 @@ if (class_exists('PTG_Dashboard')) {
                 <span id="ptg-quiz-result-time" class="ptg-quiz-stat-value">00:00</span>
             </div>
         </div>
-        <button id="ptg-quiz-restart-btn" class="ptg-btn ptg-btn-primary">다시 시작</button>
+        <div class="ptg-quiz-result-actions">
+            <button id="ptg-quiz-restart-btn" class="ptg-btn ptg-btn-secondary">다시 시작</button>
+            <button id="ptg-quiz-dashboard-btn" class="ptg-btn ptg-btn-secondary" data-dashboard-url="<?php echo esc_url($dashboard_url); ?>">[학습현황]으로 바로가기</button>
+        </div>
     </div>
     
     <!-- 팝업 HTML은 공통 팝업 유틸리티(0000-ptgates-platform)에서 동적으로 생성됨 -->

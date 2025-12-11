@@ -206,6 +206,15 @@ class API {
             ],
         ]);
         
+        // 사용자 데이터 초기화
+        $result3 = \register_rest_route(self::REST_NAMESPACE, '/reset-user-data', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'reset_user_data'],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ]);
+        
         // 정상 로그는 debug.log에 기록하지 않음 (성공 시 로그 제거)
         // 실패 시에만 로그 기록
         if (!$result && defined('WP_DEBUG') && WP_DEBUG) {
@@ -213,6 +222,9 @@ class API {
         }
         if (!$result2 && defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[PTG Dashboard] REST route 등록 실패: ptg-dash/v1/bookmarks');
+        }
+        if (!$result3 && defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[PTG Dashboard] REST route 등록 실패: ptg-dash/v1/reset-user-data');
         }
     }
 
@@ -258,13 +270,17 @@ class API {
                 );
             }
 
-            // 캐싱: 5분간 캐시 유지
+            // 캐싱: 5분간 캐시 유지 (캐시 무시 파라미터 확인)
             $cache_key = 'ptg_dashboard_summary_' . $user_id;
-            $cached = get_transient($cache_key);
+            $force_refresh = $request->get_param('force_refresh') === '1' || $request->get_param('force_refresh') === true;
             
-            if ($cached !== false) {
-                ob_end_clean();
-                return rest_ensure_response($cached);
+            if (!$force_refresh) {
+                $cached = get_transient($cache_key);
+                
+                if ($cached !== false) {
+                    ob_end_clean();
+                    return rest_ensure_response($cached);
+                }
             }
         
         // 1. Premium Status
@@ -456,11 +472,16 @@ class API {
         $flashcard_due = 0;
         $mynote_count = 0;
 
-        // Study Progress (study_count > 0)
+        // Study Progress (study_count > 0) 및 Quiz Count (quiz_count > 0)
+        $quiz_progress_count = 0;
         if (self::table_exists($table_states)) {
             $wpdb->suppress_errors(true);
             $study_progress_count = (int)$wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM $table_states WHERE user_id = %d AND study_count > 0",
+                $user_id
+            ));
+            $quiz_progress_count = (int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table_states WHERE user_id = %d AND quiz_count > 0",
                 $user_id
             ));
             $wpdb->suppress_errors(false);
@@ -503,6 +524,18 @@ class API {
             $wpdb->suppress_errors(false);
         }
 
+        // 6. Billing History
+        $billing_history = [];
+        $table_billing = self::get_table_name('ptgates_billing_history');
+        if (self::table_exists($table_billing)) {
+            $wpdb->suppress_errors(true);
+            $billing_history = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_billing WHERE user_id = %d ORDER BY transaction_date DESC",
+                $user_id
+            ));
+            $wpdb->suppress_errors(false);
+        }
+
             // 출력 버퍼 정리 (오류 메시지 제거)
             ob_end_clean();
             
@@ -517,11 +550,13 @@ class API {
                 'recent_activity' => $recent_activity,
                 // New Data
                 'study_progress' => $study_progress_count,
+                'quiz_progress' => $quiz_progress_count,
                 'flashcard' => [
                     'total' => $flashcard_total,
                     'due' => $flashcard_due
                 ],
                 'mynote_count' => $mynote_count,
+                'billing_history' => $billing_history,
             ];
 
             // 캐싱: 5분간 저장
@@ -544,6 +579,194 @@ class API {
                 '서버 오류가 발생했습니다: ' . $e->getMessage(),
                 ['status' => 500]
             );
+        }
+    }
+
+    /**
+     * 사용자 데이터 초기화 (ptgates_user_states, ptgates_user_results 삭제)
+     */
+    public static function reset_user_data($request) {
+        $user_id = get_current_user_id();
+        
+        if (!$user_id) {
+            return new \WP_Error('unauthorized', '로그인이 필요합니다.', ['status' => 401]);
+        }
+        
+        // 프리미엄 또는 Admin 멤버십 확인 (status === "active" AND (grade === "Premium" OR grade === "Admin"))
+        $is_premium_or_admin = false;
+        $premium_status = 'free';
+        $grade_label = 'Basic';
+        
+        // ptgates_user_member 테이블 확인
+        global $wpdb;
+        $member_table = self::get_table_name('ptgates_user_member');
+        if (self::table_exists($member_table)) {
+            $member_data = $wpdb->get_row($wpdb->prepare(
+                "SELECT member_grade, billing_expiry_date FROM $member_table WHERE user_id = %d",
+                $user_id
+            ));
+            
+            if ($member_data) {
+                $grade = $member_data->member_grade;
+                
+                if ($grade === 'premium' || $grade === 'trial' || $grade === 'pt_admin') {
+                    $premium_status = 'active';
+                }
+                
+                if ($grade === 'pt_admin') {
+                    $grade_label = 'Admin';
+                } elseif ($grade === 'premium') {
+                    $grade_label = 'Premium';
+                }
+            }
+        }
+        
+        // Admin 권한 확인
+        if (class_exists('\PTG\Platform\Permissions') && \PTG\Platform\Permissions::is_pt_admin($user_id)) {
+            $premium_status = 'active';
+            $grade_label = 'Admin';
+        }
+        
+        // 프리미엄 상태 확인 (user_meta)
+        if ($premium_status !== 'active') {
+            $meta_premium_status = get_user_meta($user_id, 'ptg_premium_status', true);
+            if ($meta_premium_status === 'active') {
+                $premium_status = 'active';
+                if ($grade_label === 'Basic') {
+                    $grade_label = 'Premium';
+                }
+            }
+        }
+        
+        // 조건 확인: status === "active" AND (grade === "Premium" OR grade === "Admin")
+        if ($premium_status === 'active' && ($grade_label === 'Premium' || $grade_label === 'Admin')) {
+            $is_premium_or_admin = true;
+        }
+        
+        if (!$is_premium_or_admin) {
+            return new \WP_Error('forbidden', '프리미엄 멤버 또는 Admin 멤버십만 사용할 수 있습니다.', ['status' => 403]);
+        }
+        
+        // 트랜잭션 시작
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            // ptgates_user_states 삭제
+            $states_table = self::get_table_name('ptgates_user_states');
+            if (self::table_exists($states_table)) {
+                $deleted_states = $wpdb->delete(
+                    $states_table,
+                    ['user_id' => $user_id],
+                    ['%d']
+                );
+                
+                if ($deleted_states === false) {
+                    throw new \Exception('ptgates_user_states 삭제 실패');
+                }
+            }
+            
+            // ptgates_user_results 삭제
+            $results_table = self::get_table_name('ptgates_user_results');
+            if (self::table_exists($results_table)) {
+                $deleted_results = $wpdb->delete(
+                    $results_table,
+                    ['user_id' => $user_id],
+                    ['%d']
+                );
+                
+                if ($deleted_results === false) {
+                    throw new \Exception('ptgates_user_results 삭제 실패');
+                }
+            }
+            
+            // ptgates_flashcards 삭제 (해당 사용자의 모든 카드)
+            $flashcards_table = self::get_table_name('ptgates_flashcards');
+            $deleted_flashcards = 0;
+            if (self::table_exists($flashcards_table)) {
+                $deleted_flashcards = $wpdb->delete(
+                    $flashcards_table,
+                    ['user_id' => $user_id],
+                    ['%d']
+                );
+                
+                if ($deleted_flashcards === false) {
+                    throw new \Exception('ptgates_flashcards 삭제 실패');
+                }
+            }
+            
+            // ptgates_flashcard_sets 삭제 (해당 사용자가 만든 세트만, set_id = 1은 공용 세트이므로 제외)
+            $flashcard_sets_table = self::get_table_name('ptgates_flashcard_sets');
+            $deleted_flashcard_sets = 0;
+            if (self::table_exists($flashcard_sets_table)) {
+                // 사용자가 만든 세트만 삭제 (set_id = 1은 공용 세트이므로 제외)
+                $deleted_flashcard_sets = $wpdb->query($wpdb->prepare(
+                    "DELETE FROM $flashcard_sets_table WHERE user_id = %d AND set_id != 1",
+                    $user_id
+                ));
+                
+                if ($deleted_flashcard_sets === false) {
+                    throw new \Exception('ptgates_flashcard_sets 삭제 실패');
+                }
+            }
+            
+            // ptgates_user_memos 삭제 (마이노트 메모)
+            $memos_table = self::get_table_name('ptgates_user_memos');
+            $deleted_memos = 0;
+            if (self::table_exists($memos_table)) {
+                $deleted_memos = $wpdb->delete(
+                    $memos_table,
+                    ['user_id' => $user_id],
+                    ['%d']
+                );
+                
+                if ($deleted_memos === false) {
+                    throw new \Exception('ptgates_user_memos 삭제 실패');
+                }
+            }
+            
+            // ptgates_user_drawings 삭제 (드로잉 데이터)
+            $drawings_table = self::get_table_name('ptgates_user_drawings');
+            $deleted_drawings = 0;
+            if (self::table_exists($drawings_table)) {
+                $deleted_drawings = $wpdb->delete(
+                    $drawings_table,
+                    ['user_id' => $user_id],
+                    ['%d']
+                );
+                
+                if ($deleted_drawings === false) {
+                    throw new \Exception('ptgates_user_drawings 삭제 실패');
+                }
+            }
+            
+            // 트랜잭션 커밋
+            $wpdb->query('COMMIT');
+            
+            // 모든 관련 캐시 삭제
+            $cache_key = 'ptg_dashboard_summary_' . $user_id;
+            delete_transient($cache_key);
+            
+            // wp_cache도 삭제 (혹시 사용되는 경우 대비)
+            if (function_exists('wp_cache_delete')) {
+                wp_cache_delete($cache_key, 'ptg_dashboard');
+            }
+            
+            return rest_ensure_response([
+                'success' => true,
+                'message' => '데이터가 성공적으로 초기화되었습니다.',
+                'deleted_states' => isset($deleted_states) ? $deleted_states : 0,
+                'deleted_results' => isset($deleted_results) ? $deleted_results : 0,
+                'deleted_flashcards' => $deleted_flashcards,
+                'deleted_flashcard_sets' => $deleted_flashcard_sets,
+                'deleted_memos' => $deleted_memos,
+                'deleted_drawings' => $deleted_drawings,
+            ]);
+            
+        } catch (\Exception $e) {
+            // 트랜잭션 롤백
+            $wpdb->query('ROLLBACK');
+            
+            return new \WP_Error('reset_failed', '데이터 초기화 중 오류가 발생했습니다: ' . $e->getMessage(), ['status' => 500]);
         }
     }
 }

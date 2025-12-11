@@ -8,10 +8,10 @@ if ( ! defined( 'ABSPATH' ) ) {
     <div id="ptg-flash-dashboard" class="ptg-view active">
         <!-- Header (Quiz Style) -->
         <div class="ptg-flash-header ptg-quiz-header-style">
-            <h1>암기카드 대시보드</h1>
+            <h1>암기카드 학습현황</h1>
             <div class="ptg-flash-header-right">
                 <button id="ptg-toggle-create" class="ptg-dash-link" style="margin-right: 5px; border:none; background:none; cursor:pointer;">만들기</button>
-                <a href="/dashboard/" class="ptg-dash-link">대시보드</a>
+                <a href="/dashboard/" class="ptg-dash-link">학습현황</a>
                 <a href="#" id="ptg-tip-toggle" class="ptg-tip-link">[암기Tip]</a>
             </div>
         </div>

@@ -92,6 +92,17 @@ $flashcard_count = $wpdb->get_var($wpdb->prepare(
 ));
 $flashcard_count = $flashcard_count ? intval($flashcard_count) : 0;
 
+// 4. 결제 내역 조회
+$billing_history = [];
+// 4. 결제 내역 조회
+$billing_history = [];
+if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_billing_history') {
+    $billing_history = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM ptgates_billing_history WHERE user_id = %d ORDER BY transaction_date DESC",
+        $user_id
+    ));
+}
+
 ?>
 <style>
     .ptg-membership-container {
@@ -352,7 +363,7 @@ $flashcard_count = $flashcard_count ? intval($flashcard_count) : 0;
     <header class="ptg-mb-header">
         <h1 class="ptg-mb-title">내 멤버십</h1>
         <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-mb-back-btn">
-            ← 대시보드
+            ← 학습현황
         </a>
     </header>
 
@@ -458,24 +469,36 @@ $flashcard_count = $flashcard_count ? intval($flashcard_count) : 0;
 
             <!-- Tab Content: Payment History -->
             <div id="ptg-pm-content-history" class="ptg-pm-content">
-                <table class="ptg-history-table">
-                    <thead>
-                        <tr>
-                            <th>날짜</th>
-                            <th>상품명</th>
-                            <th>결제 금액</th>
-                            <th>상태</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Placeholder Data -->
-                        <tr>
-                            <td colspan="4" style="text-align: center; padding: 30px; color: #6b7280;">
-                                결제 내역이 없습니다.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="ptg-history-list">
+                    <?php if ($billing_history && count($billing_history) > 0): ?>
+                        <?php foreach ($billing_history as $item): ?>
+                            <div class="ptg-history-item">
+                                <div class="ptg-history-row">
+                                    <span class="ptg-history-date"><?php echo esc_html(date('Y.m.d H:i', strtotime($item->transaction_date))); ?></span>
+                                    <span class="ptg-history-status <?php echo $item->status === 'paid' ? 'completed' : ''; ?>">
+                                        <?php 
+                                        $status_map = [
+                                            'paid' => '결제완료',
+                                            'failed' => '실패',
+                                            'refunded' => '환불',
+                                            'pending' => '대기'
+                                        ];
+                                        echo isset($status_map[$item->status]) ? esc_html($status_map[$item->status]) : esc_html($item->status); 
+                                        ?>
+                                    </span>
+                                </div>
+                                <div class="ptg-history-row" style="margin-top: 6px;">
+                                    <span class="ptg-history-product"><?php echo esc_html($item->product_name); ?></span>
+                                    <span class="ptg-history-amount"><?php echo number_format($item->amount); ?>원</span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="ptg-history-item ptg-history-empty">
+                            아직 결제 내역이 없습니다.
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
 
         </div>
@@ -649,25 +672,60 @@ function switchPmTab(tabName) {
         box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
     }
 
-    /* History Table */
-    .ptg-history-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
+    /* History List */
+    .ptg-history-list {
+        border-top: 1px solid #e5e7eb;
     }
 
-    .ptg-history-table th {
-        text-align: left;
-        padding: 12px;
-        background: #f9fafb;
-        color: #6b7280;
-        font-weight: 600;
+    .ptg-history-item {
+        padding: 16px 0;
         border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 14px;
+        color: #374151;
     }
 
-    .ptg-history-table td {
-        padding: 12px;
-        border-bottom: 1px solid #f3f4f6;
+    .ptg-history-item.ptg-history-empty {
+        text-align: center;
+        padding: 40px 0;
+        color: #6b7280;
+        font-style: italic;
+    }
+
+    .ptg-history-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .ptg-history-date {
+        font-size: 13px;
+        color: #6b7280;
+    }
+
+    .ptg-history-product {
+        font-weight: 600;
+        color: #111827;
+        font-size: 15px;
+    }
+
+    .ptg-history-amount {
+        font-weight: 600;
         color: #374151;
+    }
+
+    .ptg-history-status {
+        font-size: 13px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        background-color: #f3f4f6;
+        color: #4b5563;
+    }
+    
+    .ptg-history-status.completed {
+        background-color: #dcfce7;
+        color: #166534;
     }
 </style>

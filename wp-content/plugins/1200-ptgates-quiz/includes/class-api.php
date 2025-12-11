@@ -90,6 +90,11 @@ class API {
                     'type' => 'boolean',
                     'default' => false,
                 ),
+                'unsolved_only' => array(
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => false,
+                ),
             ),
         ));
         
@@ -377,6 +382,82 @@ class API {
                 ),
             ),
         ));
+
+        // 문제 내용 및 해설 수정 (관리자 전용)
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/content', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_question_content'),
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            },
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+                'content' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    // HTML 내용을 허용해야 하므로 sanitize_textarea_field보다 덜 엄격한 처리 필요할 수 있음
+                    // 여기서는 일단 기본 sanitization 후 wp_kses_post를 콜백 내부에서 사용할 예정
+                ),
+                'explanation' => array(
+                    'required' => false,
+                    'type' => 'string',
+                ),
+            ),
+        ));
+    }
+    
+    /**
+     * 문제 내용 및 해설 업데이트 (관리자용)
+     */
+    public static function update_question_content($request) {
+        global $wpdb;
+        
+        $question_id = $request->get_param('question_id');
+        // REST API의 get_param()은 이미 wp_unslash()를 처리하지만, 명시적으로 처리하여 안전하게 저장
+        $content = wp_unslash($request->get_param('content'));
+        $explanation = $request->has_param('explanation') ? wp_unslash($request->get_param('explanation')) : null;
+        
+        // 데이터 검증
+        if (empty($content)) {
+            return Rest::error('missing_content', '문제 내용은 필수입니다.');
+        }
+        
+        // 편집한 내용을 그대로 저장 (관리자 전용이므로 변형 없이 저장)
+        // wp_kses_post()는 HTML을 필터링하여 내용을 변형시킬 수 있으므로 제거
+        // SQL injection은 $wpdb->prepare()로 방지되므로 그대로 저장
+        // 역슬래시 제거: wp_unslash()로 슬래시 제거 후 DB에 저장 (중복 슬래시 방지)
+        
+        $table_name = 'ptgates_questions';
+        
+        $data = array('content' => $content);
+        $format = array('%s');
+        
+        if (isset($explanation)) {
+            $data['explanation'] = $explanation;
+            $format[] = '%s';
+        }
+        
+        $where = array('question_id' => $question_id);
+        $where_format = array('%d');
+        
+        $updated = $wpdb->update($table_name, $data, $where, $format, $where_format);
+        
+        if ($updated === false) {
+            return Rest::error('db_error', '데이터베이스 업데이트 중 오류가 발생했습니다.');
+        }
+
+        // 캐시 삭제 (중요)
+        wp_cache_delete('ptg_quiz_question_' . $question_id, 'ptg_quiz');
+        
+        return Rest::success(array(
+            'question_id' => $question_id,
+            'message' => '문제가 성공적으로 수정되었습니다.',
+            'updated' => $updated
+        ));
     }
     
     /**
@@ -395,12 +476,25 @@ class API {
         $year = $request->get_param('year');
         $subject = $request->get_param('subject');
         $subsubject = $request->get_param('subsubject');
-        $limit = absint($request->get_param('limit')) ?: 5; // 기본값 5문제
+        $limit_param = $request->get_param('limit');
+        $search_id = $request->get_param('id');
+        $search_keyword = $request->get_param('keyword');
+
+        // error_log('[PTG Quiz] get_questions_list limit_param: ' . print_r($limit_param, true));
+
+        // limit가 0이면 전체 (unlimited), 없으면 기본값 5
+        if (isset($limit_param) && ($limit_param === '0' || $limit_param === 0)) {
+            $limit = 0;
+        } else {
+            $limit = absint($limit_param) ?: 5; 
+        }
+        // error_log('[PTG Quiz] get_questions_list calculated limit: ' . $limit);
         $session = $request->get_param('session');
         $full_session = $request->get_param('full_session') === true || $request->get_param('full_session') === 'true';
         $bookmarked = $request->get_param('bookmarked') === true || $request->get_param('bookmarked') === 'true';
         $needs_review = $request->get_param('needs_review') === true || $request->get_param('needs_review') === 'true';
         $wrong_only = $request->get_param('wrong_only') === true || $request->get_param('wrong_only') === 'true';
+        $unsolved_only = $request->get_param('unsolved_only') === true || $request->get_param('unsolved_only') === 'true';
 
         // 모듈 결정 (퀴즈 vs 복습)
         $module = ($needs_review || $wrong_only) ? 'reviewer' : 'quiz';
@@ -422,7 +516,7 @@ class API {
         
         // 캐시 키 생성 (북마크/복습 필터는 사용자별로 다르므로 user_id 포함)
         $user_id = 0;
-        if ($bookmarked || $needs_review || $wrong_only) {
+        if ($bookmarked || $needs_review || $wrong_only || $unsolved_only) {
             $user_id = get_current_user_id();
             if (!$user_id) {
                 // 로그인하지 않은 경우 빈 배열 반환
@@ -440,6 +534,7 @@ class API {
             'bookmarked' => $bookmarked,
             'needs_review' => $needs_review,
             'wrong_only' => $wrong_only,
+            'unsolved_only' => $unsolved_only,
             'user_id' => $user_id,
         );
         $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
@@ -471,111 +566,127 @@ class API {
         
         $where = array("q.is_active = 1");
         // 기출문제 제외: exam_session >= 1000 (기출문제는 exam_session < 1000)
+        // 사용자가 이 조건은 유지하라고 함
         $where[] = "c.exam_session >= 1000";
 
         // 고급 퀴즈 유형 필터링 (Basic 등급은 고급 유형 제외)
         if (!$can_advanced) {
-            // TODO: DB의 type 컬럼 값을 정확히 확인하여 필터링 필요
-            // 현재는 'multiple_choice', 'short_answer'가 표준 유형이라고 가정
-            // $where[] = "q.type IN ('multiple_choice', 'short_answer')";
-            // 또는 이미지 포함 여부 확인
-            // $where[] = "q.content NOT LIKE '%<img%'";
+            // ...
         }
         
-        // 북마크 또는 복습 필터가 있으면 JOIN 추가
-        $join_clause = '';
-        if ($bookmarked || $needs_review || $wrong_only) {
-            $join_clause = $wpdb->prepare(
-                "INNER JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
-                $user_id
-            );
-            
-            if ($bookmarked) {
-                $where[] = "s.bookmarked = 1";
-            }
-            
-            // 복습 필요 OR 틀린 문제 (둘 다 선택 시 합집합)
-            if ($needs_review && $wrong_only) {
-                $where[] = "(s.needs_review = 1 OR s.last_result = 'wrong')";
-            } elseif ($needs_review) {
-                $where[] = "s.needs_review = 1";
-            } elseif ($wrong_only) {
-                $where[] = "s.last_result = 'wrong'";
-            }
-        }
-        
-        // 연도 필터
-        if (!empty($year)) {
-            $where[] = $wpdb->prepare("c.exam_year = %d", absint($year));
-        }
-        
-        // 과목/세부과목 필터
-        // - subsubject가 있으면 이를 포함하는 상위 과목군을 Subjects::MAP에서 역으로 찾아서 OR 조건으로 필터링
-        // - subsubject가 없고 subject가 있으면 subject로 LIKE 필터링
-        if (!empty($subsubject)) {
-            // 세부과목이 지정되면 해당 세부과목만 정확히 매칭 (DB의 subject 컬럼이 세부과목명을 가질 수 있음)
-            $sub_name = trim(sanitize_text_field($subsubject));
-            // 정확히 일치하거나, 일부 접두/접미 텍스트가 붙은 형태까지 포괄
-            $like = '%' . $wpdb->esc_like($sub_name) . '%';
-            $where[] = $wpdb->prepare("(c.subject = %s OR c.subject LIKE %s)", $sub_name, $like);
-        } elseif (!empty($subject)) {
-            $subject_filter = trim(sanitize_text_field($subject));
-            
-            // 세부과목 미선택 시: Subjects 맵을 사용해 상위 과목의 모든 세부과목을 OR로 포함
-            $subs_to_include = array();
-            if (!empty($session)) {
-                // 지정된 교시에서 해당 과목의 세부과목
-                $subs_to_include = Subjects::get_subsubjects((int) $session, $subject_filter);
-            } else {
-                // 교시 미지정 시: 모든 교시를 훑어서 해당 과목의 세부과목을 합침
-                $all_sessions = Subjects::get_sessions();
-                foreach ($all_sessions as $sess) {
-                    $subs = Subjects::get_subsubjects((int) $sess, $subject_filter);
-                    if (!empty($subs)) {
-                        $subs_to_include = array_merge($subs_to_include, $subs);
-                    }
+        // 검색(ID)가 있으면 다른 필터(북마크, 복습, 미풀이, 연도, 과목, 교시 등)는 무시하고 해당 문제만 조회
+        if (empty($search_id)) {
+            // 북마크 또는 복습 필터가 있으면 JOIN 추가
+            $join_clause = '';
+            if ($bookmarked || $needs_review || $wrong_only) {
+                // ... (existing logic)
+                $join_clause = $wpdb->prepare(
+                    "INNER JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
+                    $user_id
+                );
+                
+                if ($bookmarked) {
+                    $where[] = "s.bookmarked = 1";
                 }
-                $subs_to_include = array_values(array_unique($subs_to_include));
+                
+                if ($needs_review && $wrong_only) {
+                    $where[] = "(s.needs_review = 1 OR s.last_result = 'wrong')";
+                } elseif ($needs_review) {
+                    $where[] = "s.needs_review = 1";
+                } elseif ($wrong_only) {
+                    $where[] = "s.last_result = 'wrong'";
+                }
+            }
+
+            // 안푼 문제 필터 (NOT EXISTS 사용)
+            if ($unsolved_only) {
+                $where[] = $wpdb->prepare(
+                    "NOT EXISTS (
+                        SELECT 1 FROM {$states_table} s 
+                        WHERE s.question_id = q.question_id 
+                        AND s.user_id = %d
+                    )",
+                    $user_id
+                );
+                
+                if ($limit === 5) {
+                    $limit = 10;
+                }
             }
             
-            if (!empty($subs_to_include)) {
-                // 세부과목 목록을 정확/유사 매칭 OR 조건으로 생성
-                $or_parts = array();
-                $or_params = array();
-                foreach ($subs_to_include as $sub_name) {
-                    $or_parts[] = "(c.subject = %s OR c.subject LIKE %s)";
-                    $or_params[] = $sub_name;
-                    $or_params[] = '%' . $wpdb->esc_like($sub_name) . '%';
-                }
-                $where[] = $wpdb->prepare("(" . implode(" OR ", $or_parts) . ")", ...$or_params);
-            } else {
-                // 맵에서 과목을 찾지 못한 경우, 과거 동작을 유지: 상위 과목명으로 prefix LIKE
-                $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+            // 연도 필터
+            if (!empty($year)) {
+                $where[] = $wpdb->prepare("c.exam_year = %d", absint($year));
             }
         }
         
-        // 교시 필터
-        if (!empty($session)) {
-            $session_val = absint($session);
-            $exact_label = $session_val . '교시';
+        // 검색 필터 (ID) - 여기서 추가 (단독 조건)
+        if (!empty($search_id)) {
+            $where[] = $wpdb->prepare("q.question_id = %d", $search_id);
+        }
+        
+        // 검색 필터 (키워드)
+        if (!empty($search_keyword)) {
+            // ...
+            $like_keyword = '%' . $wpdb->esc_like($search_keyword) . '%';
             $where[] = $wpdb->prepare(
-                "(c.exam_session = %d 
-                  OR c.exam_course = %s 
-                  OR c.exam_course = %s 
-                  OR c.exam_course LIKE %s 
-                  OR c.exam_course LIKE %s 
-                  OR c.exam_course LIKE %s)",
-                $session_val,
-                (string) $session_val,
-                $exact_label,
-                '%' . $session_val . '교시%',
-                '%제' . $session_val . '교시%',
-                '%' . $session_val . ' 교시%'
+                "(q.content LIKE %s OR q.explanation LIKE %s)",
+                $like_keyword,
+                $like_keyword
             );
+        }
+        
+        if (empty($search_id)) {
+            // 과목/세부과목 필터
+            if (!empty($subsubject)) {
+                $sub_name = trim(sanitize_text_field($subsubject));
+                $like = '%' . $wpdb->esc_like($sub_name) . '%';
+                $where[] = $wpdb->prepare("(c.subject = %s OR c.subject LIKE %s)", $sub_name, $like);
+            } elseif (!empty($subject)) {
+                $subject_filter = trim(sanitize_text_field($subject));
+                
+                $subs_to_include = array();
+                if (!empty($session)) {
+                    $subs_to_include = Subjects::get_subsubjects((int) $session, $subject_filter);
+                } else {
+                    $all_sessions = Subjects::get_sessions();
+                    foreach ($all_sessions as $sess) {
+                        $subs = Subjects::get_subsubjects((int) $sess, $subject_filter);
+                        if (!empty($subs)) {
+                            $subs_to_include = array_merge($subs_to_include, $subs);
+                        }
+                    }
+                    $subs_to_include = array_values(array_unique($subs_to_include));
+                }
+                
+                if (!empty($subs_to_include)) {
+                    $or_parts = array();
+                    $or_params = array();
+                    foreach ($subs_to_include as $sub_name) {
+                        $or_parts[] = "(c.subject = %s OR c.subject LIKE %s)";
+                        $or_params[] = $sub_name;
+                        $or_params[] = '%' . $wpdb->esc_like($sub_name) . '%';
+                    }
+                    $where[] = $wpdb->prepare("(" . implode(" OR ", $or_parts) . ")", ...$or_params);
+                } else {
+                    $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+                }
+            }
+            
+            // 교시 필터
+            if (!empty($session)) {
+                $session_val = absint($session);
+                $exact_label = $session_val . '교시';
+                $where[] = $wpdb->prepare(
+                    "(c.exam_course = %s OR c.exam_course LIKE %s)",
+                    $exact_label,
+                    '%' . $session_val . '교시%'
+                );
+            }
         }
         
         $where_clause = implode(' AND ', $where);
-        
+            
         // 실전 모의고사: 전체 교시 풀이 시 과목별 비율 적용
         // 1교시: 물리치료 기초 60문항 + 물리치료 진단평가 45문항 = 105문항
         // 2교시: 물리치료 중재 65문항 + 의료관계법규 20문항 = 85문항
@@ -644,7 +755,7 @@ class API {
         
         // LIMIT 및 OFFSET
         $limit_clause = '';
-        if (empty($full_session)) {
+        if (empty($full_session) && $limit > 0) {
             $limit_clause = $wpdb->prepare("LIMIT %d", $limit);
         }
         
@@ -683,6 +794,8 @@ class API {
             {$order_clause}
             {$limit_clause}
         ";
+        
+        // error_log('[PTG Quiz] get_questions_list Query: ' . $query);
         
         $results = $wpdb->get_results($query, ARRAY_A);
         
@@ -728,54 +841,50 @@ class API {
         
         $question_ids = array();
         
-        if ($session == 1) {
-            // 1교시: 물리치료 기초 60문항 + 물리치료 진단평가 45문항
-            $subjects = array(
-                '물리치료 기초' => 60,
-                '물리치료 진단평가' => 45
-            );
-        } else if ($session == 2) {
-            // 2교시: 물리치료 중재 65문항 + 의료관계법규 20문항
-            $subjects = array(
-                '물리치료 중재' => 65,
-                '의료관계법규' => 20
-            );
-        } else {
-            // 잘못된 교시
-            return array();
-        }
+        // 1. 전체 문제 수 조회 (ptgates_subject 테이블)
+        // 1교시(course_no=1) -> 105문제, 2교시(course_no=2) -> 85문제
+        $limit_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT sum(questions) FROM ptgates_subject WHERE course_no = %d",
+            $session
+        ));
         
-        
-        // 각 과목별로 문제 가져오기
-        foreach ($subjects as $subject_name => $limit_count) {
-            $subject_where = $where_clause . ' AND ' . $wpdb->prepare("c.subject LIKE %s", $subject_name . '%');
-            
-            $query = "
-                SELECT q.question_id
-                FROM {$questions_table} q
-                INNER JOIN {$categories_table} c ON q.question_id = c.question_id
-                {$join_clause}
-                WHERE {$subject_where}
-                ORDER BY RAND()
-                LIMIT %d
-            ";
-            
-            $query = $wpdb->prepare($query, $limit_count);
-            $results = $wpdb->get_results($query, ARRAY_A);
-            
-            if (!empty($results)) {
-                foreach ($results as $row) {
-                    $question_ids[] = (int) $row['question_id'];
-                }
+        // Fallback: 테이블이나 데이터가 없으면 하드코딩된 값 사용
+        if (!$limit_count) {
+            if ($session == 1) {
+                $limit_count = 105;
+            } else if ($session == 2) {
+                $limit_count = 85;
+            } else {
+                return array();
             }
         }
         
-        // 문제 ID 배열을 섞어서 무작위 순서로 반환
-        shuffle($question_ids);
+        // 2. 단일 쿼리로 조회 (Exam Course 필터는 이미 $where_clause에 포함됨)
+        $query = "
+            SELECT q.question_id
+            FROM {$questions_table} q
+            INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+            {$join_clause}
+            WHERE {$where_clause}
+            ORDER BY RAND()
+            LIMIT %d
+        ";
+        
+        $query = $wpdb->prepare($query, $limit_count);
+        
+        // error_log('[PTG Quiz] get_session_questions_by_ratio Session: ' . $session . ', Limit: ' . $limit_count . ', Query: ' . $query);
+        
+        $results = $wpdb->get_results($query, ARRAY_A);
+        
+        if (!empty($results)) {
+            foreach ($results as $row) {
+                $question_ids[] = (int) $row['question_id'];
+            }
+        }
         
         return $question_ids;
     }
-    
+
     /**
      * 문제 조회
      */
@@ -848,13 +957,7 @@ class API {
         
         // 문제 본문에서 선택지 파싱 (ptgates-engine 스타일)
         $content = $question['content'];
-        // _x000D_ 제거 및 줄바꿈 정규화
-        $content = str_replace('_x000D_', '', $content);
-        $content = str_replace("\r\n", "\n", $content);
-        $content = str_replace("\r", "\n", $content);
-        // 연속된 줄바꿈을 하나로 정리
-        $content = preg_replace('/\n{2,}/', "\n", $content);
-        
+                
         $options = array();
         $question_text = $content;
         
@@ -876,8 +979,8 @@ class API {
                 $option_text = substr($content, $start_pos, $end_pos - $start_pos);
                 $option_text = trim($option_text);
                 // 연속된 줄바꿈을 공백으로 정리 (선택지는 한 줄로 표시)
-                $option_text = preg_replace('/\n{2,}/', ' ', $option_text); // 연속된 줄바꿈을 공백으로
-                $option_text = preg_replace('/\n/', ' ', $option_text); // 단일 줄바꿈도 공백으로
+                // $option_text = preg_replace('/\n{2,}/', ' ', $option_text); // 연속된 줄바꿈을 공백으로
+                // $option_text = preg_replace('/\n/', ' ', $option_text); // 단일 줄바꿈도 공백으로
                 
                 if (!empty($option_text)) {
                     $options[] = $option_text;
@@ -903,19 +1006,13 @@ class API {
                     $question_parts[] = substr($content, $last_pos);
                 }
                 
-                $question_text = trim(implode('', $question_parts));
+                // DB 내용 그대로 반환 (trim 제거)
+                $question_text = implode('', $question_parts);
             }
         }
         
-        // 해설도 정리
+        // 해설은 DB 내용 그대로 반환 (변형 없음)
         $explanation = $question['explanation'];
-        if (!empty($explanation)) {
-            $explanation = str_replace('_x000D_', '', $explanation);
-            $explanation = str_replace("\r\n", "\n", $explanation);
-            $explanation = str_replace("\r", "\n", $explanation);
-            // 연속된 줄바꿈을 하나로 정리
-            $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
-        }
         
         $response_data = array(
             'question_id' => (int) $question['question_id'],
@@ -931,6 +1028,9 @@ class API {
             'exam_course' => $question['exam_course'],
             'subject' => $question['subject'],
             'source_company' => $question['source_company'],
+            'question_image' => isset($question['question_image']) ? $question['question_image'] : null,
+            'raw_content' => $question['content'], // 편집을 위한 원본 내용
+            'raw_explanation' => $question['explanation'], // 편집을 위한 원본 해설 (변형 없음)
         );
         
         // 캐시 저장 (1시간)
@@ -1533,8 +1633,8 @@ class API {
                     $error_msg = '드로잉 저장 실패';
                     if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
                         $error_msg .= ': ' . $wpdb->last_error;
-                        error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
-                        error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
+                        // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
+                        // error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
                     }
                     throw new \Exception($error_msg);
                 }
@@ -1549,10 +1649,10 @@ class API {
             // SQL 에러 발생 시 상세 에러 로그
             global $wpdb;
             $error_message = $e->getMessage();
-            error_log('[PTG Quiz] 드로잉 저장 오류: ' . $error_message);
+            // error_log('[PTG Quiz] 드로잉 저장 오류: ' . $error_message);
             if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
-                error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
+                // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
+                // error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
                 $error_message = $wpdb->last_error . ' (' . $error_message . ')';
             }
             return Rest::error('save_error', '드로잉 저장에 실패했습니다: ' . $error_message, 500);
@@ -1560,9 +1660,9 @@ class API {
             // PHP 7+ Fatal Error 처리
             global $wpdb;
             $error_message = $e->getMessage();
-            error_log('[PTG Quiz] 드로잉 저장 치명적 오류: ' . $error_message);
+            // error_log('[PTG Quiz] 드로잉 저장 치명적 오류: ' . $error_message);
             if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
+                // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
                 $error_message = $wpdb->last_error;
             }
             return Rest::error('fatal_error', '드로잉 저장 중 오류가 발생했습니다: ' . $error_message, 500);
@@ -1606,7 +1706,7 @@ class API {
                 'deleted_count' => $result
             ), $result > 0 ? '드로잉이 삭제되었습니다.' : '삭제할 드로잉이 없습니다.');
         } catch (\Exception $e) {
-            error_log('[PTG Quiz] 드로잉 삭제 오류: ' . $e->getMessage());
+            // error_log('[PTG Quiz] 드로잉 삭제 오류: ' . $e->getMessage());
             return Rest::error('delete_error', '드로잉 삭제에 실패했습니다: ' . $e->getMessage(), 500);
         }
         }
@@ -1647,7 +1747,8 @@ class API {
         }
         
         $question_id = absint($request->get_param('question_id'));
-        $content = $request->get_param('content');
+        // REST API의 get_param()은 이미 wp_unslash()를 처리하지만, 명시적으로 처리하여 안전하게 저장
+        $content = wp_unslash($request->get_param('content'));
         $table_name = 'ptgates_user_memos';
 
         // 테이블 생성
@@ -1724,23 +1825,18 @@ class API {
             $subject = $wpdb->get_var($wpdb->prepare('SELECT subject FROM ptgates_categories WHERE question_id = %d LIMIT 1', $question_id));
         }
         
-        // 해설 정리
+        // 해설은 DB 내용 그대로 반환 (변형 없음)
         $explanation = $question['explanation'];
+        
+        // 동영상 강의 접근 권한 확인 (권한이 없을 때만 제거)
         if (!empty($explanation)) {
-            $explanation = str_replace('_x000D_', '', $explanation);
-            $explanation = str_replace("\r\n", "\n", $explanation);
-            $explanation = str_replace("\r", "\n", $explanation);
-            // 연속된 줄바꿈을 하나로 정리
-            $explanation = preg_replace('/\n{2,}/', "\n", $explanation);
-
-            // 동영상 강의 접근 권한 확인
             $can_video = true;
             if (class_exists('\PTG\Platform\Permissions')) {
                 $can_video = \PTG\Platform\Permissions::can_access_feature('video_lecture', get_current_user_id());
             }
 
             if (!$can_video) {
-                // iframe (유튜브 등) 및 video 태그 제거
+                // iframe (유튜브 등) 및 video 태그 제거 (권한 체크용)
                 $explanation = preg_replace('/<iframe.*?<\/iframe>/is', '', $explanation);
                 $explanation = preg_replace('/<video.*?<\/video>/is', '', $explanation);
                 // 동영상 링크 패턴 제거 (선택 사항)
@@ -1797,16 +1893,42 @@ class API {
     
     /**
      * 세부과목 목록 반환 (ptGates_subject의 subcategory DISTINCT)
+     * sort_order 순서로 정렬하여 반환
      */
     public static function get_subsubjects($request) {
+        global $wpdb;
         $session = absint($request->get_param('session'));
         $subject = sanitize_text_field($request->get_param('subject'));
         if (!$session || empty($subject)) {
             return Rest::success(array());
         }
 
-        $subs = Subjects::get_subsubjects($session, $subject);
-        return Rest::success($subs);
+        // DB에서 직접 sort_order 순서로 조회
+        $course_name = $session . '교시';
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT subject, sort_order 
+             FROM ptgates_subject_config 
+             WHERE exam_course = %s 
+             AND subject_category = %s 
+             AND is_active = 1 
+             ORDER BY sort_order ASC",
+            $course_name,
+            $subject
+        ), ARRAY_A);
+
+        if (empty($results)) {
+            // DB에 없으면 Subjects 클래스에서 가져오기 (fallback)
+            $subs = Subjects::get_subsubjects($session, $subject);
+            return Rest::success($subs);
+        }
+
+        // sort_order 순서대로 세부과목 이름만 추출
+        $subsubjects = array();
+        foreach ($results as $row) {
+            $subsubjects[] = $row['subject'];
+        }
+
+        return Rest::success($subsubjects);
     }
     /**
      * 통합 사용자 상태 조회 (북마크, 복습, 메모, 암기카드)

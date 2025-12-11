@@ -2,18 +2,16 @@
 /**
  * PTGates Platform - 교시 / 과목 / 세부과목 정적 정의
  *
- * - 데이터 출처: 사용자 정의 교과 구조
+ * - 데이터 출처: 사용자 정의 교과 구조 (DB: ptgates_exam_course_config, ptgates_subject_config)
  * - 용도: 교시/과목/세부과목 셀렉트 옵션, 문항 수 비율 계산 등에서 공통 사용
  * - 위치: 0000-ptgates-platform (플랫폼 코어) - 최초 로드 시 자동 메모리에 로드
  *
  * 주의:
- * - 이 클래스는 "정적 설정" 역할만 합니다. DB 스키마(ptGates_subject)와
- *   동기화가 필요하면 이 파일을 기준으로 마이그레이션을 작성하세요.
+ * - 이 클래스는 DB 설정을 로드하여 정적 맵처럼 동작합니다.
  * - 원본 위치: 1200-ptgates-quiz/includes/class-subjects.php (호환성 유지)
  * 
  * ⚠️ 중요: 과목 및 세부 과목 순서 규칙
- * - 이 MAP에 정의된 순서는 반드시 UI에 그대로 표시되어야 합니다.
- * - 교시/과목/세부과목 레벨에서의 순서는 절대 랜덤하지 않습니다.
+ * - DB의 sort_order를 따릅니다.
  * - 문항(question)만 랜덤하게 섞여야 합니다.
  * - 자세한 요구사항: docs/subject-question-rules.md 참조
  */
@@ -31,114 +29,80 @@ if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
 
 class Subjects {
 	/**
-	 * 교시 / 과목 / 세부과목별 문항수 정의
+	 * 교시 / 과목 / 세부과목별 문항수 정의 (DB 로드)
 	 *
-	 * 구조:
-	 * [
-	 *   교시번호(int) => [
-	 *     'total'    => 교시 전체 문항 수(int),
-	 *     'subjects' => [
-	 *       과목명(string) => [
-	 *         'total' => 해당 과목 총 문항 수(int),
-	 *         'subs'  => [
-	 *           세부과목명(string) => 문항 수(int),
-	 *           ...
-	 *         ]
-	 *       ],
-	 *       ...
-	 *     ]
-	 *   ],
-	 *   ...
-	 * ]
-	 *
-	 * 예시:
-	 * - self::MAP[1]['subjects']['물리치료 기초']['subs']['해부생리학'] === 22
+	 * @var array|null
 	 */
-	public const MAP = [
-		// 1교시 (총 105문항)
-		1 => [
-			'total'    => 105,
-			'subjects' => [
-				// 물리치료 기초 60문항
-				'물리치료 기초' => [
-					'total' => 60,
-					'subs'  => [
-						'해부생리학'      => 22,
-						'운동학'         => 12,
-						'물리적 인자치료' => 16,
-						'공중보건학'     => 10,
-					],
-				],
-				// 물리치료 진단평가 45문항
-				'물리치료 진단평가' => [
-					'total' => 45,
-					'subs'  => [
-						'근골격계 물리치료 진단평가' => 10,
-						'신경계 물리치료 진단평가'   => 16,
-						'진단평가 원리'              => 6,
-						'심폐혈관계 검사 및 평가'    => 4,
-						'기타 계통 검사'             => 2,
-						'임상의사결정'              => 7,
-					],
-				],
-			],
-		],
-
-		// 2교시 (총 85문항)
-		2 => [
-			'total'    => 85,
-			'subjects' => [
-				// 물리치료 중재 65문항
-				'물리치료 중재' => [
-					'total' => 65,
-					'subs'  => [
-						'근골격계 중재'     => 28,
-						'신경계 중재'       => 25,
-						'심폐혈관계 중재'   => 5,
-						'림프, 피부계 중재' => 2,
-						'물리치료 문제해결' => 5,
-					],
-				],
-				// 의료관계법규 20문항
-				'의료관계법규' => [
-					'total' => 20,
-					'subs'  => [
-						'의료법'         => 5,
-						'의료기사법'     => 5,
-						'노인복지법'     => 4,
-						'장애인복지법'   => 3,
-						'국민건강보험법' => 3,
-					],
-				],
-			],
-		],
-	];
+	private static $map = null;
 
 	/**
-	 * 사용 예시 (How to use this MAP)
-	 *
-	 * 1) 교시 목록 가져오기
-	 *    $sessions = \PTG\Quiz\Subjects::get_sessions(); // [1, 2]
-	 *
-	 * 2) 특정 교시의 상위 과목 목록
-	 *    $subjects = \PTG\Quiz\Subjects::get_subjects_for_session(1);
-	 *    // 예: ['물리치료 기초', '물리치료 진단평가']
-	 *
-	 * 3) 특정 교시+과목의 세부과목 목록
-	 *    $subs = \PTG\Quiz\Subjects::get_subsubjects(1, '물리치료 기초');
-	 *    // 예: ['해부생리학', '운동학', '물리적 인자치료', '공중보건학']
-	 *
-	 * 4) 특정 교시+과목+세부과목의 문항 수
-	 *    $count = \PTG\Quiz\Subjects::get_count(1, '물리치료 기초', '해부생리학'); // 22
-	 *
-	 * 5) 총 문항 수 대비 비율 계산(예: 세부과목 비중)
-	 *    $totalOfSession = self::MAP[1]['total']; // 105
-	 *    $value = \PTG\Quiz\Subjects::get_count(1, '물리치료 기초', '해부생리학'); // 22
-	 *    $ratio = $value !== null && $totalOfSession > 0 ? ($value / $totalOfSession) : 0.0;
-	 *
-	 * 6) 과목 총 문항 수 접근(정적 맵 직접 접근)
-	 *    $subjectTotal = self::MAP[1]['subjects']['물리치료 기초']['total']; // 60
+	 * 데이터 로드 여부 확인 및 로드
 	 */
+	public static function init() {
+		if ( self::$map === null ) {
+			self::load_map();
+		}
+	}
+
+	/**
+	 * DB에서 과목 설정 로드
+	 */
+	private static function load_map() {
+		global $wpdb;
+
+		// 1. 교시 설정 로드
+		$course_config = $wpdb->get_results( "SELECT * FROM ptgates_exam_course_config WHERE is_active = 1", ARRAY_A );
+		
+		// 2. 과목 설정 로드 (정렬: sort_order)
+		$subject_config = $wpdb->get_results( "SELECT * FROM ptgates_subject_config WHERE is_active = 1 ORDER BY sort_order ASC", ARRAY_A );
+
+		$map = [];
+
+		// 교시 초기화
+		if ( $course_config ) {
+			foreach ( $course_config as $course ) {
+				// exam_course가 '1교시', '2교시' 형태라고 가정하고 숫자만 추출하거나 매핑
+				$course_num = (int) preg_replace( '/[^0-9]/', '', $course['exam_course'] );
+				if ( $course_num > 0 ) {
+					$map[ $course_num ] = [
+						'total'    => (int) $course['total_questions'],
+						'subjects' => [],
+					];
+				}
+			}
+		}
+
+		// 과목 및 세부과목 구성
+		if ( $subject_config ) {
+			foreach ( $subject_config as $row ) {
+				$course_num = (int) preg_replace( '/[^0-9]/', '', $row['exam_course'] );
+				$main_subject = $row['subject_category']; // 대분류
+				$sub_subject = $row['subject']; // 세부과목
+				$count = (int) $row['question_count'];
+				$subject_code = $row['subject_code']; // 코드
+
+				if ( isset( $map[ $course_num ] ) ) {
+					// 대분류가 없으면 초기화
+					if ( ! isset( $map[ $course_num ]['subjects'][ $main_subject ] ) ) {
+						$map[ $course_num ]['subjects'][ $main_subject ] = [
+							'total' => 0,
+							'subs'  => [],
+							'codes' => [], // subject_code 매핑 추가
+						];
+					}
+
+					// 세부과목 추가
+					$map[ $course_num ]['subjects'][ $main_subject ]['subs'][ $sub_subject ] = $count;
+					$map[ $course_num ]['subjects'][ $main_subject ]['codes'][ $sub_subject ] = $subject_code;
+					
+					// 대분류 총점 누적
+					$map[ $course_num ]['subjects'][ $main_subject ]['total'] += $count;
+				}
+			}
+		}
+
+		self::$map = $map;
+	}
 
 	/**
 	 * 교시 목록 반환 (예: [1, 2])
@@ -146,7 +110,8 @@ class Subjects {
 	 * @return int[]
 	 */
 	public static function get_sessions(): array {
-		return array_keys( self::MAP );
+		self::init();
+		return array_keys( self::$map );
 	}
 
 	/**
@@ -156,10 +121,11 @@ class Subjects {
 	 * @return string[]
 	 */
 	public static function get_subjects_for_session( int $session ): array {
-		if ( ! isset( self::MAP[ $session ]['subjects'] ) ) {
+		self::init();
+		if ( ! isset( self::$map[ $session ]['subjects'] ) ) {
 			return [];
 		}
-		return array_keys( self::MAP[ $session ]['subjects'] );
+		return array_keys( self::$map[ $session ]['subjects'] );
 	}
 
 	/**
@@ -170,10 +136,11 @@ class Subjects {
 	 * @return string[]
 	 */
 	public static function get_subsubjects( int $session, string $subject ): array {
-		if ( ! isset( self::MAP[ $session ]['subjects'][ $subject ]['subs'] ) ) {
+		self::init();
+		if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['subs'] ) ) {
 			return [];
 		}
-		return array_keys( self::MAP[ $session ]['subjects'][ $subject ]['subs'] );
+		return array_keys( self::$map[ $session ]['subjects'][ $subject ]['subs'] );
 	}
 
 	/**
@@ -182,10 +149,22 @@ class Subjects {
 	 * 없으면 null 반환.
 	 */
 	public static function get_count( int $session, string $subject, string $subsubject ): ?int {
-		if ( ! isset( self::MAP[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ] ) ) {
+		self::init();
+		if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ] ) ) {
 			return null;
 		}
-		return (int) self::MAP[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ];
+		return (int) self::$map[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ];
+	}
+
+	/**
+	 * 세부과목명으로 subject_code 반환
+	 */
+	public static function get_code( int $session, string $subject, string $subsubject ): ?string {
+		self::init();
+		if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['codes'][ $subsubject ] ) ) {
+			return null;
+		}
+		return self::$map[ $session ]['subjects'][ $subject ]['codes'][ $subsubject ];
 	}
 
 	/**
@@ -218,9 +197,7 @@ class Subjects {
 		}
 
 		// Query DB for parent subject category
-		// ptgates_categories table: subject (sub-subject) -> subject_category (parent subject)
-		// We use LIMIT 1 because the mapping should be consistent
-		$table_name = 'ptgates_categories'; // Table name without prefix as per project convention
+		$table_name = 'ptgates_categories';
 		
 		// Prepare query
 		$query = $wpdb->prepare(
@@ -235,5 +212,56 @@ class Subjects {
 
 		return $parent_subject;
 	}
-}
 
+	/**
+	 * 출제 비율 계산 (subject_code 기준)
+	 * 
+	 * @param string $subject_code
+	 * @return float 비율 (0.0 ~ 1.0)
+	 */
+	public static function get_distribution_ratio( string $subject_code ): float {
+		self::init();
+		
+		// 전체 문항 수 합계 계산 (모든 교시 포함)
+		$total_questions_all = 0;
+		$target_count = 0;
+
+		foreach ( self::$map as $session_data ) {
+			foreach ( $session_data['subjects'] as $main_sub ) {
+				foreach ( $main_sub['subs'] as $sub_name => $count ) {
+					$total_questions_all += $count;
+					$code = $main_sub['codes'][$sub_name] ?? '';
+					if ( $code === $subject_code ) {
+						$target_count = $count;
+					}
+				}
+			}
+		}
+
+		if ( $total_questions_all === 0 ) {
+			return 0.0;
+		}
+
+		return $target_count / $total_questions_all;
+	}
+
+	/**
+	 * 모의고사 출제 문항 수 계산
+	 * 
+	 * @param int $n 요청 문항 수
+	 * @param string $subject_code 과목 코드
+	 * @return int 할당된 문항 수
+	 */
+	public static function get_questions_for_exam( int $n, string $subject_code ): int {
+		$ratio = self::get_distribution_ratio( $subject_code );
+		return (int) round( $ratio * $n );
+	}
+
+	/**
+	 * 전체 맵 반환 (디버깅용)
+	 */
+	public static function get_map() {
+		self::init();
+		return self::$map;
+	}
+}

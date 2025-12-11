@@ -44,6 +44,86 @@ class API {
     const NAMESPACE = 'ptg-admin/v1';
     
     /**
+     * 이미지 리사이징 및 최적화
+     * 
+     * @param string $file_path 원본 파일 경로
+     * @param string $target_path 저장할 파일 경로
+     * @param int $max_width 최대 너비 (기본값: 500px)
+     * @param int $max_height 최대 높이 (기본값: 500px)
+     * @param int $quality JPEG 품질 (기본값: 85)
+     * @return bool 성공 여부
+     */
+    private static function resize_and_optimize_image( $file_path, $target_path, $max_width = 500, $max_height = 500, $quality = 85 ) {
+        if ( ! file_exists( $file_path ) ) {
+            // error_log( '[PTGates Admin] 리사이징 실패: 원본 파일이 없음 - ' . $file_path );
+            return false;
+        }
+
+        // WordPress 이미지 에디터 사용
+        $image = wp_get_image_editor( $file_path );
+        
+        if ( is_wp_error( $image ) ) {
+            // error_log( '[PTGates Admin] 이미지 에디터 로드 실패: ' . $image->get_error_message() );
+            return false;
+        }
+
+        // 원본 이미지 크기 확인
+        $original_size = $image->get_size();
+        $original_width = $original_size['width'];
+        $original_height = $original_size['height'];
+        
+        // error_log( sprintf( '[PTGates Admin] 원본 이미지 크기: %dx%d', $original_width, $original_height ) );
+
+        // 리사이징이 필요한지 확인
+        $needs_resize = ( $original_width > $max_width || $original_height > $max_height );
+        
+        if ( $needs_resize ) {
+            // 비율 계산
+            $ratio = min( $max_width / $original_width, $max_height / $original_height );
+            $new_width = intval( $original_width * $ratio );
+            $new_height = intval( $original_height * $ratio );
+            
+            // error_log( sprintf( '[PTGates Admin] 리사이징: %dx%d -> %dx%d', $original_width, $original_height, $new_width, $new_height ) );
+            
+            // 리사이징 실행
+            $resized = $image->resize( $new_width, $new_height, false );
+            
+            if ( is_wp_error( $resized ) ) {
+                // error_log( '[PTGates Admin] 리사이징 실패: ' . $resized->get_error_message() );
+                return false;
+            }
+        } else {
+            // error_log( '[PTGates Admin] 리사이징 불필요 (이미 최적 크기)' );
+        }
+
+        // JPEG 품질 설정
+        $image->set_quality( $quality );
+        
+        // 파일 저장
+        $saved = $image->save( $target_path );
+        
+        if ( is_wp_error( $saved ) ) {
+            // error_log( '[PTGates Admin] 이미지 저장 실패: ' . $saved->get_error_message() );
+            return false;
+        }
+        
+        $saved_size = filesize( $target_path );
+        $original_file_size = filesize( $file_path );
+        $size_reduction = $original_file_size > 0 ? ( 1 - ( $saved_size / $original_file_size ) ) * 100 : 0;
+        
+        /*
+        error_log( sprintf( 
+            '[PTGates Admin] 이미지 최적화 완료: 원본 %s -> 저장 %s (%.1f%% 감소)', 
+            size_format( $original_file_size ),
+            size_format( $saved_size ),
+            $size_reduction
+        ) );
+        */
+        
+        return true;
+    }
+    
+    /**
      * 관리자 권한 체크
      */
     public static function check_admin_permission() {
@@ -283,6 +363,69 @@ class API {
             'callback' => array(__CLASS__, 'backfill_subject_categories'),
             'permission_callback' => array(__CLASS__, 'check_admin_permission'),
         ));
+
+        // 원시 과목 목록 조회
+        register_rest_route(self::NAMESPACE, '/raw-subjects', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_raw_subjects'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 과목 매핑 실행
+        register_rest_route(self::NAMESPACE, '/subject/map', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'map_subject'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 교시 설정 업데이트
+        register_rest_route(self::NAMESPACE, '/exam-course/update', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_exam_course'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 과목 카테고리(대분류) 생성
+        register_rest_route(self::NAMESPACE, '/category/create', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'create_subject_category'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 과목 카테고리(대분류) 수정
+        register_rest_route(self::NAMESPACE, '/category/update', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_subject_category'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 세부 과목 생성
+        register_rest_route(self::NAMESPACE, '/subject/create', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'create_subject'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 세부 과목 수정
+        register_rest_route(self::NAMESPACE, '/subject/update', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_subject'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 세부 과목 삭제
+        register_rest_route(self::NAMESPACE, '/subject/delete', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'delete_subject'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
+
+        // 기본 데이터 시딩 (초기화)
+        register_rest_route(self::NAMESPACE, '/seed-defaults', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'seed_default_subjects'),
+            'permission_callback' => array(__CLASS__, 'check_admin_permission'),
+        ));
     }
     
     /**
@@ -486,30 +629,7 @@ class API {
                 return Rest::error('query_failed', '쿼리 실행 중 오류: ' . $wpdb->last_error, 500);
             }
             
-            // 각 문제의 content와 explanation 정리 (_x000D_ 제거 및 줄바꿈 정리)
-            if (is_array($questions)) {
-                foreach ($questions as &$q) {
-                    // content 정리
-                    if (isset($q['content']) && is_string($q['content'])) {
-                        $q['content'] = str_replace('_x000D_', '', $q['content']);
-                        $q['content'] = str_replace("\r\n", "\n", $q['content']);
-                        $q['content'] = str_replace("\r", "\n", $q['content']);
-                        // 선택지 번호 앞의 연속된 줄바꿈 정리
-                        $q['content'] = preg_replace('/\n{2,}\s*([①-⑳])/u', "\n$1", $q['content']);
-                        // 전체에서 연속된 줄바꿈 정리
-                        $q['content'] = preg_replace('/\n{2,}/', "\n", $q['content']);
-                    }
-                    // explanation 정리
-                    if (isset($q['explanation']) && is_string($q['explanation'])) {
-                        $q['explanation'] = str_replace('_x000D_', "\n", $q['explanation']);
-                        $q['explanation'] = str_replace("\r\n", "\n", $q['explanation']);
-                        $q['explanation'] = str_replace("\r", "\n", $q['explanation']);
-                        // 연속된 줄바꿈 정리 (해설은 원본 유지 요청으로 주석 처리)
-                        // $q['explanation'] = preg_replace('/\n{2,}/', "\n", $q['explanation']);
-                    }
-                }
-                unset($q);
-            }
+            // DB 내용을 그대로 표시 (변환 작업 제거)
             
             // 각 문제에 과목(대분류) 정보 추가
             if (class_exists('\PTG\Quiz\Subjects') && is_array($questions)) {
@@ -610,23 +730,7 @@ class API {
             return Rest::error('not_found', '문제를 찾을 수 없습니다.', 404);
         }
         
-        // content와 explanation 정리 (_x000D_ 제거 및 줄바꿈 정리)
-        if (isset($question['content']) && is_string($question['content'])) {
-            $question['content'] = str_replace('_x000D_', '', $question['content']);
-            $question['content'] = str_replace("\r\n", "\n", $question['content']);
-            $question['content'] = str_replace("\r", "\n", $question['content']);
-            // 선택지 번호 앞의 연속된 줄바꿈 정리
-            $question['content'] = preg_replace('/\n{2,}\s*([①-⑳])/u', "\n$1", $question['content']);
-            // 전체에서 연속된 줄바꿈 정리
-            $question['content'] = preg_replace('/\n{2,}/', "\n", $question['content']);
-        }
-        if (isset($question['explanation']) && is_string($question['explanation'])) {
-            $question['explanation'] = str_replace('_x000D_', "\n", $question['explanation']);
-            $question['explanation'] = str_replace("\r\n", "\n", $question['explanation']);
-            $question['explanation'] = str_replace("\r", "\n", $question['explanation']);
-            // 연속된 줄바꿈 정리 (해설은 원본 유지 요청으로 주석 처리)
-            // $question['explanation'] = preg_replace('/\n{2,}/', "\n", $question['explanation']);
-        }
+        // DB 내용을 그대로 표시 (변환 작업 제거)
         
         // 캐시 저장 (10분)
         wp_cache_set($cache_key, $question, 'ptg_admin', 600);
@@ -659,17 +763,18 @@ class API {
         
         if ($request->has_param('content')) {
             $update_fields[] = 'content = %s';
-            $update_values[] = $request->get_param('content');
+            // REST API의 get_param()은 이미 wp_unslash()를 처리하지만, 명시적으로 처리하여 안전하게 저장
+            $update_values[] = wp_unslash($request->get_param('content'));
         }
         
         if ($request->has_param('answer')) {
             $update_fields[] = 'answer = %s';
-            $update_values[] = $request->get_param('answer');
+            $update_values[] = wp_unslash($request->get_param('answer'));
         }
         
         if ($request->has_param('explanation')) {
             $update_fields[] = 'explanation = %s';
-            $update_values[] = $request->get_param('explanation');
+            $update_values[] = wp_unslash($request->get_param('explanation'));
         }
         
         if ($request->has_param('type')) {
@@ -735,14 +840,10 @@ class API {
         ), ARRAY_A);
         
         // 0. 사용자 데이터 테이블에서 삭제 (외래키 제약조건이 없거나 확실하지 않은 경우를 대비해 명시적 삭제)
-        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_notes', 'ptgates_user_states', 'ptgates_user_results'];
+        $user_tables = ['ptgates_user_drawings', 'ptgates_user_memos', 'ptgates_user_states', 'ptgates_user_results'];
         foreach ($user_tables as $table) {
             if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
-                if ($table === 'ptgates_user_notes') {
-                    $wpdb->delete($table, array('ref_id' => $question_id, 'ref_type' => 'question'), array('%d', '%s'));
-                } else {
-                    $wpdb->delete($table, array('question_id' => $question_id), array('%d'));
-                }
+                $wpdb->delete($table, array('question_id' => $question_id), array('%d'));
             }
         }
         
@@ -796,9 +897,10 @@ class API {
         $questions_table = 'ptgates_questions';
         $categories_table = 'ptgates_categories';
         
-        $content = $request->get_param('content') ?: '';
-        $answer = $request->get_param('answer') ?: '';
-        $explanation = $request->get_param('explanation') ?: '';
+        // REST API의 get_param()은 이미 wp_unslash()를 처리하지만, 명시적으로 처리하여 안전하게 저장
+        $content = wp_unslash($request->get_param('content') ?: '');
+        $answer = wp_unslash($request->get_param('answer') ?: '');
+        $explanation = wp_unslash($request->get_param('explanation') ?: '');
         $subject = $request->get_param('subject');
         $subsubject = $request->get_param('subsubject');
         $exam_year = $request->get_param('exam_year');
@@ -807,8 +909,14 @@ class API {
         $is_active = $request->get_param('is_active') !== false ? 1 : 0;
         
         // content/explanation 줄바꿈 처리
-        $content = str_replace( array( "\r\n", "\r", "\n" ), '', $content );
-        $content = preg_replace( '/([①-⑳])/u', "\n$1", $content );
+        // 줄바꿈 정규화 (\r\n, \r -> \n)
+        $content = str_replace( array( "\r\n", "\r" ), "\n", $content );
+        
+        // 동그라미 숫자 앞에 줄바꿈이 없으면 추가 (선택지 내부 줄바꿈은 보존)
+        $content = preg_replace( '/(?<!\n)([①-⑳])/u', "\n$1", $content );
+        
+        // 연속된 줄바꿈 정리 (3개 이상 -> 2개로, 단 동그라미 숫자 앞의 줄바꿈은 유지)
+        $content = preg_replace( '/\n{3,}/u', "\n\n", $content );
         // $explanation = str_replace( array( "\r\n", "\r", "\n" ), '', $explanation );
         // $explanation = preg_replace( '/\s*(\(오답\s*해설\))/u', "\n$1", $explanation ); 
         
@@ -864,16 +972,70 @@ class API {
         if ($cat_result === false) {
             // 롤백? (MySQL MyISAM이면 불가, InnoDB면 트랜잭션 필요하지만 여기선 생략)
             // 에러 로그만 남김
-            error_log('Failed to insert category for question ' . $question_id . ': ' . $wpdb->last_error);
+            // error_log('Failed to insert category for question ' . $question_id . ': ' . $wpdb->last_error);
         }
         
         // 이미지 처리 (파일 업로드는 별도 엔드포인트나 multipart/form-data로 처리해야 함)
-        // REST API에서 파일 업로드는 $_FILES로 처리 가능
-        if ( ! empty( $_FILES['question_image']['name'] ) ) {
+        // WordPress REST API에서는 $request->get_file_params()를 사용해야 함
+        $file_params = $request->get_file_params();
+        
+        // 디버깅: 파일 파라미터 확인
+        // error_log( '[PTGates Admin] File params: ' . print_r( $file_params, true ) );
+        // error_log( '[PTGates Admin] $_FILES 내용: ' . print_r( $_FILES, true ) );
+        
+        // REST API의 get_file_params() 또는 $_FILES 사용
+        if ( ! empty( $file_params['question_image']['name'] ) ) {
+            $file = $file_params['question_image'];
+        } elseif ( ! empty( $_FILES['question_image']['name'] ) ) {
             $file = $_FILES['question_image'];
-            $allowed_types = array( 'image/jpeg', 'image/png', 'image/gif' );
+        } else {
+            $file = null;
+        }
+        
+        if ( $file && ! empty( $file['name'] ) ) {
             
-            if ( in_array( $file['type'], $allowed_types ) ) {
+            // 확장자 추출 (여러 방법 시도)
+            $ext = '';
+            $filename_lower = strtolower( $file['name'] );
+            
+            // 방법 1: pathinfo 사용
+            $ext_from_pathinfo = pathinfo( $file['name'], PATHINFO_EXTENSION );
+            if ( ! empty( $ext_from_pathinfo ) ) {
+                $ext = strtolower( $ext_from_pathinfo );
+            } else {
+                // 방법 2: 파일명에서 직접 추출
+                $parts = explode( '.', $file['name'] );
+                if ( count( $parts ) > 1 ) {
+                    $ext = strtolower( end( $parts ) );
+                }
+            }
+            
+            // 디버깅 로그
+            // error_log( '[PTGates Admin] 이미지 업로드 시도 - 파일명: ' . $file['name'] . ', 확장자: ' . $ext . ', MIME: ' . ( isset( $file['type'] ) ? $file['type'] : '없음' ) );
+            
+            $allowed_extensions = array( 'jpg', 'jpeg', 'png', 'gif' );
+            
+            // 확장자로 검증 (MIME 타입은 브라우저마다 다를 수 있으므로 확장자 우선)
+            $is_valid = ! empty( $ext ) && in_array( $ext, $allowed_extensions );
+            
+            // MIME 타입도 추가 검증 (선택적)
+            if ( ! $is_valid && ! empty( $file['type'] ) ) {
+                $mime_type = strtolower( $file['type'] );
+                $allowed_mime_types = array( 'image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/x-png' );
+                $is_valid = in_array( $mime_type, $allowed_mime_types );
+                // MIME 타입이 유효하면 확장자 추정
+                if ( $is_valid && empty( $ext ) ) {
+                    if ( strpos( $mime_type, 'jpeg' ) !== false ) {
+                        $ext = 'jpg';
+                    } elseif ( strpos( $mime_type, 'png' ) !== false ) {
+                        $ext = 'png';
+                    } elseif ( strpos( $mime_type, 'gif' ) !== false ) {
+                        $ext = 'gif';
+                    }
+                }
+            }
+            
+            if ( $is_valid && ! empty( $ext ) ) {
                 $upload_dir = wp_upload_dir();
                 $target_dir = $upload_dir['basedir'] . '/ptgates-questions/' . $exam_year . '/' . $exam_session;
                 
@@ -881,19 +1043,52 @@ class API {
                     wp_mkdir_p( $target_dir );
                 }
                 
-                $ext = pathinfo( $file['name'], PATHINFO_EXTENSION );
+                // 확장자를 소문자로 통일
                 $filename = $question_id . '.' . $ext;
                 $target_file = $target_dir . '/' . $filename;
                 
-                if ( move_uploaded_file( $file['tmp_name'], $target_file ) ) {
-                    $wpdb->update(
-                        $questions_table,
-                        array( 'question_image' => $filename ),
-                        array( 'question_id' => $question_id ),
-                        array( '%s' ),
-                        array( '%d' )
-                    );
+                // 임시 파일로 먼저 이동
+                $temp_file = $target_dir . '/temp_' . $filename;
+                
+                if ( move_uploaded_file( $file['tmp_name'], $temp_file ) ) {
+                    // 이미지 리사이징 및 최적화
+                    if ( self::resize_and_optimize_image( $temp_file, $target_file, 500, 500, 85 ) ) {
+                        // 리사이징 성공 시 임시 파일 삭제
+                        if ( file_exists( $temp_file ) ) {
+                            unlink( $temp_file );
+                        }
+                        // error_log( '[PTGates Admin] 이미지 리사이징 및 저장 완료: ' . $target_file );
+                        
+                        $wpdb->update(
+                            $questions_table,
+                            array( 'question_image' => $filename ),
+                            array( 'question_id' => $question_id ),
+                            array( '%s' ),
+                            array( '%d' )
+                        );
+                    } else {
+                        // 리사이징 실패 시 원본 파일 사용 (하위 호환성)
+                        // error_log( '[PTGates Admin] 리사이징 실패, 원본 파일 사용' );
+                        if ( file_exists( $temp_file ) ) {
+                            if ( rename( $temp_file, $target_file ) ) {
+                                $wpdb->update(
+                                    $questions_table,
+                                    array( 'question_image' => $filename ),
+                                    array( 'question_id' => $question_id ),
+                                    array( '%s' ),
+                                    array( '%d' )
+                                );
+                            } else {
+                                // error_log( '[PTGates Admin] 원본 파일 이동도 실패: ' . $target_file );
+                            }
+                        }
+                    }
+                } else {
+                    // error_log( '[PTGates Admin] 파일 이동 실패: ' . $temp_file );
                 }
+            } else {
+                // error_log( '[PTGates Admin] 이미지 검증 실패 - 파일명: ' . $file['name'] . ', 확장자: ' . $ext . ', MIME: ' . ( isset( $file['type'] ) ? $file['type'] : '없음' ) );
+                return Rest::error('invalid_file_type', '허용되지 않는 파일 형식입니다. (jpg, png, gif 만 가능)', 400);
             }
         }
         
@@ -956,90 +1151,28 @@ class API {
     /**
      * 과목 목록 조회 (교시별)
      */
+    /**
+     * 과목 목록 조회 (관리자용 전체 설정)
+     */
     public static function get_subjects($request) {
+        global $wpdb;
         try {
-            $session = $request->get_param('session');
+            // 1. 교시 설정 조회
+            $courses = $wpdb->get_results("SELECT * FROM ptgates_exam_course_config ORDER BY exam_course ASC", ARRAY_A);
             
-            // 캐시 키 생성
-            $cache_key = 'ptg_admin_subjects_' . ($session ? (int)$session : 'all');
+            // 2. 과목 설정 조회
+            $subjects = $wpdb->get_results("SELECT * FROM ptgates_subject_config ORDER BY sort_order ASC", ARRAY_A);
             
-            // 캐시 확인 (1시간 유효 - 과목 목록은 자주 변경되지 않음)
-            $cached = wp_cache_get($cache_key, 'ptg_admin');
-            if ($cached !== false) {
-                return Rest::success($cached);
-            }
-            
-            // Subjects 클래스가 없으면 다시 로드 시도 (최초 로드는 0000-ptgates-platform에서 수행됨)
-            if (!class_exists('\PTG\Quiz\Subjects')) {
-                // 플랫폼 코어를 먼저 시도
-                $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
-                if (file_exists($platform_subjects_file) && is_readable($platform_subjects_file)) {
-                    require_once $platform_subjects_file;
-                }
-                // 플랫폼 코어가 없으면 기존 위치에서 로드 (호환성)
-                if (!class_exists('\PTG\Quiz\Subjects')) {
-                    $possible_paths = array(
-                        WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php',
-                        plugin_dir_path(__FILE__) . '../../1200-ptgates-quiz/includes/class-subjects.php',
-                    );
-                    foreach ($possible_paths as $subjects_file) {
-                        if (file_exists($subjects_file) && is_readable($subjects_file)) {
-                            require_once $subjects_file;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            if (!class_exists('\PTG\Quiz\Subjects')) {
-                return Rest::error('class_not_found', 'Subjects 클래스를 찾을 수 없습니다. 0000-ptgates-platform 또는 1200-ptgates-quiz 플러그인이 활성화되어 있는지 확인하세요.', 500);
-            }
-            
-            // 교시별 과목 목록
-            $result = array();
-            
-            if (!empty($session)) {
-                // 특정 교시의 과목만
-                $session = (int) $session;
-                $subjects = \PTG\Quiz\Subjects::get_subjects_for_session($session);
-                if (is_array($subjects)) {
-                    foreach ($subjects as $subject) {
-                        $subsubjects = \PTG\Quiz\Subjects::get_subsubjects($session, $subject);
-                        $result[] = array(
-                            'session' => $session,
-                            'name' => $subject,
-                            'subsubjects' => is_array($subsubjects) ? $subsubjects : array(),
-                        );
-                    }
-                }
-            } else {
-                // 모든 교시의 과목
-                $sessions = \PTG\Quiz\Subjects::get_sessions();
-                if (is_array($sessions)) {
-                    foreach ($sessions as $sess) {
-                        $subjects = \PTG\Quiz\Subjects::get_subjects_for_session($sess);
-                        if (is_array($subjects)) {
-                            foreach ($subjects as $subject) {
-                                $subsubjects = \PTG\Quiz\Subjects::get_subsubjects($sess, $subject);
-                                $result[] = array(
-                                    'session' => $sess,
-                                    'name' => $subject,
-                                    'subsubjects' => is_array($subsubjects) ? $subsubjects : array(),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 캐시 저장 (1시간)
-            wp_cache_set($cache_key, $result, 'ptg_admin', 3600);
-            
-            return Rest::success($result);
+            // 3. 카테고리(대분류) 목록 추출 (중복 제거)
+            $categories = $wpdb->get_results("SELECT DISTINCT subject_category, exam_course FROM ptgates_subject_config ORDER BY sort_order ASC", ARRAY_A);
+
+            return Rest::success(array(
+                'courses' => $courses,
+                'subjects' => $subjects,
+                'categories' => $categories
+            ));
         } catch (\Exception $e) {
-            return Rest::error('server_error', '서버 오류: ' . $e->getMessage() . ' (File: ' . $e->getFile() . ', Line: ' . $e->getLine() . ')', 500);
-        } catch (\Error $e) {
-            return Rest::error('server_error', '서버 오류: ' . $e->getMessage() . ' (File: ' . $e->getFile() . ', Line: ' . $e->getLine() . ')', 500);
+            return Rest::error('server_error', '서버 오류: ' . $e->getMessage(), 500);
         }
     }
     
@@ -1155,6 +1288,364 @@ class API {
             'count' => $updated_count,
             'failed' => $failed_count
         ));
+    }
+
+    /**
+     * 교시 설정 업데이트
+     */
+    public static function update_exam_course($request) {
+        global $wpdb;
+        $id = $request->get_param('id');
+        $total_questions = $request->get_param('total_questions');
+        
+        if (!$id || $total_questions === null) {
+            return Rest::error('invalid_param', '필수 파라미터 누락', 400);
+        }
+        
+        $result = $wpdb->update(
+            'ptgates_exam_course_config',
+            array('total_questions' => $total_questions),
+            array('id' => $id),
+            array('%d'),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return Rest::error('db_error', '업데이트 실패', 500);
+        }
+        
+        return Rest::success(array('message' => '업데이트 성공'));
+    }
+
+    /**
+     * 과목 카테고리(대분류) 생성
+     */
+    public static function create_subject_category($request) {
+        return Rest::success(array('message' => '카테고리 생성은 세부과목 추가 시 자동 처리됩니다.'));
+    }
+
+    /**
+     * 과목 카테고리(대분류) 수정
+     */
+    public static function update_subject_category($request) {
+        global $wpdb;
+        $old_name = $request->get_param('old_name');
+        $new_name = $request->get_param('new_name');
+        $exam_course = $request->get_param('exam_course');
+        
+        if (!$old_name || !$new_name) {
+            return Rest::error('invalid_param', '필수 파라미터 누락', 400);
+        }
+        
+        $where = array('subject_category' => $old_name);
+        $where_format = array('%s');
+        
+        if ($exam_course) {
+            $where['exam_course'] = $exam_course;
+            $where_format[] = '%s';
+        }
+        
+        $result = $wpdb->update(
+            'ptgates_subject_config',
+            array('subject_category' => $new_name),
+            $where,
+            array('%s'),
+            $where_format
+        );
+        
+        if ($result === false) {
+            return Rest::error('db_error', '업데이트 실패', 500);
+        }
+        
+        return Rest::success(array('message' => '카테고리 수정 성공', 'affected' => $result));
+    }
+
+    /**
+     * 세부 과목 생성
+     */
+    public static function create_subject($request) {
+        global $wpdb;
+        
+        $data = array(
+            'exam_course' => $request->get_param('exam_course'),
+            'subject_category' => $request->get_param('subject_category'),
+            'subject' => $request->get_param('subject'),
+            'subject_code' => $request->get_param('subject_code'),
+            'question_count' => $request->get_param('question_count'),
+            'sort_order' => $request->get_param('sort_order') ?: 0,
+            'is_active' => 1
+        );
+        
+        if (empty($data['exam_course']) || empty($data['subject']) || empty($data['subject_code'])) {
+            return Rest::error('invalid_param', '필수 파라미터 누락', 400);
+        }
+        
+        $result = $wpdb->insert('ptgates_subject_config', $data);
+        
+        if ($result === false) {
+            return Rest::error('db_error', '생성 실패: ' . $wpdb->last_error, 500);
+        }
+        
+        return Rest::success(array('id' => $wpdb->insert_id, 'message' => '과목 생성 성공'));
+    }
+
+    /**
+     * 세부 과목 수정
+     */
+    public static function update_subject($request) {
+        global $wpdb;
+        
+        $id = $request->get_param('config_id');
+        if (!$id) {
+            return Rest::error('invalid_param', 'ID 누락', 400);
+        }
+        
+        $data = array();
+        $params = ['exam_course', 'subject_category', 'subject', 'subject_code', 'question_count', 'sort_order', 'is_active'];
+        
+        foreach ($params as $param) {
+            if ($request->has_param($param)) {
+                $data[$param] = $request->get_param($param);
+            }
+        }
+        
+        if (empty($data)) {
+            return Rest::error('no_data', '수정할 데이터가 없습니다.', 400);
+        }
+        
+        $result = $wpdb->update(
+            'ptgates_subject_config',
+            $data,
+            array('config_id' => $id)
+        );
+        
+        if ($result === false) {
+            return Rest::error('db_error', '수정 실패', 500);
+        }
+        
+        return Rest::success(array('message' => '과목 수정 성공'));
+    }
+
+    /**
+     * 세부 과목 삭제 (Soft Delete)
+     */
+    public static function delete_subject($request) {
+        global $wpdb;
+        
+        $id = $request->get_param('config_id');
+        if (!$id) {
+            return Rest::error('invalid_param', 'ID 누락', 400);
+        }
+        
+        // Soft delete: is_active = 0
+        $result = $wpdb->update(
+            'ptgates_subject_config',
+            array('is_active' => 0),
+            array('config_id' => $id),
+            array('%d'),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return Rest::error('db_error', '삭제 실패', 500);
+        }
+        
+        return Rest::success(array('message' => '과목 삭제 성공'));
+    }
+    /**
+     * 기본 데이터 시딩 (초기화)
+     */
+    public static function seed_default_subjects($request) {
+        global $wpdb;
+        
+        // 1. 기존 데이터 확인
+        $course_count = $wpdb->get_var("SELECT COUNT(*) FROM ptgates_exam_course_config");
+        if ($course_count > 0) {
+            return Rest::error('already_exists', '이미 데이터가 존재합니다.', 400);
+        }
+        
+        // 2. 기본 맵 정의 (1200-ptgates-quiz/includes/class-subjects.php 참조)
+        $map = [
+            1 => [
+                'total'    => 105,
+                'subjects' => [
+                    '물리치료 기초' => [
+                        'total' => 60,
+                        'subs'  => [
+                            '해부생리학'      => 22,
+                            '운동학'         => 12,
+                            '물리적 인자치료' => 16,
+                            '공중보건학'     => 10,
+                        ],
+                    ],
+                    '물리치료 진단평가' => [
+                        'total' => 45,
+                        'subs'  => [
+                            '근골격계 물리치료 진단평가' => 10,
+                            '신경계 물리치료 진단평가'   => 16,
+                            '진단평가 원리'              => 6,
+                            '심폐혈관계 검사 및 평가'    => 4,
+                            '기타 계통 검사'             => 2,
+                            '임상의사결정'              => 7,
+                        ],
+                    ],
+                ],
+            ],
+            2 => [
+                'total'    => 85,
+                'subjects' => [
+                    '물리치료 중재' => [
+                        'total' => 65,
+                        'subs'  => [
+                            '근골격계 중재'     => 28,
+                            '신경계 중재'       => 25,
+                            '심폐혈관계 중재'   => 5,
+                            '림프, 피부계 중재' => 2,
+                            '물리치료 문제해결' => 5,
+                        ],
+                    ],
+                    '의료관계법규' => [
+                        'total' => 20,
+                        'subs'  => [
+                            '의료법'         => 5,
+                            '의료기사법'     => 5,
+                            '노인복지법'     => 4,
+                            '장애인복지법'   => 3,
+                            '국민건강보험법' => 3,
+                        ],
+                    ],
+                ],
+            ],
+            3 => [ // 3교시 (실기) - 추가 추정
+                'total' => 80,
+                'subjects' => [
+                    '실기' => [
+                        'total' => 80,
+                        'subs' => [
+                            '근골격계' => 40,
+                            '신경계' => 40, 
+                        ]
+                    ]
+                ]
+            ]
+        ];
+        
+        // 3. 데이터 삽입
+        $inserted_courses = 0;
+        $inserted_subjects = 0;
+        
+        foreach ($map as $session_num => $data) {
+            // 교시 삽입
+            $course_name = $session_num . '교시';
+            $wpdb->insert(
+                'ptgates_exam_course_config',
+                array(
+                    'exam_course' => $course_name,
+                    'total_questions' => $data['total'],
+                    'is_active' => 1
+                )
+            );
+            $inserted_courses++;
+            
+            $sort_order = 1;
+            foreach ($data['subjects'] as $main_subject => $sub_data) {
+                foreach ($sub_data['subs'] as $sub_subject => $count) {
+                    // 코드 생성 (임시)
+                    $code = 'PT_' . $session_num . '_' . mb_substr($sub_subject, 0, 2, 'UTF-8') . '_' . rand(100, 999);
+                    
+                    $wpdb->insert(
+                        'ptgates_subject_config',
+                        array(
+                            'exam_course' => $course_name,
+                            'subject_category' => $main_subject,
+                            'subject' => $sub_subject,
+                            'subject_code' => $code,
+                            'question_count' => $count,
+                            'sort_order' => $sort_order++,
+                            'is_active' => 1
+                        )
+                    );
+                    $inserted_subjects++;
+                }
+            }
+        }
+        
+        return Rest::success(array(
+            'message' => "초기화 완료: 교시 {$inserted_courses}개, 과목 {$inserted_subjects}개 생성됨.",
+            'courses' => $inserted_courses,
+            'subjects' => $inserted_subjects
+        ));
+    }
+
+    /**
+     * 원시 과목 목록 조회 (ptgates_categories)
+     */
+    public static function get_raw_subjects() {
+        global $wpdb;
+        
+        $results = $wpdb->get_results("
+            SELECT subject, COUNT(*) as count
+            FROM ptgates_categories
+            WHERE exam_session >= 1000
+            AND (
+                subject_category_code IS NULL OR subject_category_code = ''
+                OR subject_code IS NULL OR subject_code = ''
+            )
+            GROUP BY subject
+            ORDER BY subject ASC
+        ");
+        
+        return Rest::success($results);
+    }
+
+    /**
+     * 과목 매핑 실행
+     */
+    public static function map_subject($request) {
+        global $wpdb;
+        
+        $params = $request->get_json_params();
+        $old_subject = sanitize_text_field($params['old_subject'] ?? '');
+        $new_subject_id = absint($params['new_subject_id'] ?? 0);
+
+        if (empty($old_subject) || empty($new_subject_id)) {
+            return Rest::error('invalid_params', 'Invalid parameters');
+        }
+
+        // 정식 과목 정보 조회
+        $config = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM ptgates_subject_config WHERE config_id = %d",
+            $new_subject_id
+        ));
+
+        if (!$config) {
+            return Rest::error('not_found', 'Official subject not found');
+        }
+
+        // ptgates_categories 업데이트
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE ptgates_categories
+             SET subject = %s,
+                 subject_code = %s,
+                 subject_category = %s,
+                 subject_category_code = %s
+             WHERE subject = %s
+             AND exam_session >= 1000",
+            $config->subject,
+            $config->subject_code,
+            $config->subject_category,
+            !empty($config->subject_category_code) ? $config->subject_category_code : '', // Handle potential null
+            $old_subject
+        ));
+
+        if ($updated === false) {
+            return Rest::error('db_error', 'Database update failed');
+        }
+
+        return Rest::success([
+            'message' => "성공적으로 매핑되었습니다. ({$updated}개 문항 업데이트)",
+            'updated_count' => $updated
+        ]);
     }
 }
 

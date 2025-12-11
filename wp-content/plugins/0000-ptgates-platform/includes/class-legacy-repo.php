@@ -67,11 +67,11 @@ class LegacyRepo {
             }
         }
 
-        // subject_category 필터 (대분류)
-        if (!empty($args['subject_category'])) {
-            $where[] = "c.subject_category = %s";
-            $where_values[] = sanitize_text_field($args['subject_category']);
-        }
+        // subject_category 필터 (대분류) - 테이블에 컬럼이 없으므로 제거
+        // if (!empty($args['subject_category'])) {
+        //     $where[] = "c.subject_category = %s";
+        //     $where_values[] = sanitize_text_field($args['subject_category']);
+        // }
 
         // exam_course 필터
         if (!empty($args['exam_course'])) {
@@ -223,11 +223,11 @@ class LegacyRepo {
             }
         }
 
-        // subject_category 필터 (대분류)
-        if (!empty($args['subject_category'])) {
-            $where[] = "c.subject_category = %s";
-            $where_values[] = sanitize_text_field($args['subject_category']);
-        }
+        // subject_category 필터 (대분류) - 테이블에 컬럼이 없으므로 제거
+        // if (!empty($args['subject_category'])) {
+        //     $where[] = "c.subject_category = %s";
+        //     $where_values[] = sanitize_text_field($args['subject_category']);
+        // }
 
         if (!empty($args['exam_course'])) { 
             $where[] = "c.exam_course = %s";

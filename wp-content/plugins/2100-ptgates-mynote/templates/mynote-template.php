@@ -10,7 +10,7 @@ $dashboard_url = PTG_MyNote_Plugin::get_dashboard_url();
         <div class="ptg-mynote-header-left">
             <h2>마이노트</h2>
             <a href="<?php echo esc_url( $dashboard_url ); ?>" class="ptg-btn-dashboard">
-                ← 대시보드로 돌아가기
+                ← 학습현황으로 돌아가기
             </a>
         </div>
         <div class="ptg-mynote-controls">

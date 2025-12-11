@@ -1,4 +1,4 @@
-mysqldump -u root -p ptgates ptgates_billing_history ptgates_categories ptgates_exam_presets ptgates_exam_session_items ptgates_exam_sessions ptgates_flashcard_sets ptgates_flashcards ptgates_highlights ptgates_org_member_link ptgates_organization ptgates_questions ptgates_review_schedule ptgates_subject ptgates_today_queue ptgates_user_drawings ptgates_user_member ptgates_user_memos ptgates_user_notes ptgates_user_results ptgates_user_states --no-data > ptgates_schema_only.sql
+mysqldump -u root -p ptgates ptgates_billing_history ptgates_categories ptgates_exam_presets ptgates_exam_session_items ptgates_exam_sessions ptgates_flashcard_sets ptgates_flashcards ptgates_highlights ptgates_org_member_link ptgates_organization ptgates_questions ptgates_review_schedule ptgates_subject ptgates_today_queue ptgates_user_drawings ptgates_user_member ptgates_user_memos ptgates_user_results ptgates_user_states --no-data > ptgates_schema_only.sql
 
 /*M!999999\- enable the sandbox mode */
 -- MariaDB dump 10.19  Distrib 10.11.11-MariaDB, for debian-linux-gnu (x86_64)
@@ -416,26 +416,6 @@ CREATE TABLE `ptgates_user_memos` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_question` (`user_id`,`question_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `ptgates_user_notes`
---
-
-DROP TABLE IF EXISTS `ptgates_user_notes`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ptgates_user_notes` (
-  `note_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` bigint(20) unsigned NOT NULL,
-  `ref_type` enum('question','theory','notebook') NOT NULL DEFAULT 'question',
-  `ref_id` bigint(20) unsigned NOT NULL COMMENT 'question_id 또는 이론ID 등',
-  `text` longtext NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`note_id`),
-  KEY `idx_user_ref` (`user_id`,`ref_type`,`ref_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

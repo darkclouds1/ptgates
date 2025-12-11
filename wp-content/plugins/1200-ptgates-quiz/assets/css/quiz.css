@@ -7,193 +7,196 @@
 /* 컨테이너 - 양옆 마진 없이 중앙 정렬 */
 .ptg-quiz-container,
 #ptg-quiz-container {
-    max-width: 900px !important;
-    width: 900px !important;
-    margin: 0 !important;
-    padding: 10px !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-    position: relative !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+  max-width: 750px !important;
+  width: 750px !important;
+  margin: 0 !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
 }
 
 /* 플러그인 헤더 (Study 스타일과 동일) */
 .ptg-quiz-header {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 12px !important;
-    margin-top: 5px !important;
-    margin-bottom: 18px !important;
-    padding: 12px 14px !important;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 12px !important;
-    box-shadow: 0 4px 12px rgba(15,23,42,0.06) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-top: 5px !important;
+  margin-bottom: 18px !important;
+  padding: 12px 14px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06) !important;
 }
 
 .ptg-quiz-header h1 {
-    margin: 0 !important;
-    font-size: 18px !important;
-    font-weight: 700 !important;
-    color: #0f172a !important;
-    letter-spacing: -0.01em !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
+  margin: 0 !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.01em !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
 }
 
 .ptg-quiz-header-right {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-    flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-shrink: 0 !important;
+  order: 2 !important; /* 데스크톱에서 두 번째 위치 */
 }
 
 /* 활성 필터 표시 영역 */
 .ptg-quiz-active-filters {
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    flex-wrap: wrap !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  order: 3 !important; /* 기본적으로 세 번째 위치 (데스크톱에서는 첫 번째 줄) */
 }
 
 .ptg-quiz-filter-badge {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    padding: 6px 12px !important;
-    background: #f1f5f9 !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 20px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: #4a5568 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 20px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #4a5568 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
 }
 
 .ptg-quiz-filter-badge-icon {
-    font-size: 14px !important;
-    line-height: 1 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
 }
 
 .ptg-quiz-filter-badge-label {
-    font-size: 13px !important;
-    line-height: 1 !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
 }
 
 .ptg-quiz-filter-badge-close {
-    background: none !important;
-    border: none !important;
-    color: #64748b !important;
-    font-size: 18px !important;
-    line-height: 1 !important;
-    cursor: pointer !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    margin-left: 4px !important;
-    width: 18px !important;
-    height: 18px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 50% !important;
-    transition: all 0.2s ease !important;
-    opacity: 0.8 !important;
+  background: none !important;
+  border: none !important;
+  color: #64748b !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  margin-left: 4px !important;
+  width: 18px !important;
+  height: 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+  opacity: 0.8 !important;
 }
 
 .ptg-quiz-filter-badge-close:hover {
-    opacity: 1 !important;
-    background: #e2e8f0 !important;
-    transform: scale(1.1) !important;
+  opacity: 1 !important;
+  background: #e2e8f0 !important;
+  transform: scale(1.1) !important;
 }
 
 .ptg-quiz-dashboard-link {
-    display: inline-block !important;
-    background: #edf2f7 !important; /* Added background */
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #4a5568 !important;
-    text-decoration: none !important;
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    transition: all 0.2s ease !important;
-    white-space: nowrap !important;
+  display: inline-block !important;
+  background: #edf2f7 !important; /* Added background */
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #4a5568 !important;
+  text-decoration: none !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
 }
 
 .ptg-quiz-dashboard-link:hover {
-    background: #f1f5f9 !important;
-    color: #2d3748 !important;
-    text-decoration: underline !important;
+  background: #f1f5f9 !important;
+  color: #2d3748 !important;
+  text-decoration: underline !important;
 }
 
 .ptg-quiz-tip-link {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #4a5568 !important;
-    text-decoration: none !important;
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    transition: all 0.2s ease !important;
-    white-space: nowrap !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #4a5568 !important;
+  text-decoration: none !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
 }
 
 .ptg-quiz-tip-link:hover {
-    background: #f1f5f9 !important;
-    color: #2d3748 !important;
-    text-decoration: underline !important;
+  background: #f1f5f9 !important;
+  color: #2d3748 !important;
+  text-decoration: underline !important;
 }
 
 .ptg-quiz-tip-link:active {
-    opacity: 0.8;
+  opacity: 0.8;
 }
 
 /* 도구바 */
 .ptg-quiz-toolbar {
-    display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
-    padding: 8px;
-    background: #f5f5f5;
-    border-radius: 4px;
-    position: relative;
-    z-index: 1000; /* 드로잉 오버레이보다 높게 설정 */
+  display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px; /* 사용자 요청: 최소 여백 */
+  padding: 0; /* 사용자 요청: 배경이 투명하므로 패딩 제거 */
+  background: transparent; /* 배경색 제거 */
+  min-height: 50px; /* 드로잉 툴바(약 46px) 수용 */
+  border-radius: 4px;
+  position: relative;
+  z-index: 20000 !important; /* 드로잉 오버레이보다 높게 설정, 모바일 메뉴보다 낮게 */
 }
 
 /* 퀴즈 툴바 내 모든 버튼의 테마 border 제거 (최우선 적용) */
 .ptg-quiz-toolbar button,
 .ptg-quiz-toolbar button[type="button"],
 .ptg-quiz-toolbar [type="button"] {
-    border: none !important;
-    outline: none !important;
+  border: none !important;
+  outline: none !important;
 }
 
 .ptg-quiz-toolbar button:hover,
 .ptg-quiz-toolbar button:focus,
 .ptg-quiz-toolbar button:active,
 .ptg-quiz-toolbar button:focus-visible {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* 드로잉 툴바 (왼쪽) */
 .ptg-drawing-toolbar {
-    flex-shrink: 0; /* 크기 고정 */
+  flex-shrink: 0; /* 크기 고정 */
 }
 
 .ptg-toolbar-icons {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0; /* 크기 고정 */
-    margin-left: auto; /* 항상 오른쪽에 고정 */
-    overflow: visible !important; /* 오버플로우 방지 */
-    flex-wrap: nowrap !important; /* 줄바꿈 방지 */
-    min-width: fit-content; /* 버튼이 모두 들어갈 수 있도록 */
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0; /* 크기 고정 */
+  margin-left: auto; /* 항상 오른쪽에 고정 */
+  overflow: visible !important; /* 오버플로우 방지 */
+  flex-wrap: nowrap !important; /* 줄바꿈 방지 */
+  min-width: fit-content; /* 버튼이 모두 들어갈 수 있도록 */
 }
 
 /* 테마 CSS button border 완전히 덮어쓰기 */
@@ -203,18 +206,18 @@ button.ptg-btn-icon,
 button[type="button"].ptg-btn-icon,
 [type="button"].ptg-btn-icon,
 .ptg-btn-icon {
-    background: transparent;
-    border: none !important;
-    padding: 8px;
-    cursor: pointer;
-    font-size: 20px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 8px;
-    color: #333;
-    outline: none !important;
-    position: relative;
-    transform: scale(1);
-    box-shadow: none !important;
+  background: transparent;
+  border: none !important;
+  padding: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  color: #333;
+  outline: none !important;
+  position: relative;
+  transform: scale(1);
+  box-shadow: none !important;
 }
 
 /* 모든 상태에서 border 제거 */
@@ -228,1825 +231,2290 @@ button.ptg-btn-icon:focus-visible,
 .ptg-quiz-toolbar .ptg-btn-icon:hover,
 .ptg-quiz-toolbar .ptg-btn-icon:focus,
 .ptg-quiz-toolbar .ptg-btn-icon:active {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* 모든 버튼 hover 시에만 색상 변화 (active 상태가 아닐 때) */
 .ptg-btn-icon:not(.active):hover {
-    color: #d63638;
-    background-color: #fcd5d5;
-    transform: scale(1.05);
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
+  color: #d63638;
+  background-color: #fcd5d5;
+  transform: scale(1.05);
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* 북마크 활성화 상태 - 심플한 금색 배경 */
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-bookmark.active,
 .ptg-btn-icon.ptg-btn-bookmark.active {
-    color: #ff9800 !important;
-    background-color: #fff3e0 !important;
-    border: 1px solid #ff9800 !important;
+  color: #ff9800 !important;
+  background-color: #fff3e0 !important;
+  border: 1px solid #ff9800 !important;
 }
 
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-bookmark.active:hover,
 .ptg-btn-icon.ptg-btn-bookmark.active:hover {
-    background-color: #ffe0b2 !important;
-    border-color: #ff9800 !important;
+  background-color: #ffe0b2 !important;
+  border-color: #ff9800 !important;
 }
 
 /* 복습 활성화 상태 - 심플한 주황색 배경 */
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-review.active,
 .ptg-btn-icon.ptg-btn-review.active {
-    color: #ff6b35 !important;
-    background-color: #fff3e0 !important;
-    border: 1px solid #ff6b35 !important;
+  color: #ff6b35 !important;
+  background-color: #fff3e0 !important;
+  border: 1px solid #ff6b35 !important;
 }
 
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-review.active:hover,
 .ptg-btn-icon.ptg-btn-review.active:hover {
-    background-color: #ffe0b2 !important;
-    border-color: #ff6b35 !important;
+  background-color: #ffe0b2 !important;
+  border-color: #ff6b35 !important;
 }
 
 /* 메모 활성화 상태 - 심플한 파란색 배경 */
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-notes.active,
 .ptg-btn-icon.ptg-btn-notes.active {
-    color: #4a90e2 !important;
-    background-color: #e3f2fd !important;
-    border: 1px solid #4a90e2 !important;
+  color: #4a90e2 !important;
+  background-color: #e3f2fd !important;
+  border: 1px solid #4a90e2 !important;
 }
 
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-notes.active:hover,
 .ptg-btn-icon.ptg-btn-notes.active:hover {
-    background-color: #bbdefb !important;
-    border-color: #4a90e2 !important;
+  background-color: #bbdefb !important;
+  border-color: #4a90e2 !important;
 }
 
 /* 암기카드 활성화 상태 - 심플한 보라색 배경 */
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-flashcard.active,
 .ptg-btn-icon.ptg-btn-flashcard.active {
-    color: #9b59b6 !important;
-    background-color: #f3e5f5 !important;
-    border: 1px solid #9b59b6 !important;
+  color: #9b59b6 !important;
+  background-color: #f3e5f5 !important;
+  border: 1px solid #9b59b6 !important;
 }
 
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-flashcard.active:hover,
 .ptg-btn-icon.ptg-btn-flashcard.active:hover {
-    background-color: #e1bee7 !important;
-    border-color: #9b59b6 !important;
+  background-color: #e1bee7 !important;
+  border-color: #9b59b6 !important;
 }
 
 /* 드로잉 활성화 상태 - 심플한 초록색 배경 */
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-drawing.active,
 .ptg-btn-icon.ptg-btn-drawing.active {
-    color: #2ecc71 !important;
-    background-color: #e8f5e9 !important;
-    border: 1px solid #2ecc71 !important;
+  color: #2ecc71 !important;
+  background-color: #e8f5e9 !important;
+  border: 1px solid #2ecc71 !important;
 }
 
 .ptg-quiz-toolbar .ptg-toolbar-icons .ptg-btn-drawing.active:hover,
 .ptg-btn-icon.ptg-btn-drawing.active:hover {
-    background-color: #c8e6c9 !important;
-    border-color: #2ecc71 !important;
+  background-color: #c8e6c9 !important;
+  border-color: #2ecc71 !important;
 }
 
 /* 포커스 상태 - active 상태가 아닐 때는 outline 제거 */
 .ptg-btn-icon:not(.active):focus,
 .ptg-btn-icon:not(.active):focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
-    color: #333;
-    background-color: transparent;
-    border: none !important;
-    box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  color: #333;
+  background-color: transparent;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .ptg-btn-icon:not(.active):focus:hover,
 .ptg-btn-icon:not(.active):focus-visible:hover {
-    color: #d63638;
-    background-color: #ffe5e5;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
+  color: #d63638;
+  background-color: #ffe5e5;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* active 상태와 포커스 상태가 함께 있을 때 - outline 제거 */
 .ptg-btn-icon.active:focus,
 .ptg-btn-icon.active:focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
-    border: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  border: none !important;
 }
 
 .ptg-btn-icon.active:focus:hover,
 .ptg-btn-icon.active:focus-visible:hover {
-    outline: none !important;
-    border: none !important;
+  outline: none !important;
+  border: none !important;
 }
 
 /* 클릭 시 색상 변화 방지 (:active 의사 클래스 제거) */
 .ptg-btn-icon:active:not(.active):not(:focus) {
-    color: inherit;
-    background-color: transparent;
+  color: inherit;
+  background-color: transparent;
 }
 
 /* 타이머 (답안 제출 버튼 우측) */
 .ptg-quiz-timer {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 4px;
-    flex-shrink: 0; /* 크기 고정 */
-    margin-left: auto; /* 우측 정렬 */
-    flex-wrap: nowrap; /* 줄바꿈 방지 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  flex-shrink: 0; /* 크기 고정 */
+  margin-left: auto; /* 우측 정렬 */
+  flex-wrap: nowrap; /* 줄바꿈 방지 */
 }
 
 .ptg-timer-label {
-    font-weight: 500;
-    font-size: 14px;
-    color: #856404;
-    white-space: nowrap;
+  font-weight: 500;
+  font-size: 14px;
+  color: #856404;
+  white-space: nowrap;
 }
 
 .ptg-timer-display {
-    font-size: 14px;
-    font-weight: 600;
-    font-family: monospace;
-    color: #856404;
-    min-width: 50px; /* 최소 너비 보장 */
-    text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: monospace;
+  color: #856404;
+  min-width: 50px; /* 최소 너비 보장 */
+  text-align: center;
 }
 
 /* 필터 섹션 (ptgates-engine과 동일) */
 .ptgates-filter-section {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 30px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: flex-end;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px 15px; /* 패딩도 조금 줄임 */
+  margin-bottom: 4px; /* 사용자 요청: 최소 여백 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px; /* 간격 줄임 */
+  align-items: flex-end;
 }
 
 .ptgates-filter-row {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    flex: 1;
-    min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 150px;
 }
 
 .ptgates-filter-row label {
-    display: none !important;
+  display: none !important;
 }
 
 .ptgates-filter-input {
-    padding: 10px 12px;
-    padding-right: 30px; /* Space for custom arrow */
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    background-color: white;
-    transition: border-color 0.2s;
-    
-    /* iOS/iPad Fix: Reset native appearance */
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    height: 42px; /* Explicit height for consistency */
-    
-    /* Custom Arrow (Robust) */
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333333'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") !important;
-    background-repeat: no-repeat !important;
-    background-position: calc(100% - 10px) center !important;
-    background-size: 16px 16px !important;
+  padding: 10px 12px;
+  padding-right: 30px; /* Space for custom arrow */
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  transition: border-color 0.2s;
+
+  /* iOS/iPad Fix: Reset native appearance */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  height: 42px; /* Explicit height for consistency */
+
+  /* Custom Arrow (Robust) */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333333'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: calc(100% - 10px) center !important;
+  background-size: 16px 16px !important;
 }
 
 .ptgates-filter-input:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.ptgates-filter-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
 }
 
 /* 버튼 (ptgates-engine과 동일) */
 .ptgates-btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .ptgates-btn-primary {
-    background: #4a90e2;
-    color: white;
+  background: #4a90e2;
+  color: white;
 }
 
 .ptgates-btn-primary:hover {
-    background: #357abd;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+  background: #357abd;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
 }
 
 .ptgates-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* 진행 상태 (ptgates-engine과 동일) */
 .ptgates-progress-section {
-    margin-top: 0;
-    margin-bottom: 30px;
+  margin-top: 0;
+  margin-bottom: 4px !important; /* 사용자 요청: 최소 여백 */
 }
 
 .ptgates-progress-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    font-size: 16px;
-    font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .ptgates-progress-right {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 12px;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 12px;
 }
 
 .ptgates-time-tip-btn {
-    background: none;
-    border: none;
-    color: #4a90e2;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-    transition: color 0.2s;
-    white-space: nowrap;
-    display: inline-block !important;
-    flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #4a90e2;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: color 0.2s;
+  white-space: nowrap;
+  display: inline-block !important;
+  flex-shrink: 0;
 }
 
 .ptgates-time-tip-btn:hover {
-    color: #357abd;
+  color: #357abd;
 }
 
 .ptgates-btn-giveup-inline {
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 6px 16px;
-    transition: all 0.2s;
-    white-space: nowrap;
-    display: inline-block !important;
-    flex-shrink: 0;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 16px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: inline-block !important;
+  flex-shrink: 0;
 }
 
 .ptgates-btn-giveup-inline:hover {
-    background: #c82333;
+  background: #c82333;
 }
 
 .ptgates-timer {
-    color: #4a90e2;
-    font-family: 'Courier New', monospace;
-    white-space: nowrap;
-    display: inline-block !important;
+  color: #4a90e2;
+  font-family: "Courier New", monospace;
+  white-space: nowrap;
+  display: inline-block !important;
 }
 
 .ptgates-progress-bar {
-    height: 8px;
-    background: #e9ecef;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 15px;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1px !important;
 }
 
 .ptgates-progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4a90e2, #357abd);
-    transition: width 0.3s ease;
-    width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #4a90e2, #357abd);
+  transition: width 0.3s ease;
+  width: 0%;
 }
 
 /* 시간관리 tip 모달 (ptgates-engine과 동일) */
 .ptgates-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
 }
 
 .ptgates-modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(2px);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
 }
 
 .ptgates-modal-content {
-    position: relative;
-    max-width: 800px;
-    max-height: 90vh;
-    margin: 5vh auto;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+  position: relative;
+  max-width: 800px;
+  max-height: 90vh;
+  margin: 5vh auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .ptgates-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 25px;
-    border-bottom: 1px solid #e9ecef;
-    background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
 }
 
 .ptgates-modal-header h3 {
-    margin: 0;
-    color: #333;
-    font-size: 20px;
-    font-weight: 700;
+  margin: 0;
+  color: #333;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .ptgates-modal-close {
-    background: none;
-    border: none;
-    font-size: 32px;
-    color: #666;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    line-height: 28px;
-    text-align: center;
-    transition: color 0.2s;
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  line-height: 28px;
+  text-align: center;
+  transition: color 0.2s;
 }
 
 .ptgates-modal-close:hover {
-    color: #dc3545;
+  color: #dc3545;
 }
 
 .ptgates-modal-body {
-    padding: 25px;
-    overflow-y: auto;
-    flex: 1;
+  padding: 25px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .ptgates-modal-body p {
-    margin-bottom: 15px;
-    line-height: 1.7;
-    color: #333;
+  margin-bottom: 15px;
+  line-height: 1.7;
+  color: #333;
 }
 
 .ptgates-time-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-    font-size: 14px;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 14px;
 }
 
 .ptgates-time-table thead {
-    background: #4a90e2;
-    color: white;
+  background: #4a90e2;
+  color: white;
 }
 
 .ptgates-time-table th,
 .ptgates-time-table td {
-    padding: 12px;
-    text-align: left;
-    border: 1px solid #dee2e6;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid #dee2e6;
 }
 
 .ptgates-time-table tbody tr:nth-child(even) {
-    background: #f8f9fa;
+  background: #f8f9fa;
 }
 
 .ptgates-time-table tbody tr:hover {
-    background: #e9ecef;
+  background: #e9ecef;
 }
 
 .ptgates-tip-summary {
-    margin-top: 25px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border-left: 4px solid #4a90e2;
+  margin-top: 25px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #4a90e2;
 }
 
 .ptgates-tip-summary h4 {
-    margin: 0 0 15px 0;
-    color: #4a90e2;
-    font-size: 18px;
+  margin: 0 0 15px 0;
+  color: #4a90e2;
+  font-size: 18px;
 }
 
 .ptgates-tip-summary ul {
-    margin: 15px 0;
-    padding-left: 25px;
+  margin: 15px 0;
+  padding-left: 25px;
 }
 
 .ptgates-tip-summary li {
-    margin-bottom: 10px;
-    line-height: 1.7;
-    color: #333;
+  margin-bottom: 10px;
+  line-height: 1.7;
+  color: #333;
 }
 
 .ptgates-tip-summary p {
-    margin-top: 15px;
-    margin-bottom: 0;
-    font-weight: 600;
-    color: #333;
+  margin-top: 15px;
+  margin-bottom: 0;
+  font-weight: 600;
+  color: #333;
 }
 
 /* 문제 카드 영역 */
 .ptg-quiz-card-wrapper {
-    position: relative;
-    margin-bottom: 20px;
-    display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
+  position: relative;
+  margin-top: 20px !important;
+  margin-bottom: 30px !important;
+  display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
 }
 
 .ptg-quiz-card {
-    background: #fff;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 30px;
-    min-height: 200px;
-    /* 기출 문제 학습과 동일한 스타일 */
-    margin-bottom: 20px;
-    position: relative; /* 드로잉 오버레이를 위한 기준점 */
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 30px;
+  min-height: 200px;
+  /* 기출 문제 학습과 동일한 스타일 */
+  margin-bottom: 20px !important;
+  position: relative; /* 드로잉 오버레이를 위한 기준점 */
+}
+
+/* 로딩 페이지가 표시될 때 카드 하단 border 숨김 (JavaScript에서 클래스 추가) */
+.ptg-quiz-card.loading-active {
+  border-bottom: none !important;
+}
+
+/* 로딩 페이지가 표시될 때 카드 자체의 하단 border도 완전히 제거 */
+.ptg-quiz-card:has(.ptg-quiz-loading[style*="flex"]) {
+  border-bottom: none !important;
+}
+
+/* 로딩 페이지 자체의 하단 border 및 가상 요소 제거 */
+.ptg-quiz-loading::after,
+.ptg-quiz-loading::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* 로딩 페이지가 표시될 때 카드 border 조정 */
+.ptg-quiz-card .ptg-quiz-loading {
+  margin-bottom: 0 !important;
+  padding-bottom: 20px !important;
 }
 
 .ptg-question-content {
-    font-size: 16px;
-    line-height: 1.4;
-    color: #333;
-    margin: 0;
-    margin-bottom: 8px;
-    /* 기출 문제 학습과 동일 */
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+  margin: 0;
+  margin-bottom: 8px;
+  white-space: pre-wrap; /* 줄바꿈 보존 */
+  /* 기출 문제 학습과 동일 */
+  /* 문제 번호 앞 공백 제거 */
+  text-indent: 0;
+}
+
+/* 문제 번호 앞 공백 완전 제거 */
+.ptg-question-content::before {
+  content: "";
+  display: none;
+}
+
+/* 문제 번호 스타일 - 앞 공백 없음 */
+.ptg-question-content .ptg-question-number {
+  margin-left: 0;
+  padding-left: 0;
+  display: inline;
+}
+
+/* 문제 번호 앞의 모든 공백 제거 */
+.ptg-question-content strong.ptg-question-number {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+.ptg-explanation-content {
+    line-height: 1.6;
+    white-space: pre-wrap; /* 줄바꿈 보존 */
 }
 
 /* 선택지 영역 (카드 안에 포함) - 기출 문제 학습 형식 */
 .ptg-quiz-card .ptg-quiz-choices {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    /* 질문 바로 아래에 연속해서 표시 */
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  /* 질문 바로 아래에 연속해서 표시 */
 }
 
 .ptg-quiz-loading {
-    text-align: center;
-    padding: 40px;
+  text-align: center;
+  padding: 20px 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 20px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 로딩 페이지 하단의 모든 border 및 선 제거 */
+.ptg-quiz-loading::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* 로딩 중에는 프로그레스바 숨김 */
+.ptg-quiz-loading ~ .ptgates-progress-section,
+.ptg-quiz-loading ~ * .ptgates-progress-section,
+.ptg-quiz-card:has(.ptg-quiz-loading[style*="flex"]) ~ .ptgates-progress-section {
+  display: none !important;
+}
+
+/* 로딩 페이지 하단의 긴 막대 제거 (프로그레스바 또는 border) */
+.ptg-quiz-loading + .ptgates-progress-bar,
+.ptg-quiz-loading + * .ptgates-progress-bar,
+.ptg-quiz-card:has(.ptg-quiz-loading) .ptgates-progress-bar {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.ptg-loading-logo {
+  margin-bottom: 12px;
+}
+
+.ptg-logo-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: #3b82f6;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: logoFadeIn 0.6s ease-in;
+}
+
+@keyframes logoFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ptg-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto;
+  margin-top: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ptg-quiz-loading p {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* 드로잉 활성화 시 전체 페이지 스크롤 차단 */
 body.drawing-active,
 html.drawing-active {
-    overflow: hidden !important;
-    position: fixed !important;
-    width: 100% !important;
-    height: 100% !important;
-    overscroll-behavior: none !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  overscroll-behavior: none !important;
 }
 
 /* 드로잉 활성화 시 컨테이너 스크롤 차단 */
 .ptg-quiz-container.drawing-active,
 #ptg-quiz-container.drawing-active,
 .ptg-quiz-card-wrapper.drawing-active {
-    overflow: hidden !important;
-    overscroll-behavior: none !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
 }
 
 /* 드로잉 오버레이 - 카드 내부에 absolute로 배치하여 카드 크기와 자동 일치 */
 .ptg-drawing-overlay {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    background: transparent;
-    z-index: 100; /* 툴바(z-index: 1000)보다 낮게 설정 */
-    pointer-events: none; /* 기본적으로 모든 이벤트 통과 */
-    overflow: hidden !important; /* 스크롤바 방지 */
-    overscroll-behavior: none !important; /* 스크롤 체이닝 방지 */
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent;
+  z-index: 100; /* 툴바(z-index: 1000)보다 낮게 설정 */
+  pointer-events: none; /* 기본적으로 모든 이벤트 통과 */
+  overflow: hidden !important; /* 스크롤바 방지 */
+  overscroll-behavior: none !important; /* 스크롤 체이닝 방지 */
 }
 
 .ptg-drawing-overlay.active {
-    pointer-events: none; /* 오버레이 자체는 이벤트 통과 */
-    overflow: hidden !important; /* 스크롤바 방지 */
-    overscroll-behavior: none !important; /* 스크롤 체이닝 방지 */
+  pointer-events: none; /* 오버레이 자체는 이벤트 통과 */
+  overflow: hidden !important; /* 스크롤바 방지 */
+  overscroll-behavior: none !important; /* 스크롤 체이닝 방지 */
 }
 
 .ptg-drawing-overlay #ptg-drawing-canvas {
-    pointer-events: auto !important; /* 캔버스만 이벤트 수신 */
-    z-index: 101; /* 툴바(z-index: 1000)보다 낮게 */
-    overflow: hidden !important; /* 스크롤바 방지 */
+  pointer-events: auto !important; /* 캔버스만 이벤트 수신 */
+  z-index: 101; /* 툴바(z-index: 1000)보다 낮게 */
+  overflow: hidden !important; /* 스크롤바 방지 */
 }
 
 #ptg-drawing-canvas {
-    display: block;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M20.71 4.63l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41zM7 14a3 3 0 0 0-3 3c0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2a4 4 0 0 0 4-4c0-1.31-.84-2.42-2-2.83z'/%3E%3C/svg%3E") 0 24, crosshair;
-    pointer-events: auto;
-    z-index: 101; /* 툴바보다 낮게 */
-    overflow: hidden !important; /* 스크롤바 방지 */
+  display: block;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M20.71 4.63l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41zM7 14a3 3 0 0 0-3 3c0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2a4 4 0 0 0 4-4c0-1.31-.84-2.42-2-2.83z'/%3E%3C/svg%3E")
+      0 24,
+    crosshair;
+  pointer-events: auto;
+  z-index: 101; /* 툴바보다 낮게 */
+  overflow: hidden !important; /* 스크롤바 방지 */
 }
 
 .ptg-drawing-toolbar {
-    display: flex;
-    gap: 6px;
-    background: #ffffff;
-    padding: 6px 10px;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    border: 1px solid #e0e0e0;
-    align-items: center;
-    flex-shrink: 0; /* 크기 고정 */
-    z-index: 2; /* 타이머보다 위에 표시 */
-    position: relative; /* z-index 적용을 위해 */
+  display: flex;
+  gap: 6px;
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+  align-items: center;
+  flex-shrink: 0; /* 크기 고정 */
+  z-index: 2; /* 타이머보다 위에 표시 */
+  position: relative; /* z-index 적용을 위해 */
 }
 
 .ptg-btn-draw {
-    background: transparent;
-    border: 1px solid #d0d0d0;
-    padding: 6px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 16px;
-    color: #333;
-    transition: all 0.2s;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
+  background: transparent;
+  border: 1px solid #d0d0d0;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 16px;
+  color: #333;
+  transition: all 0.2s;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .ptg-btn-draw:hover {
-    background-color: #ffe5e5 !important;
-    border-color: #d0d0d0;
-    color: #d38485;
+  background-color: #ffe5e5 !important;
+  border-color: #d0d0d0;
+  color: #d38485;
 }
 
 .ptg-btn-draw:active {
-    background-color: #ffe5e5 !important;
-    transform: scale(0.98);
+  background-color: #ffe5e5 !important;
+  transform: scale(0.98);
 }
 
 .ptg-btn-draw.active {
-    background-color: #ffe5e5 !important;
-    border-color: #d38485;
-    color: #d38485;
+  background-color: #ffe5e5 !important;
+  border-color: #d38485;
+  color: #d38485;
 }
 
 .ptg-btn-draw.active:hover {
-    background-color: #ffe5e5 !important;
-    border-color: #d38485;
-    color: #d38485;
+  background-color: #ffe5e5 !important;
+  border-color: #d38485;
+  color: #d38485;
 }
 
 .ptg-pen-controls {
-    position: relative;
-    display: inline-block;
+  position: relative;
+  display: inline-block;
 }
 
 .ptg-pen-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    padding: 12px;
-    min-width: 180px;
-    z-index: 10001;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  min-width: 180px;
+  z-index: 10001;
 }
 
 .ptg-pen-menu-section {
-    margin-bottom: 12px;
+  margin-bottom: 12px;
 }
 
 .ptg-pen-menu-section:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .ptg-pen-menu-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #666;
-    margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
 }
 
 .ptg-pen-color-options {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .ptg-pen-color-btn {
-    width: 32px;
-    height: 32px;
-    border: 2px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 0;
-    background: transparent;
-    transition: all 0.2s;
-    position: relative;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+  transition: all 0.2s;
+  position: relative;
 }
 
 .ptg-pen-color-btn:hover {
-    border-color: #999;
-    transform: scale(1.1);
+  border-color: #999;
+  transform: scale(1.1);
 }
 
 .ptg-pen-color-btn.active {
-    border-color: #333;
-    border-width: 3px;
-    box-shadow: 0 0 0 2px rgba(51, 51, 51, 0.2);
+  border-color: #333;
+  border-width: 3px;
+  box-shadow: 0 0 0 2px rgba(51, 51, 51, 0.2);
 }
 
 .ptg-pen-color-btn.active::after {
-    content: '✓';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #fff;
-    font-size: 14px;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .ptg-pen-width-slider-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
 }
 
 .ptg-pen-width-slider {
-    flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: #e0e0e0;
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: pointer;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
 }
 
 .ptg-pen-width-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #d38485;
-    cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d38485;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
 }
 
 .ptg-pen-width-slider::-webkit-slider-thumb:hover {
-    background: #c06a6b;
-    transform: scale(1.1);
+  background: #c06a6b;
+  transform: scale(1.1);
 }
 
 .ptg-pen-width-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #d38485;
-    cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d38485;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
 }
 
 .ptg-pen-width-slider::-moz-range-thumb:hover {
-    background: #c06a6b;
-    transform: scale(1.1);
+  background: #c06a6b;
+  transform: scale(1.1);
 }
 
 .ptg-pen-width-slider::-moz-range-track {
-    height: 6px;
-    border-radius: 3px;
-    background: #e0e0e0;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
 }
 
 #ptg-pen-width-value {
-    font-weight: 600;
-    color: #d38485;
-    min-width: 30px;
-    display: inline-block;
-    text-align: right;
+  font-weight: 600;
+  color: #d38485;
+  min-width: 30px;
+  display: inline-block;
+  text-align: right;
 }
 
 .ptg-pen-alpha-slider-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
 }
 
 .ptg-pen-alpha-slider {
-    flex: 1;
-    height: 6px;
-    border-radius: 3px;
-    background: #e0e0e0;
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: pointer;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
 }
 
 .ptg-pen-alpha-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #d38485;
-    cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d38485;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
 }
 
 .ptg-pen-alpha-slider::-webkit-slider-thumb:hover {
-    background: #c06a6b;
-    transform: scale(1.1);
+  background: #c06a6b;
+  transform: scale(1.1);
 }
 
 .ptg-pen-alpha-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #d38485;
-    cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d38485;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
 }
 
 .ptg-pen-alpha-slider::-moz-range-thumb:hover {
-    background: #c06a6b;
-    transform: scale(1.1);
+  background: #c06a6b;
+  transform: scale(1.1);
 }
 
 .ptg-pen-alpha-slider::-moz-range-track {
-    height: 6px;
-    border-radius: 3px;
-    background: #e0e0e0;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
 }
 
 #ptg-pen-alpha-value {
-    font-weight: 600;
-    color: #d38485;
-    min-width: 30px;
-    display: inline-block;
-    text-align: right;
+  font-weight: 600;
+  color: #d38485;
+  min-width: 30px;
+  display: inline-block;
+  text-align: right;
 }
 
 .ptg-btn-close-drawing {
-    background: #f5f5f5;
-    color: #666;
-    border: 1px solid #d0d0d0;
-    padding: 6px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 16px;
-    transition: all 0.2s;
-    margin-left: 4px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #d0d0d0;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: all 0.2s;
+  margin-left: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .ptg-btn-close-drawing:hover {
-    background-color: #ffe5e5 !important;
-    border-color: #d0d0d0;
-    color: #d38485;
+  background-color: #ffe5e5 !important;
+  border-color: #d0d0d0;
+  color: #d38485;
 }
 
 /* 선택지 영역 - 공통 퀴즈 UI 컴포넌트 스타일 사용 */
 /* 공통 컴포넌트가 .ptg-quiz-ui-* 클래스를 사용하므로, 기존 클래스도 동일한 스타일 적용 */
 .ptg-quiz-choices,
 .ptg-quiz-ui-options-container {
-    margin-bottom: 0 !important;
-    margin-top: 0 !important;
-    width: 100% !important;
-    display: block !important;
-    flex-direction: column !important;
-    flex-wrap: nowrap !important;
-    border: 2px solid #e9ecef;
-    border-radius: 6px;
-    padding: 10px 12px;
-    background: white;
-    box-sizing: border-box;
-    /* 기출 문제 학습과 동일 - 질문 바로 아래에 연속해서 표시 */
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+  display: block !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: white;
+  box-sizing: border-box;
+  /* 기출 문제 학습과 동일 - 질문 바로 아래에 연속해서 표시 */
 }
 
 .ptg-quiz-choices > *,
 .ptg-quiz-ui-options-container > * {
-    display: block !important;
-    width: 100% !important;
-    float: none !important;
-    clear: both !important;
-    flex: none !important;
-    flex-basis: auto !important;
+  display: block !important;
+  width: 100% !important;
+  float: none !important;
+  clear: both !important;
+  flex: none !important;
+  flex-basis: auto !important;
 }
 
 .ptg-option-label,
 .ptg-quiz-ui-option-label {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: flex-start;
-    padding: 4px 8px !important;
-    margin-bottom: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: transparent !important;
-    width: 100% !important;
-    box-sizing: border-box;
-    min-height: auto;
-    user-select: none;
-    clear: both;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  padding: 4px 8px !important;
+  margin-bottom: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  min-height: auto;
+  user-select: none;
+  clear: both;
 }
 
 .ptg-option-label:hover,
 .ptg-quiz-ui-option-label:hover {
-    background: #f8f9ff !important;
+  background: #f8f9ff !important;
 }
 
 .ptg-option-label input[type="radio"],
 .ptg-radio-input,
 .ptg-quiz-ui-option-label input[type="radio"],
 .ptg-quiz-ui-radio-input {
-    margin-right: 8px !important;
-    margin-top: 2px !important;
-    cursor: pointer !important;
-    flex-shrink: 0 !important;
-    width: 20px !important;
-    height: 20px !important;
-    min-width: 20px !important;
-    min-height: 20px !important;
-    max-width: 20px !important;
-    max-height: 20px !important;
-    position: relative !important;
-    z-index: 10 !important;
-    pointer-events: auto !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: inline-block !important;
-    -webkit-appearance: radio !important;
-    -moz-appearance: radio !important;
-    appearance: radio !important;
+  margin-right: 8px !important;
+  margin-top: 2px !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  max-width: 20px !important;
+  max-height: 20px !important;
+  position: relative !important;
+  z-index: 10 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
+  -webkit-appearance: radio !important;
+  -moz-appearance: radio !important;
+  appearance: radio !important;
 }
 
 .ptg-option-label input[type="radio"]:checked + .ptg-option-text,
-.ptg-quiz-ui-option-label input[type="radio"]:checked + .ptg-quiz-ui-option-text {
-    font-weight: 600;
-    color: #4a90e2;
+.ptg-quiz-ui-option-label
+  input[type="radio"]:checked
+  + .ptg-quiz-ui-option-text {
+  font-weight: 600;
+  color: #4a90e2;
 }
 
 .ptg-option-text,
 .ptg-quiz-ui-option-text {
-    flex: 1;
-    line-height: 1.3;
-    color: #333 !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    overflow-wrap: break-word !important;
-    display: block !important;
-    width: calc(100% - 40px) !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    font-size: 16px !important;
+  flex: 1;
+  line-height: 1.3;
+  color: #333 !important;
+  white-space: pre-line !important; /* 줄바꿈 유지 */
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  display: block !important;
+  width: calc(100% - 40px) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  font-size: 16px !important;
 }
 
 /* 정답/오답 표시 */
 .ptg-option-label.ptg-correct-answer,
 .ptg-choice-item.correct,
 .ptg-quiz-ui-option-label.ptg-quiz-ui-correct-answer {
-    background: #d4edda !important;
+  background: #d4edda !important;
 }
 
 .ptg-option-label.ptg-incorrect-answer,
 .ptg-choice-item.incorrect,
 .ptg-quiz-ui-option-label.ptg-quiz-ui-incorrect-answer {
-    background: #f8d7da !important;
+  background: #f8d7da !important;
 }
 
 /* 주관식 답안 입력 */
 .ptg-text-answer {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 6px;
-    font-size: 16px;
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 16px;
 }
 
 /* 액션 버튼 */
 .ptg-quiz-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-    margin-bottom: 24px;
-    position: relative;
-    display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  position: relative;
+  display: none; /* 시작 전에는 숨김 - 조회 후 표시 */
+  flex-wrap: nowrap;
+  overflow-x: visible; /* 양쪽 끝이 잘리지 않도록 */
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ptg-quiz-actions .ptg-btn {
-    min-width: 150px;
-    margin: 0;
+  min-width: auto;
+  margin: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 6px 10px !important; /* 플랫폼 기본 패딩 오버라이드 */
+  font-size: 13px !important;
 }
 
 .ptg-btn-primary {
-    background: #ff6b9d;
-    color: white;
-    border: 1px solid #ff4d8a;
-    border-radius: 6px;
-    padding: 12px 24px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+  background: #ff6b9d;
+  color: white;
+  border: 1px solid #ff4d8a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .ptg-btn-primary:hover {
-    background: #ff4d8a;
-    border-color: #ff4d8a;
+  background: #ff4d8a;
+  border-color: #ff4d8a;
 }
 
 .ptg-btn-primary:disabled {
-    background: #ccc;
-    border-color: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
+  background: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
+
+/* 정답 확인 버튼 스타일 통일 (다른 버튼들과 동일) */
 
 /* 해설 영역 */
 .ptg-quiz-explanation {
-    background: #f0f7fc;
-    border-left: 4px solid #0073aa;
-    padding: 16px;
-    border-radius: 4px;
-    margin-top: 24px;
-    margin-bottom: 0; /* 카드 안에 포함되므로 하단 마진 제거 */
+  background: #f0f7fc;
+  border-left: 4px solid #0073aa;
+  padding: 16px;
+  border-radius: 4px;
+  margin-top: 24px;
+  margin-bottom: 0; /* 카드 안에 포함되므로 하단 마진 제거 */
 }
 
 .ptg-quiz-explanation h3 {
-    margin-top: 0;
-    color: #0073aa;
-    font-size: 17px;
+  margin-top: 0;
+  color: #0073aa;
+  font-size: 17px;
 }
 
 .ptg-explanation-content {
-    line-height: 1.6;
+  line-height: 1.6;
 }
 
 /* 메모 패널 */
 .ptg-notes-panel {
-    margin-top: 24px;
-    background: #fff;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
+  margin-top: 0; /* 툴바 아래 바로 위치하므로 상단 마진 제거 (툴바의 margin-bottom 활용) */
+  margin-bottom: 24px; /* 카드와의 간격 */
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .ptg-notes-title {
-    margin: 0;
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    line-height: 1.2;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  line-height: 1.2;
 }
 
 .ptg-btn-close-notes {
-    background: transparent;
-    border: none;
-    border-radius: 2px;
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    padding: 0;
-    font-size: 12px;
-    color: #666;
-    line-height: 1;
-    transition: all 0.2s;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1;
+  transition: all 0.2s;
 }
 
 .ptg-btn-close-notes:hover {
-    background: #e0e0e0;
-    color: #333;
+  background: #e0e0e0;
+  color: #333;
 }
 
 .ptg-btn-close-notes:focus {
-    outline: 1px solid #0073aa;
-    outline-offset: 1px;
+  outline: 1px solid #0073aa;
+  outline-offset: 1px;
 }
 
 .ptg-notes-content {
-    padding: 16px;
+  padding: 16px;
 }
 
 .ptg-notes-textarea {
-    width: 100%;
-    min-height: 150px;
-    padding: 12px;
-    border: 1px solid #c3c4c7;
-    border-radius: 4px;
-    font-family: inherit;
-    font-size: 14px;
-    line-height: 1.5;
-    resize: vertical;
-    box-sizing: border-box;
-    transition: border-color 0.2s;
+  width: 100%;
+  min-height: 68px; /* 2 lines: (14px * 1.5 * 2) + 24px padding + 2px border */
+  padding: 12px;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
 }
 
 .ptg-notes-textarea:focus {
-    outline: none;
-    border-color: #0073aa;
-    box-shadow: 0 0 0 1px #0073aa;
+  outline: none;
+  border-color: #0073aa;
+  box-shadow: 0 0 0 1px #0073aa;
 }
 
 .ptg-notes-textarea::placeholder {
-    color: #999;
+  color: #999;
 }
 
 /* 800px 이하에서도 한 줄 유지 */
 @media (max-width: 900px) {
-    .ptg-quiz-container,
-    #ptg-quiz-container {
-        max-width: 100% !important;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        left: 0 !important;
-        transform: none !important;
-    }
-    
-    /* 모바일에서 헤더 스타일 */
-    .ptg-quiz-header {
-        padding: 12px 10px !important;
-        gap: 8px !important;
-    }
-    
-    .ptg-quiz-header h1 {
-        font-size: 16px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-    
-    .ptg-quiz-header-right {
-        gap: 8px !important;
-    }
-    
-    .ptg-quiz-dashboard-link,
-    .ptg-quiz-tip-link {
-        font-size: 12px !important;
-        padding: 5px 10px !important;
-        white-space: nowrap !important;
-        flex-shrink: 0 !important;
-    }
-    
-    .ptg-quiz-card {
-        padding: 16px;
-    }
-    
-    /* 모바일에서 드로잉 기능 완전히 숨김 */
-    .ptg-btn-drawing,
-    .ptg-drawing-toolbar {
-        display: none !important;
-    }
-    
-    .ptg-drawing-toolbar {
-        flex-wrap: wrap;
-        bottom: 10px;
-        padding: 8px 10px;
-        gap: 4px;
-    }
-    
-    .ptg-btn-draw {
-        font-size: 16px;
-        padding: 6px;
-        width: 32px;
-        height: 32px;
-    }
-    
-    .ptg-btn-close-drawing {
-        padding: 6px;
-        font-size: 16px;
-        width: 32px;
-        height: 32px;
-    }
-    
-    /* 모바일에서 답안 제출 버튼 영역 레이아웃 조정 */
-    .ptg-quiz-actions {
-        flex-wrap: wrap;
-        gap: 12px;
-        justify-content: center;
-    }
-    
-    /* 모바일에서 타이머 스타일 조정 */
-    .ptg-quiz-timer {
-        padding: 12px 24px;
-        margin-left: 0; /* 모바일에서는 왼쪽 정렬 */
-        width: 100%; /* 모바일에서는 전체 너비 */
-        justify-content: center; /* 중앙 정렬 */
-        margin-top: 0; /* 버튼과의 간격은 gap으로 처리 */
-    }
-    
-    .ptg-timer-label {
-        font-size: 16px !important;
-        font-weight: 500 !important;
-    }
-    
-    .ptg-timer-display {
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        min-width: 50px !important;
-    }
-    
-    .ptg-btn-giveup-inline {
-        font-size: 14px !important;
-        padding: 5px 12px !important;
-        margin-left: 8px !important;
-    }
-    
-    /* 모바일에서 버튼 크기 조정 */
-    .ptg-quiz-actions .ptg-btn {
-        min-width: 120px;
-        flex: 1;
-        max-width: 200px;
-        width: 100%;
-    }
-    
-    .ptg-quiz-header {
-        padding: 12px 10px !important;
-        gap: 8px !important;
-    }
-    
-    .ptg-quiz-header-right {
-        gap: 8px !important;
-    }
-    
-    .ptg-quiz-header h1 {
-        font-size: 16px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-    
-    .ptg-quiz-dashboard-link,
-    .ptg-quiz-tip-link {
-        font-size: 12px !important;
-        padding: 5px 10px !important;
-        white-space: nowrap !important;
-        flex-shrink: 0 !important;
-    }
+  .ptg-quiz-container,
+  #ptg-quiz-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+  }
+
+  /* 모바일에서 헤더 스타일 */
+  .ptg-quiz-header {
+    padding: 12px 10px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .ptg-quiz-header h1 {
+    font-size: 16px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 0 0 auto !important;
+  }
+
+  .ptg-quiz-header-right {
+    gap: 8px !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* 모바일에서 활성 필터 배너를 두 번째 줄로 이동 */
+  .ptg-quiz-active-filters {
+    width: 100% !important;
+    order: 3 !important;
+    margin-top: 8px !important;
+    flex-basis: 100% !important;
+    padding-top: 8px !important;
+    border-top: 1px solid #e5e7eb !important;
+  }
+
+  .ptg-quiz-dashboard-link,
+  .ptg-quiz-tip-link {
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .ptg-quiz-card {
+    padding: 16px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* 모바일에서 드로잉 기능 완전히 숨김 */
+  .ptg-btn-drawing,
+  .ptg-drawing-toolbar {
+    display: none !important;
+  }
+
+  .ptg-drawing-toolbar {
+    flex-wrap: wrap;
+    bottom: 10px;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .ptg-btn-draw {
+    font-size: 16px;
+    padding: 6px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .ptg-btn-close-drawing {
+    padding: 6px;
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+  }
+
+  /* 모바일에서 답안 제출 버튼 영역 레이아웃 조정 */
+  .ptg-quiz-actions {
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  /* 모바일에서 타이머 스타일 조정 */
+  .ptg-quiz-timer {
+    padding: 12px 24px;
+    margin-left: 0; /* 모바일에서는 왼쪽 정렬 */
+    width: 100%; /* 모바일에서는 전체 너비 */
+    justify-content: center; /* 중앙 정렬 */
+    margin-top: 0; /* 버튼과의 간격은 gap으로 처리 */
+  }
+
+  .ptg-timer-label {
+    font-size: 16px !important;
+    font-weight: 500 !important;
+  }
+
+  .ptg-timer-display {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    min-width: 50px !important;
+  }
+
+  .ptg-btn-giveup-inline {
+    font-size: 14px !important;
+    padding: 5px 12px !important;
+    margin-left: 8px !important;
+  }
+
+  /* 모바일에서 버튼 크기 조정 */
+  .ptg-quiz-actions .ptg-btn {
+    min-width: auto;
+    flex: 0 0 auto;
+    max-width: none;
+    width: auto;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .ptg-quiz-header {
+    padding: 12px 10px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .ptg-quiz-header-right {
+    gap: 8px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .ptg-quiz-header h1 {
+    font-size: 16px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* 모바일에서 활성 필터 배너를 두 번째 줄로 이동 */
+  .ptg-quiz-active-filters {
+    width: 100% !important;
+    order: 3 !important;
+    margin-top: 8px !important;
+    flex-basis: 100% !important;
+    padding-top: 8px !important;
+    border-top: 1px solid #e5e7eb !important;
+  }
+
+  .ptg-quiz-dashboard-link,
+  .ptg-quiz-tip-link {
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
 }
 
 /* 접근성 */
 .ptg-btn-icon:focus-visible {
-    outline: none !important;
-    outline-offset: 0 !important;
-    border: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  border: none !important;
 }
 
 .ptg-btn:focus-visible,
 .ptg-choice-item:focus-visible {
-    outline: 2px solid #0073aa;
-    outline-offset: 2px;
+  outline: 2px solid #0073aa;
+  outline-offset: 2px;
 }
 
 /* 암기카드 모달 스타일 */
 .ptg-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
-    display: none;
-    overflow-y: auto;
-    padding: 20px;
-    box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: none;
+  overflow-y: auto;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .ptg-modal[style*="display: flex"],
 .ptg-modal[style*="display:block"],
 .ptg-modal.show {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 모달 컨텐츠 화면 정중앙 정렬 */
 .ptg-modal-content {
-    position: relative;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    width: 90%;
-    max-width: 600px;
-    max-height: calc(100vh - 40px);
-    display: flex;
-    flex-direction: column;
-    animation: ptg-modal-fade-in 0.3s ease;
-    z-index: 10001;
-    /* 화면 정중앙 정렬 보장 - flex 컨테이너 내에서 자동 중앙 정렬 */
-    margin: auto;
-    overflow-y: auto;
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 600px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  animation: ptg-modal-fade-in 0.3s ease;
+  z-index: 10001;
+  /* 화면 정중앙 정렬 보장 - flex 컨테이너 내에서 자동 중앙 정렬 */
+  margin: auto;
+  overflow-y: auto;
 }
 
 @keyframes ptg-modal-fade-in {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ptg-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 24px;
-    border-bottom: 1px solid #e5e7eb;
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
-    color: #fff;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  color: #fff;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
 .ptg-modal-header h3 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: #fff;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
 }
 
 .ptg-modal-close {
-    background: #fff;
-    border: none;
-    color: #1d3f7c;
-    font-size: 28px;
-    line-height: 1;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
+  background: #fff;
+  border: none;
+  color: #1d3f7c;
+  font-size: 28px;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .ptg-modal-close:hover {
-    background: #f0f4ff;
-    transform: scale(1.1);
+  background: #f0f4ff;
+  transform: scale(1.1);
 }
 
 .ptg-modal-body {
-    padding: 24px;
-    overflow-y: auto;
-    flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .ptg-modal-body textarea {
-    width: 100%;
-    min-height: 150px;
-    padding: 12px;
-    border: 1px solid #cbd5e0;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 14px;
-    line-height: 1.6;
-    resize: vertical;
-    box-sizing: border-box;
-    transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .ptg-modal-body textarea:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 .ptg-modal-body .form-group {
-    margin-bottom: 16px;
+  margin-bottom: 16px;
 }
 
 .ptg-modal-body .form-group:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .ptg-modal-body .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #333;
-    font-size: 14px;
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
 }
 
 .ptg-modal-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 24px;
-    border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 
 .ptg-flashcard-status {
-    flex: 1;
-    font-size: 14px;
-    color: #666;
+  flex: 1;
+  font-size: 14px;
+  color: #666;
 }
 
 @media (max-width: 768px) {
-    .ptg-modal-content {
-        width: 95%;
-        max-height: 85vh;
-    }
+  .ptg-modal-content {
+    width: 95%;
+    max-height: 85vh;
+  }
 
-    .ptg-modal-header,
-    .ptg-modal-body,
-    .ptg-modal-footer {
-        padding: 16px;
-    }
+  .ptg-modal-header,
+  .ptg-modal-body,
+  .ptg-modal-footer {
+    padding: 16px;
+  }
 }
 
 /* 완료 화면 (결과 요약) */
 .ptg-quiz-result-section {
-    background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 40px;
-    text-align: center;
-    margin-top: 20px;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.ptg-quiz-result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+/* 학습 완료 화면 버튼 스타일 (다시 시작, 학습현황으로 바로가기) */
+#ptg-quiz-restart-btn,
+#ptg-quiz-dashboard-btn {
+  background: white;
+  border: 1px solid #e5e7eb;
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#ptg-quiz-restart-btn:hover,
+#ptg-quiz-dashboard-btn:hover {
+  background: #f8f9fa;
+  border-color: #d1d5db;
+  color: #1f2937;
 }
 
 .ptg-quiz-result-section h2 {
-    color: #333;
-    margin-bottom: 30px;
-    font-size: 28px;
-    font-weight: 700;
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 28px;
+  font-weight: 700;
 }
 
 .ptg-quiz-result-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
 }
 
 .ptg-quiz-stat-item {
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 6px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+/* 틀린 문제 박스 hover 스타일 */
+.ptg-quiz-stat-incorrect {
+  cursor: pointer;
+}
+
+.ptg-quiz-stat-incorrect:hover {
+  background: #fff3cd !important;
+  border: 2px solid #ffc107;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .ptg-quiz-stat-label {
-    display: block;
-    font-size: 14px;
-    color: #666;
-    margin-bottom: 8px;
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
 }
 
 .ptg-quiz-stat-value {
-    display: block;
-    font-size: 32px;
-    font-weight: 700;
-    color: #4a90e2;
+  display: block;
+  font-size: 32px;
+  font-weight: 700;
+  color: #4a90e2;
 }
 
 /* 모바일 반응형 */
 @media (max-width: 768px) {
-    .ptg-quiz-result-section {
-        padding: 30px 20px;
-    }
-    
-    .ptg-quiz-result-section h2 {
-        font-size: 24px;
-        margin-bottom: 20px;
-    }
-    
-    .ptg-quiz-result-stats {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-        margin-bottom: 25px;
-    }
-    
-    .ptg-quiz-stat-item {
-        padding: 15px;
-    }
-    
-    .ptg-quiz-stat-label {
-        font-size: 13px;
-        margin-bottom: 6px;
-    }
-    
-    .ptg-quiz-stat-value {
-        font-size: 24px;
-    }
+  .ptg-quiz-result-section {
+    padding: 30px 20px;
+  }
+
+  .ptg-quiz-result-section h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .ptg-quiz-result-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+
+  .ptg-quiz-stat-item {
+    padding: 15px;
+  }
+
+  /* 모바일에서도 틀린 문제 박스 클릭 가능 표시 */
+  .ptg-quiz-stat-incorrect {
+    cursor: pointer;
+  }
+
+  .ptg-quiz-stat-incorrect:active {
+    background: #fff3cd !important;
+    transform: scale(0.98);
+  }
+
+  .ptg-quiz-stat-label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .ptg-quiz-stat-value {
+    font-size: 24px;
+  }
+
+  .ptg-quiz-result-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ptg-quiz-result-actions .ptg-btn {
+    width: 100%;
+  }
 }
 
 /* 실전 모의 학습Tip 모달 */
 .ptg-quiz-tip-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ptg-quiz-tip-modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(2px);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
 }
 
 .ptg-quiz-tip-modal-content {
-    position: relative;
-    width: min(900px, calc(100% - 40px));
-    max-width: 900px;
-    max-height: 90vh;
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: ptg-quiz-tip-modal-fade-in 0.3s ease;
-    padding: 0;
+  position: relative;
+  width: min(900px, calc(100% - 40px));
+  max-width: 900px;
+  max-height: 90vh;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: ptg-quiz-tip-modal-fade-in 0.3s ease;
+  padding: 0;
 }
 
 @keyframes ptg-quiz-tip-modal-fade-in {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ptg-quiz-tip-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 24px 32px;
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
-    color: white;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
-    width: 100%;
-    box-sizing: border-box;
-    border-top-left-radius: inherit;
-    border-top-right-radius: inherit;
-    min-height: 72px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 32px;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  width: 100%;
+  box-sizing: border-box;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  min-height: 72px;
 }
 
 .ptg-quiz-tip-modal-header h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-    color: white;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
 }
 
 .ptg-quiz-tip-modal-close,
 .ptg-study-tip-close {
-    background: #ffffff;
-    border: none;
-    outline: none;
-    color: #1d3f7c;
-    font-size: 26px;
-    width: 44px;
-    height: 44px;
-    border-radius: 999px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    line-height: 1;
-    padding: 0;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-    -webkit-appearance: none;
-    appearance: none;
+  background: #ffffff;
+  border: none;
+  outline: none;
+  color: #1d3f7c;
+  font-size: 26px;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .ptg-quiz-tip-modal-header .ptg-quiz-tip-modal-close,
 .ptg-quiz-tip-modal-header .ptg-study-tip-close {
-    border: none !important;
-    background: #ffffff !important;
-    border-radius: 999px !important;
-    width: 44px !important;
-    height: 44px !important;
-    padding: 0 !important;
+  border: none !important;
+  background: #ffffff !important;
+  border-radius: 999px !important;
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
 }
 
 .ptg-quiz-tip-modal-close span,
 .ptg-study-tip-close span {
-    pointer-events: none;
+  pointer-events: none;
 }
 
 .ptg-quiz-tip-modal-close:hover,
 .ptg-study-tip-close:hover {
-    background: #f0f4ff;
-    color: #0f2a57;
-    transform: scale(1.05);
+  background: #f0f4ff;
+  color: #0f2a57;
+  transform: scale(1.05);
 }
 
 .ptg-quiz-tip-modal-close:focus-visible,
 .ptg-study-tip-close:focus-visible {
-    outline: 3px solid rgba(255, 255, 255, 0.85);
-    outline-offset: 2px;
+  outline: 3px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
 }
 
 .ptg-quiz-tip-modal-body {
-    padding: 30px;
-    overflow-y: auto;
-    flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .ptg-quiz-tip-section {
-    margin-bottom: 30px;
+  margin-bottom: 30px;
 }
 
 .ptg-quiz-tip-section:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .ptg-quiz-tip-section h3 {
-    margin: 0 0 15px 0;
-    font-size: 20px;
-    font-weight: 700;
-    color: #333;
-    border-bottom: 2px solid #4a90e2;
-    padding-bottom: 8px;
+  margin: 0 0 15px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  border-bottom: 2px solid #4a90e2;
+  padding-bottom: 8px;
 }
 
 .ptg-quiz-tip-section ul {
-    margin: 10px 0;
-    padding-left: 20px;
+  margin: 10px 0;
+  padding-left: 20px;
 }
 
 .ptg-quiz-tip-section li {
-    margin: 8px 0;
-    line-height: 1.6;
-    color: #555;
+  margin: 8px 0;
+  line-height: 1.6;
+  color: #555;
 }
 
 .ptg-quiz-tip-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    margin-top: 15px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 15px;
 }
 
 .ptg-quiz-tip-card {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 20px;
-    transition: all 0.3s ease;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.3s ease;
 }
 
 .ptg-quiz-tip-card:hover {
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.15);
-    transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.15);
+  transform: translateY(-2px);
 }
 
 .ptg-quiz-tip-card h4 {
-    margin: 0 0 16px 0;
-    font-size: 20px;
-    font-weight: 700;
-    color: #4a90e2;
-    line-height: 1.3;
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #4a90e2;
+  line-height: 1.3;
 }
 
 .ptg-quiz-tip-card ul {
-    margin: 0;
-    padding-left: 0;
-    list-style: none;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
 }
 
 .ptg-quiz-tip-card ul h5 {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    line-height: 1.4;
-    padding-top: 16px;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+  padding-top: 16px;
 }
 
 .ptg-quiz-tip-card ul h5:first-child {
-    padding-top: 0;
+  padding-top: 0;
 }
 
 .ptg-quiz-tip-card li {
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    color: #666;
-    line-height: 1.6;
-    padding-left: 0;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  padding-left: 0;
 }
 
 .ptg-quiz-tip-count {
-    font-size: 24px;
-    font-weight: 700;
-    color: #333;
-    margin: 10px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #333;
+  margin: 10px 0;
 }
 
 .ptg-quiz-tip-card code {
-    display: block;
-    margin-top: 15px;
-    padding: 8px 12px;
-    background: #e9ecef;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #495057;
-    word-break: break-all;
+  display: block;
+  margin-top: 15px;
+  padding: 8px 12px;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #495057;
+  word-break: break-all;
 }
 
 .ptg-quiz-tip-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
 }
 
 .ptg-quiz-tip-option {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 15px;
 }
 
 .ptg-quiz-tip-option strong {
-    display: block;
-    font-size: 16px;
-    color: #4a90e2;
-    margin-bottom: 8px;
+  display: block;
+  font-size: 16px;
+  color: #4a90e2;
+  margin-bottom: 8px;
 }
 
 .ptg-quiz-tip-option p {
-    margin: 5px 0;
-    font-size: 14px;
-    color: #666;
-    line-height: 1.5;
+  margin: 5px 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
 }
 
 .ptg-quiz-tip-option code {
-    display: block;
-    margin-top: 10px;
-    padding: 6px 10px;
-    background: #e9ecef;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #495057;
-    word-break: break-all;
+  display: block;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #495057;
+  word-break: break-all;
 }
 
 .ptg-quiz-tip-note {
-    font-size: 13px;
-    color: #dc3545;
-    font-weight: 600;
-    margin: 10px 0;
-    padding: 8px 12px;
-    background: #fff3cd;
-    border-left: 3px solid #ffc107;
-    border-radius: 4px;
+  font-size: 13px;
+  color: #dc3545;
+  font-weight: 600;
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border-left: 3px solid #ffc107;
+  border-radius: 4px;
 }
 
 .ptg-quiz-tip-examples {
-    margin-top: 15px;
+  margin-top: 15px;
 }
 
 .ptg-quiz-tip-example {
-    background: #f8f9fa;
-    border-left: 4px solid #4a90e2;
-    padding: 15px;
-    margin-bottom: 12px;
-    border-radius: 4px;
+  background: #f8f9fa;
+  border-left: 4px solid #4a90e2;
+  padding: 15px;
+  margin-bottom: 12px;
+  border-radius: 4px;
 }
 
 .ptg-quiz-tip-example strong {
-    display: block;
-    font-size: 15px;
-    color: #333;
-    margin-bottom: 8px;
+  display: block;
+  font-size: 15px;
+  color: #333;
+  margin-bottom: 8px;
 }
 
 .ptg-quiz-tip-example code {
-    display: block;
-    padding: 10px;
-    background: #e9ecef;
-    border-radius: 4px;
-    font-size: 13px;
-    color: #495057;
-    word-break: break-all;
-    font-family: 'Courier New', monospace;
+  display: block;
+  padding: 10px;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #495057;
+  word-break: break-all;
+  font-family: "Courier New", monospace;
 }
 
 /* 모바일 반응형 */
 @media (max-width: 768px) {
-    .ptg-quiz-tip-link {
-        font-size: 15px;
+  .ptg-quiz-tip-link {
+    font-size: 15px;
+  }
+
+  .ptg-quiz-tip-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .ptg-quiz-tip-modal-header {
+    padding: 15px 20px;
+  }
+
+  .ptg-quiz-tip-modal-header h2 {
+    font-size: 20px;
+  }
+
+  .ptg-quiz-tip-modal-body {
+    padding: 20px;
+  }
+
+  .ptg-quiz-tip-section h3 {
+    font-size: 18px;
+  }
+
+  .ptg-quiz-tip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ptg-quiz-tip-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 검색 토글 버튼 */
+#ptg-quiz-search-toggle {
+    margin-left: 8px; /* Changed from margin-right */
+    background: transparent;
+    border: none !important; /* Removed border */
+    color: #666;
+    width: 42px;
+    height: 42px;
+    display: inline-flex !important; /* 멤버십과 상관없이 항상 표시 */
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    visibility: visible !important; /* 멤버십과 상관없이 항상 표시 */
+    opacity: 1 !important; /* 멤버십과 상관없이 항상 표시 */
+}
+
+/* Dashicons 스타일 보장 */
+#ptg-quiz-search-toggle .dashicons {
+    font-family: dashicons !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+    display: inline-block !important;
+    width: 20px !important;
+    height: 20px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#ptg-quiz-search-toggle:hover {
+    background: #f1f5f9;
+    color: #333;
+}
+
+#ptg-quiz-search-toggle.active {
+    background: #e2e8f0;
+    color: #4a90e2;
+}
+
+/* 검색 컨테이너 */
+.ptgates-search-container {
+    margin-top: 10px !important;
+    padding: 15px !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    animation: slideDown 0.2s ease-out;
+}
+
+/* 검색 입력창 화살표 제거 */
+.ptgates-search-container input {
+    background-image: none !important;
+    padding-right: 12px !important;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
     }
-    
-    .ptg-quiz-tip-modal-content {
-        width: 95%;
-        max-height: 95vh;
-    }
-    
-    .ptg-quiz-tip-modal-header {
-        padding: 15px 20px;
-    }
-    
-    .ptg-quiz-tip-modal-header h2 {
-        font-size: 20px;
-    }
-    
-    .ptg-quiz-tip-modal-body {
-        padding: 20px;
-    }
-    
-    .ptg-quiz-tip-section h3 {
-        font-size: 18px;
-    }
-    
-    .ptg-quiz-tip-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .ptg-quiz-tip-options {
-        grid-template-columns: 1fr;
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
+/* 펜 메뉴 z-index 수정 */
+.ptg-pen-menu {
+    z-index: 10000 !important;
+}
+
+/* 모바일 검색창 세로 정렬 */
+@media (max-width: 768px) {
+    .ptgates-search-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .ptgates-search-container input {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+}
+
+/* Fix Pen Menu Interaction - Z-Index Hierarchy */
+/* Fix Pen Menu Interaction - Z-Index Hierarchy */
+.ptg-quiz-toolbar {
+    position: relative;
+    z-index: 20000 !important; /* Ensure toolbar is above everything */
+}
+
+.ptg-pen-menu {
+    z-index: 20001 !important; /* Ensure menu is above toolbar */
+}
+
+.ptg-quiz-card {
+    width: 100% !important; /* Responsive width */
+    max-width: 500px !important;
+    min-width: auto !important; /* Remove fixed min-width */
+    box-sizing: border-box !important; /* Better for responsive */
+    margin: 0 auto;
+    position: relative; /* Create positioning context for overlay */
+    z-index: 1; /* Lower than toolbar */
+    background: #fff;
+    padding: 30px; /* Keep existing padding */
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.ptg-drawing-overlay {
+    position: absolute; /* Force absolute positioning */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000; /* Inside card context */
+    pointer-events: none; /* Allow clicks to pass through overlay wrapper */
+}
+
+/* Ensure canvas captures drawing events but doesn't block if not drawing */
+#ptg-drawing-canvas {
+    pointer-events: auto; 
+}
+
+/* Quiz Card Wrapper */
+.ptg-quiz-card-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure content inside fits */
+.ptg-quiz-question, 
+.ptg-quiz-choices, 
+.ptg-quiz-explanation {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+
+/* Edit Mode Styles */
+.ptg-edit-textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 10px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  line-height: 1.6;
+  
+  /* Hardening for interaction */
+  position: relative;
+  z-index: 9999;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.ptg-edit-textarea:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.ptg-edit-explanation {
+  min-height: 120px;
+  background-color: #f0fff4;
+  border-color: #c6f6d5;
+}
+
+
+.ptg-edit-explanation:focus {
+  border-color: #38a169;
+  box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.1);
+}
+
+/* Hide choices when in edit mode */
+.ptg-quiz-editing #ptg-quiz-choices {
+    display: none !important;
+}
+
+
+/* Smooth expansion for edit mode */
+.ptg-edit-textarea {
+  overflow-y: hidden;
+}

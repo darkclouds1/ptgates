@@ -143,6 +143,7 @@ class Study_API {
                 'label' => '해부생리학',
                 'description' => '인체 구조와 생리 기초 이론',
                 'aliases' => [
+                    '해부생리',
                     '해부생리학',
                     '해부학',
                     '생리학',
@@ -270,7 +271,6 @@ class Study_API {
             ],
         ];
     }
-
     /**
      * 특정 과목(코스)에 대한 학습자료(문제 목록) 반환
      */
@@ -346,9 +346,10 @@ class Study_API {
             $max_items = 0;
             
             if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+                $map = \PTG\Quiz\Subjects::get_map();
                 // 1. subject_category가 있으면 직접 조회 (가장 정확)
                 if ( ! empty( $subject_category ) ) {
-                    foreach ( \PTG\Quiz\Subjects::MAP as $session_data ) {
+                    foreach ( $map as $session_data ) {
                         if ( isset( $session_data['subjects'][ $subject_category ]['total'] ) ) {
                             $max_items = (int) $session_data['subjects'][ $subject_category ]['total'];
                             break;
@@ -358,7 +359,7 @@ class Study_API {
 
                 // 2. 못 찾았으면 세부과목 매칭 시도
                 if ( $max_items === 0 ) {
-                    foreach ( \PTG\Quiz\Subjects::MAP as $session_data ) {
+                    foreach ( $map as $session_data ) {
                         if ( ! empty( $session_data['subjects'] ) ) {
                             foreach ( $session_data['subjects'] as $subj_name => $subj_data ) {
                                 $is_match = false;
@@ -388,43 +389,22 @@ class Study_API {
             // 집계 모드: 각 세부과목의 문제를 모두 모은 후 question_id ASC 정렬
             $questions_map = [];
 
-            // 최적화: subject_category가 있으면 한 번의 쿼리로 조회
-            if (!empty($subject_category)) {
-                $args = [
-                    'subject_category' => $subject_category,
-                    'limit'            => ($max_items > 0) ? $max_items : 1000,
-                    'offset'           => 0,
-                    'exam_session_min' => 1000,
-                    'wrong_only_user_id' => $wrong_only ? get_current_user_id() : null,
-                ];
-                
-                // 랜덤 모드일 경우 여기서 처리 가능하지만, 기존 로직(PHP 셔플)과 일관성을 위해 일단 다 가져옴
-                // 단, LegacyRepo에서 random=true 지원하므로 활용 가능
-                if ($random) {
-                    $args['random'] = true;
-                    // Smart Random parameters if needed
-                }
+            // 최적화: subject_category 컬럼이 없으므로 subjects 배열(IN 절)을 사용하여 한 번에 조회
+            $args = [
+                'subjects'         => $subject_names,
+                'limit'            => ($max_items > 0) ? $max_items : 1000,
+                'offset'           => 0,
+                'exam_session_min' => 1000,
+                'wrong_only_user_id' => $wrong_only ? get_current_user_id() : null,
+            ];
+            
+            if ($random) {
+                $args['random'] = true;
+            }
 
-                $results = LegacyRepo::get_questions_with_categories($args);
-                foreach ($results as $row) {
-                    $questions_map[$row['question_id']] = $row;
-                }
-            } else {
-                // 기존 방식: 세부과목별 반복 조회
-                foreach ($subject_names as $subject_name) {
-                    $args = [
-                        'subject'          => $subject_name,
-                        'limit'            => ($max_items > 0) ? $max_items : 1000, // 세부과목당 충분히 큰 값
-                        'offset'           => 0,
-                        'exam_session_min' => 1000,
-                        'wrong_only_user_id' => $wrong_only ? get_current_user_id() : null,
-                    ];
-
-                    $results = LegacyRepo::get_questions_with_categories($args);
-                    foreach ($results as $row) {
-                        $questions_map[$row['question_id']] = $row;
-                    }
-                }
+            $results = LegacyRepo::get_questions_with_categories($args);
+            foreach ($results as $row) {
+                $questions_map[$row['question_id']] = $row;
             }
 
             if (empty($questions_map)) {
@@ -537,6 +517,13 @@ class Study_API {
 
         // [세부과목 선택 모드] Subjects::MAP에서 해당 세부과목의 문항 수를 찾아 Limit 적용
         $max_items = 0;
+        $matched_subject = $subject; // 기본값은 요청된 과목명
+
+        // 0. DB에 정확히 일치하는 과목명이 있는지 먼저 확인 (Fuzzy Match로 인한 오작동 방지)
+        // 예: DB에 '해부생리'가 있는데 '해부생리학'으로 매핑되는 문제 방지
+        $db_subjects = LegacyRepo::get_available_subjects();
+        $is_exact_db_match = in_array($subject, $db_subjects);
+
         if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
             $needle = urldecode($course_id);
             if (class_exists('Normalizer')) {
@@ -544,11 +531,21 @@ class Study_API {
             }
             $needle = preg_replace( '/\s+|·/u', '', $needle );
 
-            foreach ( \PTG\Quiz\Subjects::MAP as $session_data ) {
+            $map = \PTG\Quiz\Subjects::get_map();
+            foreach ( $map as $session_data ) {
                 if ( ! empty( $session_data['subjects'] ) ) {
                     foreach ( $session_data['subjects'] as $subj_name => $subj_data ) {
                         if ( ! empty( $subj_data['subs'] ) ) {
                             foreach ( $subj_data['subs'] as $sub_name => $count ) {
+                                // DB에 정확히 일치하는 과목이 있으면, Map 매핑보다 우선함 (단, max_items는 가져옴)
+                                if ($is_exact_db_match && $sub_name !== $subject) {
+                                    // DB에 '해부생리'가 있고 요청도 '해부생리'인데, Map의 '해부생리학'과 매칭되려 하면 건너뜀
+                                    // 단, Map에 '해부생리'라는 키가 있으면 매칭됨
+                                    if (preg_replace( '/\s+|·/u', '', $sub_name ) !== $needle) {
+                                         continue;
+                                    }
+                                }
+
                                 $candidate = $sub_name;
                                 if (class_exists('Normalizer')) {
                                     $candidate = \Normalizer::normalize($candidate, \Normalizer::FORM_C);
@@ -557,6 +554,10 @@ class Study_API {
                                 
                                 if ( $needle === $candidate || stripos($needle, $candidate) !== false || stripos($candidate, $needle) !== false ) {
                                     $max_items = (int) $count;
+                                    // DB에 정확한 매칭이 있으면 그 이름을 유지, 아니면 Map의 이름을 사용
+                                    if (!$is_exact_db_match) {
+                                        $matched_subject = $sub_name; 
+                                    }
                                     break 3; // Found match
                                 }
                             }
@@ -564,6 +565,17 @@ class Study_API {
                     }
                 }
             }
+        }
+
+        // Legacy DB와 신규 Config 간의 과목명 불일치 보정
+        $legacy_subject_map = [
+            // '해부생리' => '해부생리학', // DB에 '해부생리'로 저장된 경우 그대로 조회해야 함
+            '운동학' => '운동학', // 일치
+            // 필요 시 추가
+        ];
+
+        if ( isset( $legacy_subject_map[ $matched_subject ] ) ) {
+            $matched_subject = $legacy_subject_map[ $matched_subject ];
         }
 
         $repo_limit = $limit;
@@ -574,7 +586,7 @@ class Study_API {
 
 		// 세부과목 단일 조회
 		$args = [
-			'subject'          => $subject,
+			'subject'          => $matched_subject,
 			'limit'            => ($random && !$is_smart_random) ? 1000 : $repo_limit, 
 			'offset'           => (!empty($exclude_ids)) ? 0 : ($random ? 0 : $offset), // exclude_ids가 있으면 offset 0
 			'exam_session_min' => 1000,
@@ -587,7 +599,7 @@ class Study_API {
 
 		$questions = LegacyRepo::get_questions_with_categories($args);
 		$total_count = LegacyRepo::count_questions_with_categories([
-			'subject'          => $subject,
+			'subject'          => $matched_subject,
 			'exam_session_min' => 1000,
 		]);
         

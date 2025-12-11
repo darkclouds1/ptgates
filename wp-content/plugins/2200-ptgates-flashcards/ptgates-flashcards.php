@@ -139,7 +139,7 @@ final class PTG_Flashcards_Plugin {
 			wp_json_encode( $nonce ),
 			wp_json_encode( $platform_url ),
 			wp_json_encode( $flash_js ),
-			wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::MAP : [] ),
+			wp_json_encode( class_exists( '\PTG\Quiz\Subjects' ) ? \PTG\Quiz\Subjects::get_map() : [] ),
             wp_json_encode( $member_grade ),
             self::get_config('LIMIT_BASIC_CARDS', 20),
             self::get_config('LIMIT_TRIAL_CARDS', 50),

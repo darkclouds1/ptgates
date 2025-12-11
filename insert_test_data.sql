@@ -1,0 +1,4 @@
+INSERT INTO `ptgates_billing_history` (`user_id`, `order_id`, `pg_transaction_id`, `transaction_type`, `product_name`, `payment_method`, `amount`, `currency`, `status`, `transaction_date`, `expiry_date`, `memo`) VALUES
+(2, 'ORD-TEST-1', 't_1234567890', 'purchase', 'Premium Membership (1 Month)', 'card', 9900, 'KRW', 'paid', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 2 DAY), INTERVAL 1 MONTH), 'Test payment 1 (Active)'),
+(2, 'ORD-TEST-2', 't_0987654321', 'renewal', 'Premium Membership (1 Month)', 'card', 9900, 'KRW', 'paid', DATE_SUB(NOW(), INTERVAL 35 DAY), DATE_ADD(DATE_SUB(NOW(), INTERVAL 35 DAY), INTERVAL 1 MONTH), 'Test payment 2 (Expired)'),
+(2, 'ORD-TEST-3', '', 'purchase', 'Premium Membership (1 Month)', 'card', 9900, 'KRW', 'failed', DATE_SUB(NOW(), INTERVAL 62 DAY), NULL, 'Test failed payment');
