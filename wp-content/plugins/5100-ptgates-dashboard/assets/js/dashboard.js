@@ -716,22 +716,22 @@
       $(document).on("click", "#ptg-reset-user-data-btn", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const confirmed = confirm(
           "모든 학습 기록과 데이터가 삭제됩니다.\n\n" +
-          "삭제되는 데이터:\n" +
-          "- 학습 기록 (ptgates_user_states)\n" +
-          "- 퀴즈 결과 (ptgates_user_results)\n" +
-          "- 암기카드 (ptgates_flashcards, ptgates_flashcard_sets)\n" +
-          "- 마이노트 메모 (ptgates_user_memos)\n" +
-          "- 드로잉 데이터 (ptgates_user_drawings)\n\n" +
-          "이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?"
+            "삭제되는 데이터:\n" +
+            "- 학습 기록 (ptgates_user_states)\n" +
+            "- 퀴즈 결과 (ptgates_user_results)\n" +
+            "- 암기카드 (ptgates_flashcards, ptgates_flashcard_sets)\n" +
+            "- 마이노트 메모 (ptgates_user_memos)\n" +
+            "- 드로잉 데이터 (ptgates_user_drawings)\n\n" +
+            "이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?"
         );
-        
+
         if (!confirmed) {
           return;
         }
-        
+
         self.resetUserData();
       });
     },
@@ -845,7 +845,7 @@
 
       const $btn = $("#ptg-reset-user-data-btn");
       const originalText = $btn.text();
-      
+
       // 버튼 비활성화
       $btn.prop("disabled", true).text("처리 중...");
 
@@ -866,53 +866,66 @@
               window.ptg_dashboard_vars.quiz_count = 0;
               window.ptg_dashboard_vars.flashcard_count = 0; // 암기카드도 삭제됨
             }
-            
+
             // 멤버십 섹션의 "학습 이용 현황" 숫자 즉시 업데이트
             const $usageItems = $("#ptg-membership-details .ptg-usage-item");
             if ($usageItems.length >= 2) {
               // 과목|Study 업데이트
               const $studyValue = $usageItems.eq(0).find(".ptg-usage-value");
               if ($studyValue.length) {
-                const studyLimit = window.ptg_dashboard_vars?.study_limit >= 999999 
-                  ? "무제한" 
-                  : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString();
+                const studyLimit =
+                  window.ptg_dashboard_vars?.study_limit >= 999999
+                    ? "무제한"
+                    : (
+                        window.ptg_dashboard_vars?.study_limit || 0
+                      ).toLocaleString();
                 $studyValue.html(`0 / ${studyLimit}`);
               }
-              
+
               // 실전|Quiz 업데이트
               const $quizValue = $usageItems.eq(1).find(".ptg-usage-value");
               if ($quizValue.length) {
-                const quizLimit = window.ptg_dashboard_vars?.quiz_limit >= 999999 
-                  ? "무제한" 
-                  : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString();
+                const quizLimit =
+                  window.ptg_dashboard_vars?.quiz_limit >= 999999
+                    ? "무제한"
+                    : (
+                        window.ptg_dashboard_vars?.quiz_limit || 0
+                      ).toLocaleString();
                 $quizValue.html(`0 / ${quizLimit}`);
               }
-              
+
               // 암기카드 업데이트
-              const $flashcardValue = $usageItems.eq(2).find(".ptg-usage-value");
+              const $flashcardValue = $usageItems
+                .eq(2)
+                .find(".ptg-usage-value");
               if ($flashcardValue.length) {
-                const flashcardLimit = window.ptg_dashboard_vars?.flashcard_limit >= 999999 
-                  ? "무제한" 
-                  : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString();
+                const flashcardLimit =
+                  window.ptg_dashboard_vars?.flashcard_limit >= 999999
+                    ? "무제한"
+                    : (
+                        window.ptg_dashboard_vars?.flashcard_limit || 0
+                      ).toLocaleString();
                 $flashcardValue.html(`0 / ${flashcardLimit}`);
               }
             }
-            
+
             // REST API로 최신 데이터 다시 가져오기 (캐시 무시)
             self.fetchSummary();
-            
+
             alert("데이터가 성공적으로 초기화되었습니다.");
             $btn.prop("disabled", false).text(originalText);
           } else {
-            alert(response && response.message 
-              ? response.message 
-              : "데이터 초기화 중 오류가 발생했습니다.");
+            alert(
+              response && response.message
+                ? response.message
+                : "데이터 초기화 중 오류가 발생했습니다."
+            );
             $btn.prop("disabled", false).text(originalText);
           }
         },
         error: function (xhr, status, error) {
           let errorMessage = "데이터 초기화 중 오류가 발생했습니다.";
-          
+
           try {
             if (xhr.responseText) {
               const errorData = JSON.parse(xhr.responseText);
@@ -923,10 +936,10 @@
           } catch (e) {
             console.error("Error parsing response:", e);
           }
-          
+
           alert(errorMessage);
           $btn.prop("disabled", false).text(originalText);
-        }
+        },
       });
     },
 
@@ -941,7 +954,7 @@
 
       // 캐시 무시를 위한 타임스탬프 추가 (초기화 후 즉시 반영)
       const cacheBuster = new Date().getTime();
-      
+
       $.ajax({
         url: restUrl + "summary?force_refresh=1&_t=" + cacheBuster,
         method: "GET",
@@ -956,18 +969,20 @@
             // window.ptg_dashboard_vars 업데이트 (최신 데이터 반영)
             if (window.ptg_dashboard_vars) {
               if (data.flashcard && data.flashcard.total !== undefined) {
-                window.ptg_dashboard_vars.flashcard_count = data.flashcard.total || 0;
+                window.ptg_dashboard_vars.flashcard_count =
+                  data.flashcard.total || 0;
               }
               if (data.study_progress !== undefined) {
-                window.ptg_dashboard_vars.study_count = data.study_progress || 0;
+                window.ptg_dashboard_vars.study_count =
+                  data.study_progress || 0;
               }
               if (data.quiz_progress !== undefined) {
                 window.ptg_dashboard_vars.quiz_count = data.quiz_progress || 0;
               }
             }
-            
+
             self.render(data);
-            
+
             // render() 후 멤버십 섹션의 숫자 다시 업데이트 (render()가 전체를 다시 렌더링하므로)
             if (window.ptg_dashboard_vars) {
               const $usageItems = $("#ptg-membership-details .ptg-usage-item");
@@ -975,28 +990,51 @@
                 // 과목|Study 업데이트
                 const $studyValue = $usageItems.eq(0).find(".ptg-usage-value");
                 if ($studyValue.length) {
-                  const studyLimit = window.ptg_dashboard_vars?.study_limit >= 999999 
-                    ? "무제한" 
-                    : (window.ptg_dashboard_vars?.study_limit || 0).toLocaleString();
-                  $studyValue.html(`${(window.ptg_dashboard_vars?.study_count || 0).toLocaleString()} / ${studyLimit}`);
+                  const studyLimit =
+                    window.ptg_dashboard_vars?.study_limit >= 999999
+                      ? "무제한"
+                      : (
+                          window.ptg_dashboard_vars?.study_limit || 0
+                        ).toLocaleString();
+                  $studyValue.html(
+                    `${(
+                      window.ptg_dashboard_vars?.study_count || 0
+                    ).toLocaleString()} / ${studyLimit}`
+                  );
                 }
-                
+
                 // 실전|Quiz 업데이트
                 const $quizValue = $usageItems.eq(1).find(".ptg-usage-value");
                 if ($quizValue.length) {
-                  const quizLimit = window.ptg_dashboard_vars?.quiz_limit >= 999999 
-                    ? "무제한" 
-                    : (window.ptg_dashboard_vars?.quiz_limit || 0).toLocaleString();
-                  $quizValue.html(`${(window.ptg_dashboard_vars?.quiz_count || 0).toLocaleString()} / ${quizLimit}`);
+                  const quizLimit =
+                    window.ptg_dashboard_vars?.quiz_limit >= 999999
+                      ? "무제한"
+                      : (
+                          window.ptg_dashboard_vars?.quiz_limit || 0
+                        ).toLocaleString();
+                  $quizValue.html(
+                    `${(
+                      window.ptg_dashboard_vars?.quiz_count || 0
+                    ).toLocaleString()} / ${quizLimit}`
+                  );
                 }
-                
+
                 // 암기카드 업데이트
-                const $flashcardValue = $usageItems.eq(2).find(".ptg-usage-value");
+                const $flashcardValue = $usageItems
+                  .eq(2)
+                  .find(".ptg-usage-value");
                 if ($flashcardValue.length) {
-                  const flashcardLimit = window.ptg_dashboard_vars?.flashcard_limit >= 999999 
-                    ? "무제한" 
-                    : (window.ptg_dashboard_vars?.flashcard_limit || 0).toLocaleString();
-                  $flashcardValue.html(`${(window.ptg_dashboard_vars?.flashcard_count || 0).toLocaleString()} / ${flashcardLimit}`);
+                  const flashcardLimit =
+                    window.ptg_dashboard_vars?.flashcard_limit >= 999999
+                      ? "무제한"
+                      : (
+                          window.ptg_dashboard_vars?.flashcard_limit || 0
+                        ).toLocaleString();
+                  $flashcardValue.html(
+                    `${(
+                      window.ptg_dashboard_vars?.flashcard_count || 0
+                    ).toLocaleString()} / ${flashcardLimit}`
+                  );
                 }
               }
             }
@@ -1214,7 +1252,8 @@
                             <h2 class="ptg-mb-section-title">📊 학습 이용 현황</h2>
                             ${
                               premium.status === "active" &&
-                              (premium.grade === "Premium" || premium.grade === "Admin")
+                              (premium.grade === "Premium" ||
+                                premium.grade === "Admin")
                                 ? `<button type="button" id="ptg-reset-user-data-btn" class="ptg-reset-data-btn" title="모든 학습 기록과 데이터를 초기화합니다">
                                     초기화
                                   </button>`
@@ -1417,12 +1456,15 @@
                 </a>
 
                 <!-- 4. Review | Quiz -->
-                <a href="/ptg_quiz/?needs_review=1&wrong_only=1" class="ptg-dash-card">
-                    <div class="ptg-card-icon">🔁</div>
+                <a href="/ptg_quiz/?review_only=1&auto_start=1" class="ptg-dash-card">
+                    <div class="ptg-card-icon"><img draggable="false" role="img" class="emoji" alt="🔁" src="https://s.w.org/images/core/emoji/17.0.2/svg/1f501.svg"></div>
                     <div class="ptg-card-title">복습|Quiz</div>
-                    <div class="ptg-card-stat"><strong>${today_reviews}</strong> 문제</div>
+                    <div class="ptg-card-stat">
+                        <strong>${(
+                          today_reviews || 0
+                        ).toLocaleString()}</strong> 문제
+                    </div>
                 </a>
-
                 <!-- 5. My Note -->
                 <a href="/mynote/" class="ptg-dash-card">
                     <div class="ptg-card-icon">🗒️</div>

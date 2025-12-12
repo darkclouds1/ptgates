@@ -2518,3 +2518,140 @@ html.drawing-active {
 .ptg-edit-textarea {
   overflow-y: hidden;
 }
+
+/* Filter Checkboxes */
+.ptgates-filter-checkboxes {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 0 8px;
+    height: 42px; /* Match input height */
+}
+
+/* Specificity override: .ptgates-filter-row label has display: none !important */
+.ptgates-filter-row label.ptg-checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #4a5568 !important;
+    cursor: pointer;
+    user-select: none;
+    margin: 0 !important;
+    width: auto !important;
+}
+
+.ptg-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #4a90e2;
+}
+
+.ptg-checkbox-label:hover {
+    color: #2d3748 !important;
+}
+
+/* Header Layout Override for independent checkboxes */
+.ptg-quiz-header {
+    justify-content: flex-start !important; /* Changed from space-between to allow grouping on right */
+}
+
+.ptg-quiz-header h1 {
+    margin-right: auto !important; /* Push everything else to right */
+}
+
+/* Checkboxes style in header */
+.header-checkboxes {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-right: 15px !important;
+    border-right: 1px solid #e2e8f0; /* Optional separator */
+    padding-right: 15px !important;
+}
+
+/* Mobile responsiveness for filters */
+@media (max-width: 600px) {
+    .ptgates-filter-checkboxes {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 8px 0;
+        height: auto;
+    }
+    
+    /* Mobile Header Layout Adjustment */
+    .ptg-quiz-header {
+        flex-wrap: wrap !important;
+        padding-bottom: 12px !important;
+        align-items: center !important;
+    }
+    
+    .ptg-quiz-header h1 {
+        margin-right: auto !important;
+        margin-bottom: 0 !important;
+        width: auto !important; /* Let it shrink if needed */
+        font-size: 16px !important; /* Slightly smaller on mobile to fit */
+        order: 1 !important;
+    }
+    
+    .ptg-quiz-header-right {
+        order: 2 !important; /* Links remain on row 1 right */
+        gap: 8px !important;
+    }
+    
+    /* Move checkboxes to 2nd row and center align */
+    .header-checkboxes {
+        width: 100% !important;
+        order: 3 !important;
+        margin-right: 0 !important;
+        margin-top: 10px !important;
+        padding-right: 0 !important;
+        padding-top: 10px !important;
+        border-right: none !important;
+        border-top: 1px solid #f1f5f9;
+        justify-content: center !important; /* Center alignment requested */
+        white-space: nowrap !important;
+    }
+    
+    .ptg-checkbox-label {
+        font-size: 14px !important;
+    }
+    
+    /* Hide active filters area on mobile */
+    #ptg-quiz-active-filters {
+        display: none !important;
+    }
+}
+
+/* Loading Overlay Styles (Global for Quiz) */
+.ptg-loading {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: 300px;
+    background-color: white !important;
+    z-index: 99999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 30px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #4a5568 !important;
+}
+
+/* Add backdrop if strictly needed */
+.ptg-loading-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.7);
+    z-index: 99998;
+}

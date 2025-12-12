@@ -793,6 +793,12 @@ function PTG_quiz_alert(message) {
     const wrongOnlyFromUrl =
       urlParams.get("wrong_only") === "1" ||
       urlParams.get("wrong_only") === "true";
+    const reviewOnlyFromUrl =
+      urlParams.get("review_only") === "1" ||
+      urlParams.get("review_only") === "true";
+    const autoStart =
+      urlParams.get("auto_start") === "1" ||
+      urlParams.get("auto_start") === "true";
 
     // data 속성에서 필터 읽기
     const yearFromData = container.dataset.year
@@ -808,6 +814,7 @@ function PTG_quiz_alert(message) {
     const fullSessionFromData = container.dataset.fullSession === "1";
     const bookmarkedFromData = container.dataset.bookmarked === "1";
     const needsReviewFromData = container.dataset.needsReview === "1";
+    const reviewOnlyFromData = container.dataset.reviewOnly === "1";
 
     // 최종 필터 값 (URL 파라미터 우선)
     const year = yearFromUrl || yearFromData;
@@ -818,6 +825,7 @@ function PTG_quiz_alert(message) {
     const bookmarked = bookmarkedFromUrl || bookmarkedFromData;
     const needsReview = needsReviewFromUrl || needsReviewFromData;
     const wrongOnly = wrongOnlyFromUrl; // data 속성은 없음
+    const reviewOnly = reviewOnlyFromUrl || reviewOnlyFromData;
 
     const questionId = parseInt(container.dataset.questionId) || 0;
 
@@ -832,7 +840,8 @@ function PTG_quiz_alert(message) {
       session ||
       bookmarked ||
       needsReview ||
-      wrongOnly;
+      wrongOnly ||
+      reviewOnly;
     const useDefaultFilters = !questionId && !hasFilters;
 
     // 타이머 설정: 1교시(90분) 또는 2교시(75분)가 아니면 문제당 50초로 계산
@@ -885,14 +894,16 @@ function PTG_quiz_alert(message) {
       bookmarked: bookmarked || false,
       needsReview: needsReview || false,
       wrongOnly: wrongOnly || false,
+      reviewOnly: reviewOnly || false,
     };
 
     // 초기 상태 적용
     setState("idle");
 
-    // 북마크/복습만 있고 다른 필터가 없으면 필터 섹션 표시
+    // 북마크/복습만 있고 다른 필터가 없으면 필터 섹션 표시 (단, 자동 시작이면 제외)
     const hasOnlyPersistentFilter =
-      (bookmarked || needsReview || wrongOnly) &&
+      !autoStart &&
+      (bookmarked || needsReview || wrongOnly || reviewOnly) &&
       !year &&
       !subject &&
       !limit &&
@@ -918,10 +929,13 @@ function PTG_quiz_alert(message) {
           const filters = {};
           if (year) filters.year = year;
           if (subject) filters.subject = subject;
-          if (limit) {
+
+          // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
+          if (reviewOnly || wrongOnly) {
+            filters.limit = 0;
+          } else if (limit) {
             filters.limit = limit;
           } else if (useDefaultFilters) {
-            // 기본값: 기출문제 제외하고 5문제
             filters.limit = 5;
           }
           if (session) {
@@ -937,12 +951,8 @@ function PTG_quiz_alert(message) {
           if (wrongOnly) {
             filters.wrong_only = true;
           }
-
-          if (bookmarked) {
-            filters.bookmarked = true;
-          }
-          if (needs_review) {
-            filters.needs_review = true;
+          if (reviewOnly) {
+            filters.review_only = true;
           }
 
           // --- Usage Limit Check ---
@@ -956,8 +966,14 @@ function PTG_quiz_alert(message) {
           // 문제 수를 미리 알 수 없으므로, limit 파라미터로 체크
           else {
             // limit이 없으면 기본값 5
-            const estimatedCount = limit || 5;
-            if (!checkUsageLimit("general", estimatedCount)) {
+            // [수정] 복습 퀴즈는 무제한이므로 예상 카운트를 0으로 처리하여 한도 체크 건너뜀
+            const isUnlimitedReview = reviewOnly || wrongOnly;
+            const estimatedCount = isUnlimitedReview ? 0 : limit || 5;
+
+            if (
+              !isUnlimitedReview &&
+              !checkUsageLimit("general", estimatedCount)
+            ) {
               return; // 차단
             }
           }
@@ -1606,11 +1622,15 @@ function PTG_quiz_alert(message) {
     // 영구 필터 읽기 (QuizState에 저장된 값 우선, 없으면 URL/컨테이너에서 읽기)
     let bookmarked = false;
     let needsReview = false;
+    let wrongOnly = false;
+    let reviewOnly = false;
 
     if (QuizState.persistentFilters) {
       // QuizState에 저장된 값 사용 (초기화 시 설정됨)
       bookmarked = QuizState.persistentFilters.bookmarked || false;
       needsReview = QuizState.persistentFilters.needsReview || false;
+      if (QuizState.persistentFilters.wrongOnly) wrongOnly = true;
+      if (QuizState.persistentFilters.reviewOnly) reviewOnly = true;
     } else {
       // QuizState에 없으면 URL 파라미터나 컨테이너에서 읽기
       const urlParams = new URLSearchParams(window.location.search);
@@ -1632,10 +1652,34 @@ function PTG_quiz_alert(message) {
     }
 
     // 틀린 문제만 필터 (URL 파라미터 체크)
+    // 틀린 문제만 필터 (URL 파라미터 체크)
     const urlParams = new URLSearchParams(window.location.search);
-    const wrongOnly =
+    if (
       urlParams.get("wrong_only") === "1" ||
-      urlParams.get("wrong_only") === "true";
+      urlParams.get("wrong_only") === "true"
+    ) {
+      wrongOnly = true;
+    }
+
+    // 복습문제만 Checkbox 값 읽기
+    const reviewCheckbox = document.getElementById("ptg-quiz-filter-review");
+    const wrongCheckbox = document.getElementById("ptg-quiz-filter-wrong");
+    if (reviewCheckbox && reviewCheckbox.checked) {
+      reviewOnly = true;
+    }
+
+    // URL 파라미터 체크 (Dashboard 연동)
+    if (
+      urlParams.get("review_only") === "1" ||
+      urlParams.get("review_only") === "true"
+    ) {
+      reviewOnly = true;
+    }
+
+    // 체크박스가 있으면 URL 파라미터보다 우선 (혹은 OR 조건? 기획상 체크박스 있으면 그거 씀)
+    if (wrongCheckbox && wrongCheckbox.checked) {
+      wrongOnly = true;
+    }
 
     // 교시 미선택 시 null로 설정하여 조회 조건에서 제외 (교시 전체 조회)
     const session =
@@ -1661,7 +1705,12 @@ function PTG_quiz_alert(message) {
       unsolvedOnly = true;
       limit = 10; // 안푼 문제 10개 (사용자 요청)
     } else {
-      limit = parseInt(limitVal) || 5;
+      // [수정] 복습 퀴즈나 오답 퀴즈는 무제한이므로 limit을 0으로 설정
+      if (reviewOnly || wrongOnly) {
+        limit = 0;
+      } else {
+        limit = parseInt(limitVal) || 5;
+      }
     }
 
     const startBtn = document.getElementById("ptg-quiz-start-btn");
@@ -1672,7 +1721,12 @@ function PTG_quiz_alert(message) {
       if (subject) filters.subject = subject;
       // 세부과목이 선택된 경우에만 전달 (빈 값은 전체와 동일)
       if (subsubject) filters.subsubject = subsubject;
-      filters.limit = limit;
+      // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
+      if (reviewOnly || wrongOnly) {
+        filters.limit = 0;
+      } else {
+        filters.limit = limit;
+      }
       if (fullSession) filters.full_session = true;
       if (unsolvedOnly) filters.unsolved_only = true;
 
@@ -1685,6 +1739,9 @@ function PTG_quiz_alert(message) {
       }
       if (wrongOnly) {
         filters.wrong_only = true;
+      }
+      if (reviewOnly) {
+        filters.review_only = true;
       }
 
       // 검색 필터 추가
@@ -1827,60 +1884,12 @@ function PTG_quiz_alert(message) {
    * 활성 필터 표시 업데이트
    */
   function updateActiveFilters(bookmarked, needsReview, wrongOnly) {
+    // [수정] 사용자 요청으로 활성 필터 배너(태그) 기능 제거
+    // 전체 프로젝트에서 더 이상 필요하지 않음
     const filtersContainer = document.getElementById("ptg-quiz-active-filters");
-    if (!filtersContainer) return;
-
-    filtersContainer.innerHTML = "";
-
-    const filters = [];
-    if (bookmarked) {
-      filters.push({
-        type: "bookmarked",
-        label: "북마크 문제만",
-        icon: "🔖",
-      });
-    }
-    if (needsReview) {
-      filters.push({
-        type: "needs_review",
-        label: "복습 문제만",
-        icon: "🔁",
-      });
-    }
-    if (wrongOnly) {
-      filters.push({
-        type: "wrong_only",
-        label: "틀린 문제만",
-        icon: "❌", // 또는 다른 아이콘
-      });
-    }
-
-    if (filters.length > 0) {
-      filters.forEach((filter) => {
-        const badge = document.createElement("span");
-        badge.className = "ptg-quiz-filter-badge";
-        badge.setAttribute("data-filter-type", filter.type);
-        badge.innerHTML = `
-                    <span class="ptg-quiz-filter-badge-icon">${filter.icon}</span>
-                    <span class="ptg-quiz-filter-badge-label">${filter.label}</span>
-                    <button type="button" class="ptg-quiz-filter-badge-close" data-filter-type="${filter.type}" aria-label="${filter.label} 필터 해제">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                `;
-        filtersContainer.appendChild(badge);
-      });
-
-      // 필터 해제 버튼 이벤트
-      filtersContainer
-        .querySelectorAll(".ptg-quiz-filter-badge-close")
-        .forEach((btn) => {
-          btn.addEventListener("click", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            const filterType = this.getAttribute("data-filter-type");
-            removeFilter(filterType);
-          });
-        });
+    if (filtersContainer) {
+      filtersContainer.style.display = "none";
+      filtersContainer.innerHTML = "";
     }
   }
 
@@ -4148,7 +4157,70 @@ function PTG_quiz_alert(message) {
                           subject ? " | (" + subject + ")" : ""
                         } &nbsp;&nbsp;(id-${QuizState.questionId})</h3>
                         <div class="ptg-explanation-content">${explanationHtml}</div>
+                        
+                        <!-- Review Schedule Buttons -->
+                        <div class="ptg-review-schedule-container" style="margin-top:20px; border-top:1px dashed #ddd; padding-top:15px;">
+                            <p style="margin-bottom:10px; font-weight:600; font-size:14px; color:#555;">📅 복습 일정 설정 (틀린 문제 다시 풀기)</p>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <button type="button" class="ptg-schedule-btn" data-days="1" style="flex:1; padding:8px; border:none; border-radius:4px; background:#ff6b6b; color:white; cursor:pointer;">내일</button>
+                                <button type="button" class="ptg-schedule-btn" data-days="3" style="flex:1; padding:8px; border:none; border-radius:4px; background:#feca57; color:white; cursor:pointer;">3일 후</button>
+                                <button type="button" class="ptg-schedule-btn" data-days="5" style="flex:1; padding:8px; border:none; border-radius:4px; background:#1dd1a1; color:white; cursor:pointer;">5일 후</button>
+                                <button type="button" class="ptg-schedule-btn" data-days="7" style="flex:1; padding:8px; border:none; border-radius:4px; background:#54a0ff; color:white; cursor:pointer;">7일 후</button>
+                            </div>
+                        </div>
                     `;
+
+          // Add Event Listeners for Schedule Buttons
+          setTimeout(() => {
+            const scheduleBtns =
+              explanationEl.querySelectorAll(".ptg-schedule-btn");
+            const labelMap = {
+              1: "내일",
+              3: "3일 후",
+              5: "5일 후",
+              7: "7일 후",
+            };
+
+            scheduleBtns.forEach((btn) => {
+              btn.addEventListener("click", async function (e) {
+                e.preventDefault();
+                const days = parseInt(this.dataset.days);
+                if (!days) return;
+
+                // Reset all buttons first: restore text and dim opacity
+                scheduleBtns.forEach((b) => {
+                  const d = parseInt(b.dataset.days);
+                  b.textContent = labelMap[d] || `${d}일 후`;
+                  b.style.opacity = "0.5";
+                  b.style.border = "none"; // Reset any potential border
+                });
+
+                // UI Feedback for Active Button
+                this.style.opacity = "1";
+                this.style.border = "2px solid #333"; // Optional: Add border for emphasis? User didn't ask but "Saved" implies visual cue. Image showed yellow bg.
+                // Keeping original style logic mostly, but enforcing text reset.
+                // Revert border addition to stick strictly to request unless necessary.
+                // The image shows a black border on the yellow button. I'll add that.
+                this.style.border = "2px solid #333";
+
+                this.textContent = "저장 중...";
+
+                try {
+                  await PTGPlatform.post(
+                    `ptg-quiz/v1/questions/${QuizState.questionId}/schedule`,
+                    { days: days }
+                  );
+                  this.textContent = "설정됨";
+                } catch (err) {
+                  console.error("Schedule Error:", err);
+                  alert(
+                    "일정 저장 실패: " + (err.message || "알 수 없는 오류")
+                  );
+                  this.textContent = labelMap[days] || "실패"; // Reset text on failure
+                }
+              });
+            });
+          }, 0);
           explanationEl.style.display = "block";
 
           // 해설이 표시되면 카드 크기가 자동으로 조정되도록 강제 리플로우
@@ -4216,6 +4288,7 @@ function PTG_quiz_alert(message) {
       if (filters.wrong_only) params.append("wrong_only", "true");
       if (filters.id) params.append("id", filters.id);
       if (filters.keyword) params.append("keyword", filters.keyword);
+      if (filters.review_only) params.append("review_only", "true");
 
       const endpoint = `ptg-quiz/v1/questions?${params.toString()}`;
       const response = await PTGPlatform.get(endpoint);
@@ -5196,14 +5269,50 @@ function PTG_quiz_alert(message) {
     if (container) {
       try {
         init();
+
+        // Auto-start check from URL
+        if (typeof window !== "undefined" && window.location) {
+          const urlParams = new URL(window.location.href).searchParams;
+
+          // [UI Sync] Checkbox sync from URL
+          if (
+            urlParams.get("review_only") === "1" ||
+            urlParams.get("review_only") === "true"
+          ) {
+            const reviewCheckbox = document.getElementById(
+              "ptg-quiz-filter-review"
+            );
+            if (reviewCheckbox) {
+              reviewCheckbox.checked = true;
+            }
+          }
+          if (
+            urlParams.get("wrong_only") === "1" ||
+            urlParams.get("wrong_only") === "true"
+          ) {
+            const wrongCheckbox = document.getElementById(
+              "ptg-quiz-filter-wrong"
+            );
+            if (wrongCheckbox) {
+              wrongCheckbox.checked = true;
+            }
+          }
+
+          if (
+            urlParams.get("auto_start") === "1" ||
+            urlParams.get("auto_start") === "true"
+          ) {
+            // Wait slightly for init to complete then start
+            setTimeout(() => {
+              startQuizFromFilter();
+            }, 500);
+          }
+        }
       } catch (e) {
         console.error("[PTG Quiz] 초기화 오류:", e);
       }
     }
   }
-
-  // 즉시 시도
-  setTimeout(autoInit, 0);
 
   // DOM 로드 후 시도
   if (document.readyState === "loading") {

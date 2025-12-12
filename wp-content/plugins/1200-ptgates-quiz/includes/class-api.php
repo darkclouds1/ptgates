@@ -249,15 +249,26 @@ class API {
                 ),
                 'device' => array(
                     'type' => 'string',
+                    'default' => 'pc',
                 ),
-                'is_answered' => array(
+            ),
+        ));
+
+        // 복습 일정 설정
+        register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)/schedule', array(
+            'methods' => 'POST',
+            'callback' => array(__CLASS__, 'update_review_schedule'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'question_id' => array(
+                    'required' => true,
                     'type' => 'integer',
-                    'default' => 0,
                     'sanitize_callback' => 'absint',
                 ),
-                'device_type' => array(
-                    'type' => 'string',
-                    'default' => 'pc',
+                'days' => array(
+                    'required' => true,
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
                 ),
             ),
         ));
@@ -458,6 +469,75 @@ class API {
             'message' => '문제가 성공적으로 수정되었습니다.',
             'updated' => $updated
         ));
+        return Rest::success(array(
+            'question_id' => $question_id,
+            'message' => '문제가 성공적으로 수정되었습니다.',
+            'updated' => $updated
+        ));
+    }
+
+    /**
+     * 복습 일정 설정
+     */
+    public static function update_review_schedule($request) {
+        global $wpdb;
+        
+        $user_id = get_current_user_id();
+        $question_id = $request->get_param('question_id');
+        $days = $request->get_param('days');
+        
+        if ($days <= 0) {
+            return Rest::error('invalid_days', '유효하지 않은 날짜입니다.');
+        }
+        
+        // due_date 계산 (오늘 + days)
+        // WordPress 시간대 설정(Asia/Seoul) 반영
+        $today = current_time('Y-m-d');
+        $due_date = date('Y-m-d', strtotime("$today + $days days"));
+        
+        $table_name = 'ptgates_review_schedule';
+        
+        // 이미 일정이 있는지 확인 (있으면 업데이트, 없으면 삽입)
+        // ON DUPLICATE KEY UPDATE 사용 권장되나, WPDB에서는 replace 사용 가능/또는 직접 쿼리
+        
+        // 가장 최근의 결과 ID 조회 (origin_result_id 연결)
+        $latest_result_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT result_id FROM ptgates_user_results 
+             WHERE user_id = %d AND question_id = %d 
+             ORDER BY result_id DESC LIMIT 1",
+            $user_id,
+            $question_id
+        ));
+        
+        // 먼저 삭제 (단순화를 위해 삭제 후 삽입)
+        $wpdb->delete($table_name, array(
+            'user_id' => $user_id,
+            'question_id' => $question_id
+        ), array('%d', '%d'));
+        
+        $inserted = $wpdb->insert($table_name, array(
+            'user_id' => $user_id,
+            'question_id' => $question_id,
+            'origin_result_id' => $latest_result_id, // 연결
+            'due_date' => $due_date,
+            'status' => 'pending', // 'scheduled' -> 'pending' (DB Enum 대응)
+            'created_at' => current_time('mysql')
+        ), array('%d', '%d', '%d', '%s', '%s', '%s'));
+        
+        if ($inserted === false) {
+            return Rest::error('db_error', '일정 저장 중 오류가 발생했습니다.');
+        }
+        
+        // User State에도 needs_review=1로 표시할지?
+        // 기획상 "복습 일정"은 별도 테이블이지만, 사용자 편의를 위해 'review_only' 필터가 
+        // 기존 needs_review와 통합될 수도 있음. 여기서는 일단 스케줄 테이블만 사용.
+        
+        return Rest::success(array(
+            'question_id' => $question_id,
+            'due_date' => $due_date,
+            'days' => $days,
+            'message' => "복습 일정이 {$days}일 후({$due_date})로 설정되었습니다."
+        ));
     }
     
     /**
@@ -480,7 +560,7 @@ class API {
         $search_id = $request->get_param('id');
         $search_keyword = $request->get_param('keyword');
 
-        // error_log('[PTG Quiz] get_questions_list limit_param: ' . print_r($limit_param, true));
+
 
         // limit가 0이면 전체 (unlimited), 없으면 기본값 5
         if (isset($limit_param) && ($limit_param === '0' || $limit_param === 0)) {
@@ -488,16 +568,22 @@ class API {
         } else {
             $limit = absint($limit_param) ?: 5; 
         }
-        // error_log('[PTG Quiz] get_questions_list calculated limit: ' . $limit);
+
         $session = $request->get_param('session');
         $full_session = $request->get_param('full_session') === true || $request->get_param('full_session') === 'true';
         $bookmarked = $request->get_param('bookmarked') === true || $request->get_param('bookmarked') === 'true';
         $needs_review = $request->get_param('needs_review') === true || $request->get_param('needs_review') === 'true';
         $wrong_only = $request->get_param('wrong_only') === true || $request->get_param('wrong_only') === 'true';
+        $review_only = $request->get_param('review_only') === true || $request->get_param('review_only') === '1' || $request->get_param('review_only') === 'true';
+        
+        // [수정] 복습 퀴즈나 오답 퀴즈는 제한 없이 모든 문제를 가져옴 (사용자 요청)
+        if ($review_only || $wrong_only || $needs_review) {
+            $limit = 0; // 0은 쿼리 빌더에서 LIMIT 절을 생략(무제한)하게 함
+        }
         $unsolved_only = $request->get_param('unsolved_only') === true || $request->get_param('unsolved_only') === 'true';
 
         // 모듈 결정 (퀴즈 vs 복습)
-        $module = ($needs_review || $wrong_only) ? 'reviewer' : 'quiz';
+        $module = ($needs_review || $wrong_only || $review_only) ? 'reviewer' : 'quiz';
 
         // 1. 권한/한도 체크
         $current_user_id = get_current_user_id();
@@ -516,11 +602,27 @@ class API {
         
         // 캐시 키 생성 (북마크/복습 필터는 사용자별로 다르므로 user_id 포함)
         $user_id = 0;
-        if ($bookmarked || $needs_review || $wrong_only || $unsolved_only) {
+        if ($bookmarked || $needs_review || $wrong_only || $unsolved_only || $review_only) {
             $user_id = get_current_user_id();
             if (!$user_id) {
                 // 로그인하지 않은 경우 빈 배열 반환
                 return Rest::success(array());
+            }
+
+            // [Review Sync] 복습문제만 체크 시, ptgates_user_states에는 있는데 schedule에는 없는 항목 동기화
+            // 퀴즈 시작 시 due_date = 오늘로 insert
+            if ($review_only) {
+                $sync_query = "
+                    INSERT IGNORE INTO ptgates_review_schedule (user_id, question_id, due_date, status, created_at)
+                    SELECT user_id, question_id, CURDATE(), 'pending', NOW()
+                    FROM ptgates_user_states 
+                    WHERE user_id = %d 
+                    AND needs_review = 1
+                    AND question_id NOT IN (
+                        SELECT question_id FROM ptgates_review_schedule WHERE user_id = %d
+                    )
+                ";
+                $wpdb->query($wpdb->prepare($sync_query, $user_id, $user_id));
             }
         }
         
@@ -534,13 +636,15 @@ class API {
             'bookmarked' => $bookmarked,
             'needs_review' => $needs_review,
             'wrong_only' => $wrong_only,
+            'review_only' => $review_only,
             'unsolved_only' => $unsolved_only,
             'user_id' => $user_id,
         );
         $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
         
         // 랜덤 정렬 여부 확인 (복습이 아니고, 전체 교시 풀이가 아닌 경우)
-        $is_random = !$needs_review && !(!empty($session) && $full_session);
+        // 디버깅을 위해 복습 필터가 있는 경우 캐시 무력화
+        $is_random = (!$needs_review && !$review_only && !(!empty($session) && $full_session)) || ($review_only || $needs_review);
 
         // 캐시 확인 (30분 유효 - 문제 목록은 자주 변경될 수 있음)
         // 랜덤 정렬인 경우 캐시 사용 안 함 (매번 새로운 문제)
@@ -566,8 +670,10 @@ class API {
         
         $where = array("q.is_active = 1");
         // 기출문제 제외: exam_session >= 1000 (기출문제는 exam_session < 1000)
-        // 사용자가 이 조건은 유지하라고 함
-        $where[] = "c.exam_session >= 1000";
+        // 단, 검색(ID)이나 복습/오답/북마크 필터가 있는 경우 모든 문제 포함 (사용자가 푼 문제는 다 나와야 함)
+        if (empty($search_id) && !$review_only && !$wrong_only && !$needs_review && !$bookmarked) {
+            $where[] = "c.exam_session >= 1000";
+        }
 
         // 고급 퀴즈 유형 필터링 (Basic 등급은 고급 유형 제외)
         if (!$can_advanced) {
@@ -578,23 +684,46 @@ class API {
         if (empty($search_id)) {
             // 북마크 또는 복습 필터가 있으면 JOIN 추가
             $join_clause = '';
-            if ($bookmarked || $needs_review || $wrong_only) {
-                // ... (existing logic)
-                $join_clause = $wpdb->prepare(
-                    "INNER JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
+            if ($bookmarked || $needs_review || $wrong_only || $review_only) {
+                // OR 조건을 유연하게 처리하기 위해 LEFT JOIN 사용
+                $join_clause .= $wpdb->prepare(
+                    " LEFT JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
+                    $user_id
+                );
+                $join_clause .= $wpdb->prepare(
+                    " LEFT JOIN `ptgates_review_schedule` rs ON q.question_id = rs.question_id AND rs.user_id = %d AND rs.status IN ('pending', 'shown')",
                     $user_id
                 );
                 
+                $and_conditions = array();
+                
+                // 북마크 (AND 조건)
                 if ($bookmarked) {
-                    $where[] = "s.bookmarked = 1";
+                    $and_conditions[] = "s.bookmarked = 1";
                 }
                 
-                if ($needs_review && $wrong_only) {
-                    $where[] = "(s.needs_review = 1 OR s.last_result = 'wrong')";
-                } elseif ($needs_review) {
-                    $where[] = "s.needs_review = 1";
-                } elseif ($wrong_only) {
-                    $where[] = "s.last_result = 'wrong'";
+                // 복습/오답 그룹 (내부 OR 조건)
+                // "Review Only and Wrong Answers Only... OR condition between themselves"
+                $review_group = array();
+                if ($review_only) {
+                    // 오늘 포함 이전 날짜 (due_date <= CURDATE())
+                    $review_group[] = "rs.due_date <= CURDATE()";
+                    // 기존 복습 플래그도 포함 (사용자 요청: DB에 needs_review=1 있어도 안나오는 문제 해결)
+                    $review_group[] = "s.needs_review = 1";
+                }
+                if ($wrong_only) {
+                    $review_group[] = "s.last_result = 'wrong'";
+                }
+                if ($needs_review) { // 필요 시 별도 파라미터로도 동작
+                    $review_group[] = "s.needs_review = 1";
+                }
+                
+                if (!empty($review_group)) {
+                    $and_conditions[] = "(" . implode(" OR ", $review_group) . ")";
+                }
+                
+                if (!empty($and_conditions)) {
+                    $where[] = implode(" AND ", $and_conditions);
                 }
             }
 
@@ -613,6 +742,8 @@ class API {
                     $limit = 10;
                 }
             }
+
+
             
             // 연도 필터
             if (!empty($year)) {
@@ -727,8 +858,6 @@ class API {
             
             // 제한 설정 (상수 또는 기본값)
             // ptgates-quiz.php의 상수를 가져오거나 하드코딩 (플러그인 메인 파일 로드 순서 주의)
-            // 여기서는 안전하게 하드코딩 또는 옵션 조회. 
-            // 하지만 ptgates-quiz.php가 로드된 상태이므로 상수 사용 가능할 수도 있음.
             // 안전하게 기본값 사용: Basic 20, Trial 30
             $limit_quiz = 20;
             
@@ -762,7 +891,10 @@ class API {
         }
         
         // 정렬: 복습 모드인 경우 오래된순, 전체 교시인 경우 고정 순서(문항 ID 오름차순), 그 외 무작위
-        if ($needs_review) {
+        if ($review_only) {
+            // 스케줄 기반 복습은 일정 순서 + 문제 순서
+            $order_clause = "ORDER BY rs.due_date ASC, q.question_id ASC";
+        } elseif ($needs_review || $wrong_only) {
             $order_clause = "ORDER BY s.last_quiz_date ASC";
         } elseif (!empty($session) && $full_session) {
             $order_clause = "ORDER BY q.question_id ASC";
@@ -781,8 +913,10 @@ class API {
             {$limit_clause}
         ";
         
-        // error_log('[PTG Quiz] get_questions_list Query: ' . $query);
+
         
+        
+
         $results = $wpdb->get_results($query, ARRAY_A);
         
         if (empty($results)) {
@@ -798,6 +932,19 @@ class API {
         // 랜덤 정렬인 경우 캐시 저장 안 함
         if (!$is_random) {
             wp_cache_set($cache_key, $question_ids, 'ptg_quiz', 1800);
+        }
+        
+        // [Review Update] If this is a review quiz, update shown_at
+        if ($review_only && !empty($question_ids)) {
+            $ids_placeholder = implode(',', array_fill(0, count($question_ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "UPDATE ptgates_review_schedule 
+                 SET shown_at = NOW(), status = 'shown' 
+                 WHERE user_id = %d 
+                 AND question_id IN ($ids_placeholder)
+                 AND status = 'pending'",
+                array_merge([$user_id], $question_ids)
+            ));
         }
         
         // 사용량 증가
@@ -858,7 +1005,7 @@ class API {
         
         $query = $wpdb->prepare($query, $limit_count);
         
-        // error_log('[PTG Quiz] get_session_questions_by_ratio Session: ' . $session . ', Limit: ' . $limit_count . ', Query: ' . $query);
+
         
         $results = $wpdb->get_results($query, ARRAY_A);
         
@@ -1168,6 +1315,30 @@ class API {
             $wpdb->insert($states_table, $insert_data);
         }
         
+        // -------------------------------------------------------------
+        // 사용자 상태도 업데이트 (복습 기간 설정 시 needs_review = 1)
+        // -------------------------------------------------------------
+        // 이 부분은 update_question_state 함수 내에서 needs_review 파라미터가 있을 때 처리되므로,
+        // 별도의 update_review_schedule 함수가 있다면 그곳에서 처리하는 것이 더 적절합니다.
+        // 현재는 update_question_state 내에서 needs_review 파라미터가 처리되므로,
+        // 이 추가된 코드는 중복되거나 의도와 다를 수 있습니다.
+        // 만약 update_review_schedule 함수가 별도로 존재하고 그 함수를 수정하는 것이라면,
+        // 해당 함수 내에 이 로직을 추가해야 합니다.
+        // 현재 코드에서는 update_question_state의 needs_review 파라미터 처리가 이미 존재합니다.
+        // 따라서 이 블록은 주석 처리하거나, update_review_schedule 함수가 구현될 때 이동해야 합니다.
+        /*
+        $states_table = 'ptgates_user_states';
+        $wpdb->query(
+            $wpdb->prepare(
+                "INSERT INTO {$states_table} (user_id, question_id, needs_review, updated_at) 
+                 VALUES (%d, %d, 1, NOW())
+                 ON DUPLICATE KEY UPDATE needs_review = 1, updated_at = NOW()",
+                $user_id,
+                $question_id
+            )
+        );
+        */
+        
         return Rest::success(array(
             'question_id' => $question_id,
             'updated' => array_keys($update_data)
@@ -1278,11 +1449,11 @@ class API {
         
         // skip_count_update가 true이면 quiz_count를 증가시키지 않음
         if ($skip_count_update) {
-            // quiz_count는 업데이트하지 않고, last_result와 last_answer만 업데이트
             $state_update = array(
                 'last_result'    => $is_correct ? 'correct' : 'wrong',
                 'last_answer'    => $user_answer,
                 'updated_at'     => $current_time_utc,
+                'needs_review'   => 0, // [Review Reset] 문제 풀이 시 복습 플래그 해제
             );
             
             if ($existing_state) {
@@ -1291,7 +1462,8 @@ class API {
                     $wpdb->prepare(
                         "UPDATE `{$states_table}` 
                         SET `last_result` = %s, 
-                            `last_answer` = %s 
+                            `last_answer` = %s,
+                            `needs_review` = 0 
                         WHERE `user_id` = %d AND `question_id` = %d",
                         $is_correct ? 'correct' : 'wrong',
                         $user_answer,
@@ -1342,6 +1514,7 @@ class API {
                 'last_result'    => $is_correct ? 'correct' : 'wrong',
                 'last_answer'    => $user_answer,
                 'quiz_count'     => $next_quiz_count,
+                'needs_review'   => 0, // [Review Reset] 문제 풀이 시 복습 플래그 해제
                 // last_quiz_date는 트리거가 자동으로 설정하므로 제외
                 // updated_at도 ON UPDATE current_timestamp()로 자동 갱신되므로 제외
             );
@@ -1353,7 +1526,8 @@ class API {
                         "UPDATE `{$states_table}` 
                         SET `last_result` = %s, 
                             `last_answer` = %s, 
-                            `quiz_count` = %d 
+                            `quiz_count` = %d,
+                            `needs_review` = 0 
                         WHERE `user_id` = %d AND `question_id` = %d",
                         $is_correct ? 'correct' : 'wrong',
                         $user_answer,
@@ -1372,6 +1546,7 @@ class API {
                         'needs_review'   => 0,
                         'study_count'    => 0,
                         'last_study_date'=> null,
+                        'needs_review'   => 0, // [Review Reset]
                         // updated_at과 last_quiz_date는 INSERT 트리거가 자동으로 설정
                     ),
                     $state_update
@@ -1631,8 +1806,7 @@ class API {
                     $error_msg = '드로잉 저장 실패';
                     if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
                         $error_msg .= ': ' . $wpdb->last_error;
-                        // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
-                        // error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
+
                     }
                     throw new \Exception($error_msg);
                 }
@@ -1647,10 +1821,7 @@ class API {
             // SQL 에러 발생 시 상세 에러 로그
             global $wpdb;
             $error_message = $e->getMessage();
-            // error_log('[PTG Quiz] 드로잉 저장 오류: ' . $error_message);
             if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
-                // error_log('[PTG Quiz] SQL 쿼리: ' . $wpdb->last_query);
                 $error_message = $wpdb->last_error . ' (' . $error_message . ')';
             }
             return Rest::error('save_error', '드로잉 저장에 실패했습니다: ' . $error_message, 500);
@@ -1658,9 +1829,7 @@ class API {
             // PHP 7+ Fatal Error 처리
             global $wpdb;
             $error_message = $e->getMessage();
-            // error_log('[PTG Quiz] 드로잉 저장 치명적 오류: ' . $error_message);
             if (isset($wpdb->last_error) && !empty($wpdb->last_error)) {
-                // error_log('[PTG Quiz] SQL 오류: ' . $wpdb->last_error);
                 $error_message = $wpdb->last_error;
             }
             return Rest::error('fatal_error', '드로잉 저장 중 오류가 발생했습니다: ' . $error_message, 500);
@@ -1704,7 +1873,7 @@ class API {
                 'deleted_count' => $result
             ), $result > 0 ? '드로잉이 삭제되었습니다.' : '삭제할 드로잉이 없습니다.');
         } catch (\Exception $e) {
-            // error_log('[PTG Quiz] 드로잉 삭제 오류: ' . $e->getMessage());
+
             return Rest::error('delete_error', '드로잉 삭제에 실패했습니다: ' . $e->getMessage(), 500);
         }
         }
@@ -1951,7 +2120,7 @@ class API {
         $session = absint($request->get_param('session'));
         $subject = sanitize_text_field($request->get_param('subject'));
         
-        error_log("[PTG Debug] get_subsubjects: session=$session, subject=$subject");
+
         
         // DB에서 직접 sort_order 순서로 조회
         $sql = "SELECT subject, sort_order 
@@ -1980,7 +2149,7 @@ class API {
         $results = $wpdb->get_results($query, ARRAY_A);
 
         if (empty($results)) {
-            error_log("[PTG Debug] get_subsubjects: DB empty, entering fallback. session=$session");
+            
 
             // DB에 없으면 Subjects 클래스에서 가져오기 (fallback)
             
@@ -1992,7 +2161,7 @@ class API {
             
             // 2) 전체 교시 + 특정 과목
             if ($session === 0 && !empty($subject)) {
-                error_log("[PTG Debug] Fallback: Searching all sessions for subject=$subject");
+                
                 $subs = [];
                 foreach (Subjects::get_sessions() as $sess) {
                     $s_subs = Subjects::get_subsubjects((int)$sess, $subject);
@@ -2001,7 +2170,7 @@ class API {
                     }
                 }
                 $subs = array_values(array_unique($subs));
-                error_log("[PTG Debug] Fallback result count: " . count($subs));
+                
                 return Rest::success($subs);
             }
             

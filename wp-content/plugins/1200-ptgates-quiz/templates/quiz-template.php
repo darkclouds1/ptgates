@@ -59,7 +59,18 @@ $is_admin = current_user_can('manage_options');
     
     <!-- 플러그인 헤더 -->
     <div class="ptg-quiz-header">
-        <h1>실전 모의 학습</h1>
+        <h1>실전|Quiz</h1>
+        <div class="ptgates-filter-checkboxes header-checkboxes">
+            <label class="ptg-checkbox-label">
+                <span>복습문제만</span>
+                <input type="checkbox" id="ptg-quiz-filter-review" value="1">
+            </label>
+            <label class="ptg-checkbox-label">
+                <span>틀린문제만</span>
+                <input type="checkbox" id="ptg-quiz-filter-wrong" value="1">
+            </label>
+        </div>
+        
         <div class="ptg-quiz-header-right">
             <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link" aria-label="학습현황으로 돌아가기">학습현황</a>
             <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습Tip]</a>
@@ -101,6 +112,8 @@ $is_admin = current_user_can('manage_options');
                 <option value="unsolved">안푼 문제만(10문제)</option>
             </select>
         </div>
+        
+
         
 
         
@@ -291,7 +304,9 @@ $is_admin = current_user_can('manage_options');
                             $description   = isset( $meta['description'] ) ? $meta['description'] : '';
                             ?>
                             <div class="ptg-quiz-category" data-category-id="<?php echo esc_attr( $category_id ); ?>">
-                                <div class="ptg-quiz-category-header">
+                                <div class="ptg-quiz-category-header" 
+                                     onclick="if(window.PTGQuiz && window.PTGQuiz.selectFilterAndStart) { window.PTGQuiz.selectFilterAndStart(<?php echo $sess_num; ?>, '<?php echo esc_js($subject_name); ?>', ''); }"
+                                     style="cursor: pointer;">
                                     <h4 class="ptg-quiz-category-title">
                                         <span class="ptg-quiz-session-badge"><?php echo esc_html( $sess_num ); ?>교시</span>
                                         <?php echo esc_html( $subject_name ); ?>
@@ -444,9 +459,9 @@ $is_admin = current_user_can('manage_options');
             <button type="button" class="ptg-btn-icon ptg-btn-bookmark" aria-label="북마크" title="북마크">
                 <span class="ptg-icon">☆</span>
             </button>
-            <button type="button" class="ptg-btn-icon ptg-btn-review" aria-label="복습 필요" title="복습 필요">
+            <!-- <button type="button" class="ptg-btn-icon ptg-btn-review" aria-label="복습 필요" title="복습 필요">
                 <span class="ptg-icon">🔁</span>
-            </button>
+            </button> -->
             <button type="button" class="ptg-btn-icon ptg-btn-notes" aria-label="메모" title="메모">
                 <span class="ptg-icon">📝</span>
             </button>

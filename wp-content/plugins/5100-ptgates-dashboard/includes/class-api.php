@@ -380,24 +380,45 @@ class API {
         
         // 테이블 이름 확인 (Prefix 지원)
         $table_states = self::get_table_name('ptgates_user_states');
+        $table_schedule = self::get_table_name('ptgates_review_schedule');
         
+        $bookmark_count = 0;
+        $review_count = 0;
+
         if (self::table_exists($table_states)) {
             $wpdb->suppress_errors(true);
-            // 두 개의 COUNT 쿼리를 하나로 통합
-            $stats = $wpdb->get_row($wpdb->prepare(
-                "SELECT 
-                    COUNT(CASE WHEN needs_review = 1 THEN 1 END) as review_count,
-                    COUNT(CASE WHEN bookmarked = 1 THEN 1 END) as bookmark_count
-                FROM $table_states 
-                WHERE user_id = %d",
-                $user_id
-            ), ARRAY_A);
-            $wpdb->suppress_errors(false);
             
-            if ($stats && !$wpdb->last_error) {
-                $review_count = (int)($stats['review_count'] ?? 0);
-                $bookmark_count = (int)($stats['bookmark_count'] ?? 0);
+            // 1. 북마크 카운트 (기존 로직 유지)
+            $bookmark_count = (int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table_states WHERE user_id = %d AND bookmarked = 1",
+                $user_id
+            ));
+            
+            // 2. 복습 카운트 (UNION: 기존 needs_review + 스케줄된 복습)
+            /*
+             * "Review Only and Wrong Answers Only... OR condition"
+             * Dashboard 표시용으로는 "복습해야 할 문제 수"를 보여줘야 함.
+             * -> needs_review=1 OR (scheduled AND due_date <= TODAY)
+             * 중복 제거를 위해 UNION 사용
+             */
+            $today = current_time('Y-m-d');
+            
+            $query_union = "
+                SELECT question_id FROM $table_states WHERE user_id = %d AND needs_review = 1
+            ";
+            $args = [$user_id];
+            
+            if (self::table_exists($table_schedule)) {
+                $query_union .= " UNION SELECT question_id FROM $table_schedule WHERE user_id = %d AND status = 'scheduled' AND due_date <= %s";
+                $args[] = $user_id;
+                $args[] = $today;
             }
+            
+            $final_query = "SELECT COUNT(*) FROM ($query_union) as combined";
+            
+            $review_count = (int)$wpdb->get_var($wpdb->prepare($final_query, ...$args));
+            
+            $wpdb->suppress_errors(false);
         }
 
         // 3. Progress (Overall)
