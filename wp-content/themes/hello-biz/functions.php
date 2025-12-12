@@ -94,6 +94,7 @@ add_action( 'wp_enqueue_scripts', function () {
 
 }, PHP_INT_MAX );
 
+
 /**
  * (선택) 관리자에서 블록 에디터 끄기 – 필요 없으면 이 두 줄은 지워도 됨
  */
@@ -109,3 +110,4 @@ add_action('admin_head', function () {
         .wf-banner { display:none !important; }
     </style>';
 });
+

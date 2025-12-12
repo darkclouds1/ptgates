@@ -11,6 +11,7 @@ class Analyzer {
 		return [
 			'all_subject_stats' => self::get_all_subject_stats( $user_id ),
 			'recent_accuracy' => self::get_recent_accuracy( $user_id ),
+			'last_quiz_stats' => self::get_last_quiz_summary( $user_id ), // [NEW] 최근 퀴즈 기록
 			// 'predicted_score' => self::get_predicted_score( $user_id ), // 예상 점수 카드 제거로 인해 API에서도 제거
 			'learning_streak' => self::get_learning_streak( $user_id ),
 			'learning_velocity' => self::get_learning_velocity( $user_id ),
@@ -231,6 +232,41 @@ class Analyzer {
 		}
 
 		return $data;
+	}
+
+	/*
+	 * Get summary of the last day user took a quiz
+	 */
+	private static function get_last_quiz_summary( $user_id ) {
+		global $wpdb;
+		$table_r = self::get_table_name('ptgates_user_results');
+
+		// 1. Find the latest date
+		$sql_date = "SELECT DATE(attempted_at) as last_date 
+					 FROM $table_r 
+					 WHERE user_id = %d 
+					 ORDER BY attempted_at DESC 
+					 LIMIT 1";
+		
+		$last_date = $wpdb->get_var( $wpdb->prepare( $sql_date, $user_id ) );
+
+		if ( ! $last_date ) {
+			return null;
+		}
+
+		// 2. Get stats for that specific date
+		$sql_stats = "SELECT COUNT(*) as total, 
+					  SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct 
+					  FROM $table_r 
+					  WHERE user_id = %d AND DATE(attempted_at) = %s";
+		
+		$stats = $wpdb->get_row( $wpdb->prepare( $sql_stats, $user_id, $last_date ) );
+
+		return [
+			'date' => $last_date,
+			'total' => $stats ? (int)$stats->total : 0,
+			'correct' => $stats ? (int)$stats->correct : 0
+		];
 	}
 
 	/**

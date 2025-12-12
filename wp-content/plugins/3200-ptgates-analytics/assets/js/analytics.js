@@ -79,6 +79,18 @@
         data.learning_streak + "일",
         "꾸준함이 합격의 열쇠!"
       );
+
+      // [NEW] 최근 Quiz 기록 카드
+      let quizValue = "0 / 0";
+      let quizDate = "기록 없음";
+
+      if (data.last_quiz_stats) {
+        quizValue =
+          data.last_quiz_stats.correct + " / " + data.last_quiz_stats.total;
+        quizDate = data.last_quiz_stats.date + " Quiz 기록";
+      }
+
+      html += this.buildStatCard("Quiz (정답수/풀이수)", quizValue, quizDate);
       html += "</div>";
 
       // 2. Middle Row: Charts (Radar + Velocity)
