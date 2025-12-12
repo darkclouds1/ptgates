@@ -45,59 +45,65 @@ class Subjects {
 	}
 
 	/**
-	 * DB에서 과목 설정 로드
+	 * DB에서 과목 설정 로드 (Table: ptgates_subject)
 	 */
 	private static function load_map() {
 		global $wpdb;
 
-		// 1. 교시 설정 로드
-		$course_config = $wpdb->get_results( "SELECT * FROM ptgates_exam_course_config WHERE is_active = 1", ARRAY_A );
-		
-		// 2. 과목 설정 로드 (정렬: sort_order)
-		$subject_config = $wpdb->get_results( "SELECT * FROM ptgates_subject_config WHERE is_active = 1 ORDER BY sort_order ASC", ARRAY_A );
+		// 단일 테이블에서 모든 설정 로드
+		// 정렬: 교시 -> ID 순 (등록 순서가 곧 정렬 순서라고 가정)
+		$rows = $wpdb->get_results( "SELECT * FROM ptgates_subject ORDER BY course_no ASC, id ASC", ARRAY_A );
 
 		$map = [];
 
-		// 교시 초기화
-		if ( $course_config ) {
-			foreach ( $course_config as $course ) {
-				// exam_course가 '1교시', '2교시' 형태라고 가정하고 숫자만 추출하거나 매핑
-				$course_num = (int) preg_replace( '/[^0-9]/', '', $course['exam_course'] );
-				if ( $course_num > 0 ) {
+		if ( $rows ) {
+			foreach ( $rows as $row ) {
+				$course_num   = (int) $row['course_no'];
+				$category     = $row['category'];
+				$subcategory  = $row['subcategory']; // NULL이면 합계행
+				$questions    = (int) $row['questions'];
+
+				// 교시 초기화
+				if ( ! isset( $map[ $course_num ] ) ) {
 					$map[ $course_num ] = [
-						'total'    => (int) $course['total_questions'],
+						'total'    => 0, // 나중에 집계
 						'subjects' => [],
 					];
 				}
-			}
-		}
 
-		// 과목 및 세부과목 구성
-		if ( $subject_config ) {
-			foreach ( $subject_config as $row ) {
-				$course_num = (int) preg_replace( '/[^0-9]/', '', $row['exam_course'] );
-				$main_subject = $row['subject_category']; // 대분류
-				$sub_subject = $row['subject']; // 세부과목
-				$count = (int) $row['question_count'];
-				$subject_code = $row['subject_code']; // 코드
-
-				if ( isset( $map[ $course_num ] ) ) {
-					// 대분류가 없으면 초기화
-					if ( ! isset( $map[ $course_num ]['subjects'][ $main_subject ] ) ) {
-						$map[ $course_num ]['subjects'][ $main_subject ] = [
-							'total' => 0,
-							'subs'  => [],
-							'codes' => [], // subject_code 매핑 추가
-						];
-					}
-
-					// 세부과목 추가
-					$map[ $course_num ]['subjects'][ $main_subject ]['subs'][ $sub_subject ] = $count;
-					$map[ $course_num ]['subjects'][ $main_subject ]['codes'][ $sub_subject ] = $subject_code;
-					
-					// 대분류 총점 누적
-					$map[ $course_num ]['subjects'][ $main_subject ]['total'] += $count;
+				// 과목(대분류) 초기화
+				if ( ! isset( $map[ $course_num ]['subjects'][ $category ] ) ) {
+					$map[ $course_num ]['subjects'][ $category ] = [
+						'total' => 0,
+						'subs'  => [],
+						'codes' => [],
+					];
 				}
+
+				if ( is_null( $subcategory ) || $subcategory === '' ) {
+					// 합계행(subcategory가 NULL)은 카테고리 정의용으로만 사용하고, 문항 수 합계는 직접 계산함
+					// (사용자 요청: "과목(대분류)의 합계는 같은 category 의 questions 의 합계야.")
+				} else {
+					// 세부 과목
+					$map[ $course_num ]['subjects'][ $category ]['subs'][ $subcategory ] = $questions;
+					$map[ $course_num ]['subjects'][ $category ]['codes'][ $subcategory ] = $subcategory;
+					
+					// 대분류 총점 누적 계산
+					$map[ $course_num ]['subjects'][ $category ]['total'] += $questions;
+				}
+			}
+
+			// 후처리: 교시별 총점 계산 및 과목 총점이 0인 경우(합계행 누락) 자동 합산
+			foreach ( $map as $c_num => &$c_data ) {
+				$session_total = 0;
+				foreach ( $c_data['subjects'] as $cat_name => &$cat_data ) {
+					// 합계행이 없어서 total이 0인 경우, 세부과목 합계로 채움
+					if ( $cat_data['total'] === 0 && ! empty( $cat_data['subs'] ) ) {
+						$cat_data['total'] = array_sum( $cat_data['subs'] );
+					}
+					$session_total += $cat_data['total'];
+				}
+				$c_data['total'] = $session_total;
 			}
 		}
 

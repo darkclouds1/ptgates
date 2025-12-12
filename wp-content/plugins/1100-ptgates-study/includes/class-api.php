@@ -314,6 +314,7 @@ class Study_API {
 		// 랜덤 섞기 플래그
 		$random = (bool) $request->get_param('random');
         $wrong_only = $request->get_param('wrong_only') === '1';
+        $infinite_scroll = $request->get_param('infinite_scroll') === '1';
 
         if (!empty($subjects_param)) {
             if (is_array($subjects_param)) {
@@ -384,6 +385,11 @@ class Study_API {
                         }
                     }
                 }
+            }
+
+            // 무한 스크롤(DB 전체 조회) 요청 시 Map의 제한을 무시
+            if ($infinite_scroll) {
+                $max_items = 0;
             }
 
             // 집계 모드: 각 세부과목의 문제를 모두 모은 후 question_id ASC 정렬
@@ -565,6 +571,11 @@ class Study_API {
                     }
                 }
             }
+        }
+
+        // 무한 스크롤(DB 전체 조회) 요청 시 Map의 제한을 무시
+        if ($infinite_scroll) {
+            $max_items = 0;
         }
 
         // Legacy DB와 신규 Config 간의 과목명 불일치 보정

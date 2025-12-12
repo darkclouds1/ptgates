@@ -606,6 +606,7 @@ function PTG_quiz_alert(message) {
    */
   function applyUIForState() {
     const filterSection = document.getElementById("ptg-quiz-filter-section");
+    const gridSection = document.getElementById("ptg-quiz-grid-section");
     const progress = document.getElementById("ptgates-progress-section");
     const toolbar = document.querySelector(".ptg-quiz-toolbar");
     const cardWrapper = document.querySelector(".ptg-quiz-card-wrapper");
@@ -622,6 +623,7 @@ function PTG_quiz_alert(message) {
     switch (QuizState.appState) {
       case "idle":
         show(filterSection, "flex");
+        show(gridSection, "grid");
         hide(progress);
         hide(toolbar);
         hide(cardWrapper);
@@ -638,6 +640,7 @@ function PTG_quiz_alert(message) {
         break;
       case "running":
         hide(filterSection);
+        hide(gridSection);
         show(progress, "block");
         show(toolbar, "flex");
         show(cardWrapper, "block");
@@ -656,6 +659,7 @@ function PTG_quiz_alert(message) {
       case "finished":
       case "terminated":
         hide(filterSection);
+        hide(gridSection);
         hide(progress);
         hide(toolbar);
         hide(cardWrapper);
@@ -1236,6 +1240,7 @@ function PTG_quiz_alert(message) {
     try {
       let subjects = [];
       if (USE_SERVER_SUBJECTS) {
+        // 교시가 없어도(전체) API 호출
         const endpoint = session
           ? `ptg-quiz/v1/subjects?session=${session}`
           : "ptg-quiz/v1/subjects";
@@ -1260,6 +1265,7 @@ function PTG_quiz_alert(message) {
           }
         } else {
           // All Sessions
+          // 교시 미선택 시 모든 과목 합치기
           Object.keys(mapping).forEach((sKey) => {
             if (mapping[sKey] && mapping[sKey].subjects) {
               subjects = subjects.concat(Object.keys(mapping[sKey].subjects));
@@ -1346,11 +1352,15 @@ function PTG_quiz_alert(message) {
     try {
       let list = [];
 
-      // 1) 특정 과목이 선택된 경우 → 해당 과목의 세부과목만
-      if (USE_SERVER_SUBJECTS && session && subject) {
-        const endpoint = `ptg-quiz/v1/subsubjects?session=${encodeURIComponent(
-          session
-        )}&subject=${encodeURIComponent(subject)}`;
+      // 1) 특정 과목이 선택된 경우 OR 교시만 선택된 경우 OR 전체인 경우 -> 모두 API 호출 시도
+      // 백엔드에서 endpoint가 이미 전체 조회를 지원하도록 수정됨.
+      if (USE_SERVER_SUBJECTS) {
+        // Query param construction
+        const params = new URLSearchParams();
+        if (session) params.append("session", session);
+        if (subject) params.append("subject", subject);
+
+        const endpoint = `ptg-quiz/v1/subsubjects?${params.toString()}`;
         const response = await PTGPlatform.get(endpoint);
         list =
           response && response.success && Array.isArray(response.data)
@@ -4269,6 +4279,11 @@ function PTG_quiz_alert(message) {
    * - 선택지 미선택 시: 통계에 오답으로 추가 (DB 저장 없음)
    */
   async function loadNextQuestion() {
+    // 다음 문제로 넘어갈 때 메모창이 열려있으면 닫기 (사용자 요청)
+    if (window.PTGQuizToolbar && window.PTGQuizToolbar.toggleNotesPanel) {
+      window.PTGQuizToolbar.toggleNotesPanel(false);
+    }
+
     // 종료 상태에서는 더 이상 진행하지 않음
     if (QuizState.terminated) {
       return;
@@ -4305,14 +4320,50 @@ function PTG_quiz_alert(message) {
     }
 
     // 선택지 선택 여부 확인
-    const hasAnswer =
-      QuizState.tempAnswer !== null && QuizState.tempAnswer !== undefined;
+    // 1. 이미 정답확인을 한 경우 (checkAnswer를 통해 tempAnswer가 생성됨)
+    let finalAnswerObj = QuizState.tempAnswer;
+
+    // 2. 정답확인을 안 하고 바로 넘어가는 경우 -> UI에서 현재 선택된 값 확인
+    if (!finalAnswerObj) {
+      let currentUiAnswer = "";
+      if (typeof PTGQuizUI !== "undefined") {
+        currentUiAnswer = PTGQuizUI.getSelectedAnswer({
+          answerName: "ptg-answer",
+          textAnswerId: "ptg-user-answer",
+        });
+      } else {
+        currentUiAnswer = QuizState.userAnswer;
+      }
+
+      // DOM fallback
+      if (!currentUiAnswer) {
+        try {
+          const checked = document.querySelector(
+            '#ptg-quiz-choices input[type="radio"]:checked'
+          );
+          if (checked && checked.value) {
+            currentUiAnswer = checked.value;
+          }
+        } catch (e) {}
+      }
+
+      // 선택된 값이 있으면 전송 객체 구성
+      if (currentUiAnswer) {
+        finalAnswerObj = {
+          userAnswer: currentUiAnswer,
+          normalizedAnswer: circleToNumber(currentUiAnswer),
+          // 정답 여부(isCorrect)나 정답(correctAnswer)은 아직 모름 -> API 응답으로 처리
+          isCorrect: false, // 임시값 (API 응답으로 덮어씌움)
+          correctAnswer: "", // 임시값
+        };
+      }
+    }
+
+    const hasAnswer = finalAnswerObj !== null && finalAnswerObj !== undefined;
 
     if (hasAnswer) {
       // 선택지 선택 시: DB 저장 및 통계 추가
       try {
-        const tempAnswer = QuizState.tempAnswer;
-
         // sessionStorage에서 이미 로그된 question_id 목록 가져오기
         const QUIZ_STORAGE_KEY = "ptg_quiz_logged_questions";
         let loggedQuestions = [];
@@ -4332,7 +4383,7 @@ function PTG_quiz_alert(message) {
         const response = await PTGPlatform.post(
           `ptg-quiz/v1/questions/${QuizState.questionId}/attempt`,
           {
-            answer: tempAnswer.normalizedAnswer,
+            answer: finalAnswerObj.normalizedAnswer,
             elapsed: QuizState.timerSeconds,
             skip_count_update: alreadyLogged ? true : false,
           }
@@ -4352,11 +4403,21 @@ function PTG_quiz_alert(message) {
         }
 
         // 통계에 추가 (완료 화면용)
+        // API 응답에서 정확한 정답 여부와 정답 내용을 가져옴
+        const isCorrectApi =
+          response && response.data
+            ? response.data.is_correct
+            : finalAnswerObj.isCorrect;
+        const correctAnswerApi =
+          response && response.data
+            ? response.data.correct_answer
+            : finalAnswerObj.correctAnswer;
+
         QuizState.answers.push({
           questionId: QuizState.questionId,
-          isCorrect: tempAnswer.isCorrect,
-          userAnswer: tempAnswer.userAnswer,
-          correctAnswer: tempAnswer.correctAnswer,
+          isCorrect: isCorrectApi,
+          userAnswer: finalAnswerObj.userAnswer,
+          correctAnswer: correctAnswerApi,
         });
       } catch (error) {
         console.error("답안 저장 오류:", error);
@@ -4876,6 +4937,7 @@ function PTG_quiz_alert(message) {
     QuizState.userAnswer = "";
     QuizState.tempAnswer = null;
     QuizState.startTime = Date.now(); // 시작 시간 재설정
+    QuizState.giveUpInProgress = false; // 포기하기 플래그 초기화 (재시작 시 포기하기 버튼 다시 동작하도록)
 
     // 타이머 초기화 및 설정
     if (QuizState.timerInterval) {
@@ -5068,7 +5130,65 @@ function PTG_quiz_alert(message) {
       }
     },
     checkAnswer,
+    selectFilterAndStart: selectFilterAndStart,
   };
+
+  /**
+   * 그리드 등에서 직접 과목/세부과목 선택 후 퀴즈 시작 (Sequential Loading)
+   */
+  async function selectFilterAndStart(session, subject, subsubject) {
+    const sessionSelect = document.getElementById("ptg-quiz-filter-session");
+    const subjectSelect = document.getElementById("ptg-quiz-filter-subject");
+    const subSubjectSelect = document.getElementById(
+      "ptg-quiz-filter-subsubject"
+    );
+
+    // 1. Session 설정
+    if (sessionSelect) {
+      sessionSelect.value = String(session);
+      // 단순 UI 업데이트용 이벤트 실행 (다른 리스너가 있을 수 있으므로)
+      try {
+        sessionSelect.dispatchEvent(new Event("change"));
+      } catch (e) {}
+    }
+
+    // 2. 과목 목록 로드 (await)
+    await loadSubjectsForSession(session);
+
+    // 3. Subject 설정
+    if (subjectSelect) {
+      // 로드된 옵션 중에 해당 과목이 있는지 확인
+      const optionExists = Array.from(subjectSelect.options).some(
+        (opt) => opt.value === subject
+      );
+      if (optionExists) {
+        subjectSelect.value = subject;
+        try {
+          subjectSelect.dispatchEvent(new Event("change"));
+        } catch (e) {}
+      }
+    }
+
+    // 4. 세부과목 목록 로드 (await)
+    await populateSubSubjects(session, subject);
+
+    // 5. SubSubject 설정
+    if (subSubjectSelect && subsubject) {
+      // 로드된 옵션 중에 해당 세부과목이 있는지 확인
+      const subExists = Array.from(subSubjectSelect.options).some(
+        (opt) => opt.value === subsubject
+      );
+      if (subExists) {
+        subSubjectSelect.value = subsubject;
+        try {
+          subSubjectSelect.dispatchEvent(new Event("change"));
+        } catch (e) {}
+      }
+    }
+
+    // 6. 시작
+    startQuizFromFilter();
+  }
 
   // DOM 로드 완료 시 초기화
   function autoInit() {

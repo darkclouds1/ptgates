@@ -7,8 +7,8 @@
 /* 컨테이너 - 양옆 마진 없이 중앙 정렬 */
 .ptg-quiz-container,
 #ptg-quiz-container {
-  max-width: 750px !important;
-  width: 750px !important;
+  max-width: 900px !important;
+  width: 900px !important;
   margin: 0 !important;
   padding: 10px !important;
   box-sizing: border-box !important;

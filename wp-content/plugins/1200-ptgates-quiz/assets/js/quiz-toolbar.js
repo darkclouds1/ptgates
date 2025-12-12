@@ -237,6 +237,14 @@
 
     const content = textarea.value.trim();
 
+    // 최적화: 변경사항이 없으면 저장하지 않음 (특히 내용이 없고 기존에도 없을 때)
+    const currentNote = (
+      window.PTGQuiz?.QuizState?.userState?.note || ""
+    ).trim();
+    if (content === currentNote) {
+      return;
+    }
+
     try {
       await window.PTGPlatform.post(
         `ptg-quiz/v1/questions/${window.PTGQuiz?.QuizState.questionId}/memo`,

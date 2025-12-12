@@ -1,1128 +1,1529 @@
-(function($) {
-    'use strict';
+(function ($) {
+  "use strict";
 
-    // 전역 디버그 플래그(기본 off). 필요 시 콘솔에서 window.PTG_STUDY_DEBUG=true로 켜서 상세 로그 확인.
-    let PTG_STUDY_DEBUG = false;
-    // sessionStorage를 사용하여 페이지 세션 동안 로그된 question_id 추적
-    const STORAGE_KEY = 'ptg_study_logged_questions';
+  // 전역 디버그 플래그(기본 off). 필요 시 콘솔에서 window.PTG_STUDY_DEBUG=true로 켜서 상세 로그 확인.
+  let PTG_STUDY_DEBUG = false;
+  // sessionStorage를 사용하여 페이지 세션 동안 로그된 question_id 추적
+  const STORAGE_KEY = "ptg_study_logged_questions";
 
-    let categoryMap = {};
-    let initialCoursesHTML = null;
+  let categoryMap = {};
+  let initialCoursesHTML = null;
 
-	// 교시/과목/세부과목 정의(1200-ptgates-quiz/includes/class-subjects.php :: Subjects::MAP를 반영)
-	// 클라이언트에서 카드 렌더링을 위해 필요한 최소 구조만 추출
-	// 교시/과목/세부과목 정의는 PHP에서 ptgStudy.subjectMap으로 주입됨
-	// const PTG_SUBJECTS_FROM_MAP = ... (Removed)
+  // 교시/과목/세부과목 정의(1200-ptgates-quiz/includes/class-subjects.php :: Subjects::MAP를 반영)
+  // 클라이언트에서 카드 렌더링을 위해 필요한 최소 구조만 추출
+  // 교시/과목/세부과목 정의는 PHP에서 ptgStudy.subjectMap으로 주입됨
+  // const PTG_SUBJECTS_FROM_MAP = ... (Removed)
 
-	// PTGQuizUI 미존재 경고를 중복 출력하지 않도록 가드
-	let PTG_QUIZUI_WARNED = false;
+  // PTGQuizUI 미존재 경고를 중복 출력하지 않도록 가드
+  let PTG_QUIZUI_WARNED = false;
 
-    // 코스 목록을 렌더링할 컨테이너 (init 함수 내부로 이동)
-    // const studyContainer = $('#ptg-study-app');
+  // 코스 목록을 렌더링할 컨테이너 (init 함수 내부로 이동)
+  // const studyContainer = $('#ptg-study-app');
 
-    const HTML_ENTITIES = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;',
-        '`': '&#96;'
-    };
+  const HTML_ENTITIES = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+    "`": "&#96;",
+  };
 
-    function escapeHtml(str) {
-        // ?? 연산자는 구형 브라우저에서 호환성 문제가 있을 수 있으므로 변경
-        return String(str !== null && str !== undefined ? str : '').replace(/[&<>"'`]/g, function(match) {
-            return HTML_ENTITIES[match] || match;
-        });
+  function escapeHtml(str) {
+    // ?? 연산자는 구형 브라우저에서 호환성 문제가 있을 수 있으므로 변경
+    return String(str !== null && str !== undefined ? str : "").replace(
+      /[&<>"'`]/g,
+      function (match) {
+        return HTML_ENTITIES[match] || match;
+      }
+    );
+  }
+
+  // 설명 텍스트 포맷팅: "(정답 해설):" / "(오답 해설):" 구분이 있으면 줄바꿈 추가
+  function formatExplanationText(explanationRaw) {
+    if (!explanationRaw) return "";
+    var text = String(explanationRaw);
+    text = text.replace(/\r\n/g, "\n");
+    text = text.replace(/(?!^)\(정답 해설\)\s*:/g, "<br>(정답 해설):");
+    text = text.replace(/(?!^)\(오답 해설\)\s*:/g, "<br>(오답 해설):");
+    text = text.replace(/\n/g, "<br>");
+    return text;
+  }
+
+  // 전역 XHR 변수 (중복 요청 방지)
+  let currentXhr = null;
+
+  /**
+   * 초기화 함수
+   */
+  function init() {
+    if (PTG_STUDY_DEBUG) console.log("PTG Study: init() function called.");
+    window.PTG_STUDY_GLOBAL_CLICK_DEBUG = true; // 전역 클릭 디버그(기본 on: 일부 테마에서 위임 실패 보완)
+
+    const studyContainer = $("#ptg-study-app");
+    if (PTG_STUDY_DEBUG)
+      console.log("PTG Study: Found container, length:", studyContainer.length);
+
+    if (studyContainer.length === 0) {
+      console.error("PTG Study: Container #ptg-study-app not found. Aborting.");
+      return;
     }
 
-    // 설명 텍스트 포맷팅: "(정답 해설):" / "(오답 해설):" 구분이 있으면 줄바꿈 추가
-    function formatExplanationText(explanationRaw) {
-        if (!explanationRaw) return '';
-        var text = String(explanationRaw);
-        text = text.replace(/\r\n/g, '\n');
-        text = text.replace(/(?!^)\(정답 해설\)\s*:/g, '<br>(정답 해설):');
-        text = text.replace(/(?!^)\(오답 해설\)\s*:/g, '<br>(오답 해설):');
-        text = text.replace(/\n/g, '<br>');
-        return text;
-    }
+    // 초기 과목/세부과목 DOM을 그대로 스냅샷 (Subjects::MAP 기반 PHP 렌더링 결과)
+    initialCoursesHTML = studyContainer.html();
 
-    // 전역 XHR 변수 (중복 요청 방지)
-    let currentXhr = null;
+    // 과목/세부과목 카드는 PHP에서 class-subjects.php MAP을 이용해 렌더링하므로
+    // JS에서는 클릭 이벤트만 처리한다.
 
-    /**
-     * 초기화 함수
-     */
-    function init() {
-        if (PTG_STUDY_DEBUG) console.log('PTG Study: init() function called.');
-		window.PTG_STUDY_GLOBAL_CLICK_DEBUG = true; // 전역 클릭 디버그(기본 on: 일부 테마에서 위임 실패 보완)
-        
-        const studyContainer = $('#ptg-study-app');
-        if (PTG_STUDY_DEBUG) console.log('PTG Study: Found container, length:', studyContainer.length);
+    setupStudyTipHandlers();
 
-        if (studyContainer.length === 0) {
-            console.error('PTG Study: Container #ptg-study-app not found. Aborting.');
-            return;
-        }
-        
-        // 초기 과목/세부과목 DOM을 그대로 스냅샷 (Subjects::MAP 기반 PHP 렌더링 결과)
-        initialCoursesHTML = studyContainer.html();
-
-		// 과목/세부과목 카드는 PHP에서 class-subjects.php MAP을 이용해 렌더링하므로
-        // JS에서는 클릭 이벤트만 처리한다.
-
-        setupStudyTipHandlers();
-
-        // URL 파라미터에서 세부과목 자동 열기 (대시보드에서 링크로 이동한 경우)
-        const urlParams = new URLSearchParams(window.location.search);
-        const subjectParam = urlParams.get('subject');
-        if (subjectParam) {
+    // URL 파라미터에서 세부과목 자동 열기 (대시보드에서 링크로 이동한 경우)
+    const urlParams = new URLSearchParams(window.location.search);
+    const subjectParam = urlParams.get("subject");
+    if (subjectParam) {
+      try {
+        const subjectId = decodeURIComponent(subjectParam);
+        const subjectLabel = subjectId;
+        // 해당 세부과목이 있는 카테고리 찾기
+        const $targetItem = studyContainer
+          .find(".ptg-subject-item")
+          .filter(function () {
+            const itemId = $(this).data("subject-id");
+            if (!itemId) return false;
             try {
-                const subjectId = decodeURIComponent(subjectParam);
-                const subjectLabel = subjectId;
-                // 해당 세부과목이 있는 카테고리 찾기
-                const $targetItem = studyContainer.find('.ptg-subject-item').filter(function() {
-                    const itemId = $(this).data('subject-id');
-                    if (!itemId) return false;
-                    try {
-                        return decodeURIComponent(itemId) === subjectId;
-                    } catch (e) {
-                        return itemId === subjectId;
-                    }
-                });
-                
-                if ($targetItem.length > 0) {
-                    const $category = $targetItem.closest('.ptg-category');
-                    const categoryLabel = $category.find('.ptg-category-title').text().trim();
-                    // 약간의 지연 후 자동으로 클릭 (DOM이 완전히 준비된 후)
-                    setTimeout(function() {
-                        studyContainer.html(`<p>${escapeHtml(subjectLabel)} 과목의 학습 내용을 불러오는 중...</p>`);
-                        fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel);
-                    }, 100);
-                }
+              return decodeURIComponent(itemId) === subjectId;
             } catch (e) {
-                console.warn('PTG Study: Failed to parse subject parameter', e);
+              return itemId === subjectId;
             }
+          });
+
+        if ($targetItem.length > 0) {
+          const $category = $targetItem.closest(".ptg-category");
+          const categoryLabel = $category
+            .find(".ptg-category-title")
+            .text()
+            .trim();
+          // 약간의 지연 후 자동으로 클릭 (DOM이 완전히 준비된 후)
+          setTimeout(function () {
+            studyContainer.html(
+              `<p>${escapeHtml(
+                subjectLabel
+              )} 과목의 학습 내용을 불러오는 중...</p>`
+            );
+            fetchAndRenderLessons(
+              studyContainer,
+              subjectId,
+              subjectLabel,
+              categoryLabel
+            );
+          }, 100);
         }
-
-        // 카테고리 클릭 이벤트 (과목 클릭 시 중복 실행 방지)
-        studyContainer.off('click', '.ptg-category');
-        studyContainer.on('click', '.ptg-category', function(event) {
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: category clicked (DOM-based)', event.target);
-
-            // 세부과목 클릭일 때는 카테고리 핸들러를 타지 않도록 방지
-            if ($(event.target).closest('.ptg-subject-item').length) {
-                return;
-            }
-
-            const $categoryCard = $(this);
-            const categoryId = $categoryCard.data('category-id');
-            const categoryTitle = $categoryCard.find('.ptg-category-title').text().trim();
-
-            // 이 카테고리에 포함된 세부과목명들을 data-subject-id에서 복원
-            const subjectNames = $categoryCard.find('.ptg-subject-item').map(function() {
-                const rawId = $(this).data('subject-id') || '';
-                try {
-                    return decodeURIComponent(rawId);
-                } catch (e) {
-                    return rawId;
-                }
-            }).get();
-
-            if (!subjectNames || subjectNames.length === 0) {
-                alert('이 과목에는 학습 가능한 세부과목이 없습니다.');
-                return;
-            }
-
-            const category = {
-                id: categoryId,
-                title: categoryTitle,
-                subjects: subjectNames, // 문자열 배열로 전달
-            };
-
-            $('.ptg-category').removeClass('ptg-category--active');
-            $categoryCard.addClass('ptg-category--active');
-
-            // 전역 틀린문제만 체크박스 상태 확인
-            const isGlobalWrongOnly = $('#ptg-global-wrong-only').is(':checked');
-            if (PTG_STUDY_DEBUG) console.log('DEBUG: Category Clicked. WrongOnly: ' + isGlobalWrongOnly);
-
-            // 과목 카테고리 선택 시 항상 랜덤 모드(true)로 진입, 틀린문제만 필터 적용
-            fetchAndRenderCategoryLessons(studyContainer, category, 0, true, true, isGlobalWrongOnly);
-        });
-
-        // 과목 클릭 이벤트 바인딩 (중복 바인딩 방지)
-        studyContainer.off('click', '.ptg-subject-item');
-        studyContainer.on('click', '.ptg-subject-item', function(event) {
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subject item clicked', event.target);
-            event.stopPropagation();
-
-            const subjectId = $(this).data('subject-id');
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectId resolved =', subjectId);
-            if (!subjectId) {
-                console.warn('PTG Study: subjectId is missing on clicked element', this);
-                return;
-            }
-            const subjectLabel = $(this).text().trim();
-            const categoryLabel = $(this).closest('.ptg-category').find('.ptg-category-title').text().trim();
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: subjectLabel =', subjectLabel, 'categoryLabel =', categoryLabel);
-            
-            // 전역 틀린문제만 체크박스 상태 확인 (DOM 삭제 전 읽기)
-            const isGlobalWrongOnly = $('#ptg-global-wrong-only').is(':checked');
-            alert('DEBUG: Subject Clicked. WrongOnly: ' + isGlobalWrongOnly); // Debug alert
-
-            // 즉시 로딩 상태 표시
-            const displayName = subjectLabel || decodeURIComponent(subjectId);
-            studyContainer.html(`<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`);
-            
-            // 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
-            fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, 0, true, true, isGlobalWrongOnly);
-        });
+      } catch (e) {
+        console.warn("PTG Study: Failed to parse subject parameter", e);
+      }
     }
 
-    /**
-     * API에서 코스(과목) 목록을 가져와서 렌더링
-     */
-    function fetchCourses(studyContainer) {
-        const rest = getRestConfig();
-        $.ajax({
-            url: rest.baseUrl + 'courses',
-            method: 'GET',
-            beforeSend: function(xhr) {
-                if (rest.nonce) {
-                    xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
-                }
-            }
-        }).done(function(courses) {
-            renderCourses(studyContainer, courses || []);
-        }).fail(function(jqXHR) {
-            const msg = (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) ? jqXHR.responseJSON.message : '카테고리 목록을 불러오는데 실패했습니다.';
-            studyContainer.html(`<p>${escapeHtml(String(msg))}</p>`);
-        });
+    // 카테고리 클릭 이벤트 (과목 클릭 시 중복 실행 방지)
+    studyContainer.off("click", ".ptg-category");
+    studyContainer.on("click", ".ptg-category", function (event) {
+      if (PTG_STUDY_DEBUG)
+        console.log("PTG Study: category clicked (DOM-based)", event.target);
+
+      // 세부과목 클릭일 때는 카테고리 핸들러를 타지 않도록 방지
+      if ($(event.target).closest(".ptg-subject-item").length) {
+        return;
+      }
+
+      const $categoryCard = $(this);
+      const categoryId = $categoryCard.data("category-id");
+      const categoryTitle = $categoryCard
+        .find(".ptg-category-title")
+        .text()
+        .trim();
+
+      // 이 카테고리에 포함된 세부과목명들을 data-subject-id에서 복원
+      const subjectNames = $categoryCard
+        .find(".ptg-subject-item")
+        .map(function () {
+          const rawId = $(this).data("subject-id") || "";
+          try {
+            return decodeURIComponent(rawId);
+          } catch (e) {
+            return rawId;
+          }
+        })
+        .get();
+
+      if (!subjectNames || subjectNames.length === 0) {
+        alert("이 과목에는 학습 가능한 세부과목이 없습니다.");
+        return;
+      }
+
+      const category = {
+        id: categoryId,
+        title: categoryTitle,
+        subjects: subjectNames, // 문자열 배열로 전달
+      };
+
+      $(".ptg-category").removeClass("ptg-category--active");
+      $categoryCard.addClass("ptg-category--active");
+
+      // 전역 틀린문제만 체크박스 상태 확인
+      const isGlobalWrongOnly = $("#ptg-global-wrong-only").is(":checked");
+      if (PTG_STUDY_DEBUG)
+        console.log("DEBUG: Category Clicked. WrongOnly: " + isGlobalWrongOnly);
+
+      // 과목 카테고리 선택 시 항상 랜덤 모드(true)로 진입, 틀린문제만 필터 적용
+      fetchAndRenderCategoryLessons(
+        studyContainer,
+        category,
+        0,
+        true,
+        true,
+        isGlobalWrongOnly
+      );
+    });
+
+    // 과목 클릭 이벤트 바인딩 (중복 바인딩 방지)
+    studyContainer.off("click", ".ptg-subject-item");
+    studyContainer.on("click", ".ptg-subject-item", function (event) {
+      if (PTG_STUDY_DEBUG)
+        console.log("PTG Study: subject item clicked", event.target);
+      event.stopPropagation();
+
+      const subjectId = $(this).data("subject-id");
+      if (PTG_STUDY_DEBUG)
+        console.log("PTG Study: subjectId resolved =", subjectId);
+      if (!subjectId) {
+        console.warn(
+          "PTG Study: subjectId is missing on clicked element",
+          this
+        );
+        return;
+      }
+      const subjectLabel = $(this).text().trim();
+      const categoryLabel = $(this)
+        .closest(".ptg-category")
+        .find(".ptg-category-title")
+        .text()
+        .trim();
+      if (PTG_STUDY_DEBUG)
+        console.log(
+          "PTG Study: subjectLabel =",
+          subjectLabel,
+          "categoryLabel =",
+          categoryLabel
+        );
+
+      // 전역 틀린문제만 체크박스 상태 확인 (DOM 삭제 전 읽기)
+      const isGlobalWrongOnly = $("#ptg-global-wrong-only").is(":checked");
+      alert("DEBUG: Subject Clicked. WrongOnly: " + isGlobalWrongOnly); // Debug alert
+
+      // 즉시 로딩 상태 표시
+      const displayName = subjectLabel || decodeURIComponent(subjectId);
+      studyContainer.html(
+        `<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`
+      );
+
+      // 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
+      fetchAndRenderLessons(
+        studyContainer,
+        subjectId,
+        subjectLabel,
+        categoryLabel,
+        0,
+        true,
+        true,
+        isGlobalWrongOnly
+      );
+    });
+  }
+
+  /**
+   * API에서 코스(과목) 목록을 가져와서 렌더링
+   */
+  function fetchCourses(studyContainer) {
+    const rest = getRestConfig();
+    $.ajax({
+      url: rest.baseUrl + "courses",
+      method: "GET",
+      beforeSend: function (xhr) {
+        if (rest.nonce) {
+          xhr.setRequestHeader("X-WP-Nonce", rest.nonce);
+        }
+      },
+    })
+      .done(function (courses) {
+        renderCourses(studyContainer, courses || []);
+      })
+      .fail(function (jqXHR) {
+        const msg =
+          jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message
+            ? jqXHR.responseJSON.message
+            : "카테고리 목록을 불러오는데 실패했습니다.";
+        studyContainer.html(`<p>${escapeHtml(String(msg))}</p>`);
+      });
+  }
+
+  /**
+   * 코스 목록을 HTML로 렌더링
+   * @param {jQuery} studyContainer
+   * @param {Array} courses
+   */
+  function renderCourses(studyContainer, courses) {
+    if (!Array.isArray(courses) || courses.length === 0) {
+      studyContainer.html("<p>학습 가능한 과목이 없습니다.</p>");
+      return;
     }
 
-    /**
-     * 코스 목록을 HTML로 렌더링
-     * @param {jQuery} studyContainer 
-     * @param {Array} courses 
-     */
-    function renderCourses(studyContainer, courses) {
-		if (!Array.isArray(courses) || courses.length === 0) {
-			studyContainer.html('<p>학습 가능한 과목이 없습니다.</p>');
-			return;
-		}
+    categoryMap = {};
 
-        categoryMap = {};
-
-		let html = '<h2>🗝️ 학습할 과목을 선택하세요</h2><div class="ptg-course-categories">';
-		courses.forEach(function(category) {
-			categoryMap[category.id] = category;
-			const categoryTitle = category.title || category.label || '';
-			const categoryCount = typeof category.total === 'number' ? ` (${category.total})` : '';
-			const sessionBadge = typeof category.session === 'number' ? `<span class="ptg-session-badge">${category.session}교시</span>` : '';
-			html += `
+    let html =
+      '<h2>🗝️ 학습할 과목을 선택하세요</h2><div class="ptg-course-categories">';
+    courses.forEach(function (category) {
+      categoryMap[category.id] = category;
+      const categoryTitle = category.title || category.label || "";
+      const categoryCount =
+        typeof category.total === "number" ? ` (${category.total})` : "";
+      const sessionBadge =
+        typeof category.session === "number"
+          ? `<span class="ptg-session-badge">${category.session}교시</span>`
+          : "";
+      html += `
 				<section class="ptg-category" data-category-id="${escapeHtml(category.id)}">
 					<header class="ptg-category-header">
-						<h3 class="ptg-category-title">${sessionBadge}${escapeHtml(categoryTitle)}${categoryCount}</h3>
-						${category.description ? `<p class="ptg-category-desc">${escapeHtml(category.description)}</p>` : ''}
+						<h3 class="ptg-category-title">${sessionBadge}${escapeHtml(
+        categoryTitle
+      )}${categoryCount}</h3>
+						${
+              category.description
+                ? `<p class="ptg-category-desc">${escapeHtml(
+                    category.description
+                  )}</p>`
+                : ""
+            }
 					</header>
 					${renderSubjectList(category.subjects || [])}
 				</section>
 			`;
-		});
-		html += '</div>';
+    });
+    html += "</div>";
 
-        studyContainer.html(html);
+    studyContainer.html(html);
+  }
 
+  /**
+   * REST 설정 가져오기 (ptgStudy 미정의 시 자동 대체)
+   */
+  function getRestConfig() {
+    var baseUrl;
+    if (typeof window.ptgStudy !== "undefined" && window.ptgStudy.rest_url) {
+      baseUrl = window.ptgStudy.rest_url;
+    } else {
+      // wp-json 경로로 폴백
+      var origin =
+        window.location.origin ||
+        window.location.protocol + "//" + window.location.host;
+      baseUrl = origin.replace(/\/$/, "") + "/wp-json/ptg-study/v1/";
+    }
+    var nonce = null;
+    if (typeof window.ptgStudy !== "undefined" && window.ptgStudy.api_nonce) {
+      nonce = window.ptgStudy.api_nonce;
+    } else if (
+      typeof window.wpApiSettings !== "undefined" &&
+      window.wpApiSettings.nonce
+    ) {
+      nonce = window.wpApiSettings.nonce;
+    }
+    return { baseUrl: baseUrl, nonce: nonce };
+  }
 
+  /**
+   * Study 진행 기록을 서버에 전송
+   */
+  function logStudyProgress(questionId) {
+    if (!questionId) {
+      return;
     }
 
-	/**
-	 * REST 설정 가져오기 (ptgStudy 미정의 시 자동 대체)
-	 */
-	function getRestConfig() {
-		var baseUrl;
-		if (typeof window.ptgStudy !== 'undefined' && window.ptgStudy.rest_url) {
-			baseUrl = window.ptgStudy.rest_url;
-		} else {
-			// wp-json 경로로 폴백
-			var origin = (window.location.origin || (window.location.protocol + '//' + window.location.host));
-			baseUrl = origin.replace(/\/$/, '') + '/wp-json/ptg-study/v1/';
-		}
-		var nonce = null;
-		if (typeof window.ptgStudy !== 'undefined' && window.ptgStudy.api_nonce) {
-			nonce = window.ptgStudy.api_nonce;
-		} else if (typeof window.wpApiSettings !== 'undefined' && window.wpApiSettings.nonce) {
-			nonce = window.wpApiSettings.nonce;
-		}
-		return { baseUrl: baseUrl, nonce: nonce };
-	}
+    // sessionStorage에서 이미 로그된 question_id 목록 가져오기
+    let loggedQuestions = [];
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        loggedQuestions = JSON.parse(stored);
+      }
+    } catch (e) {
+      if (PTG_STUDY_DEBUG)
+        console.warn("PTG Study: Failed to read sessionStorage", e);
+    }
 
-    /**
-     * Study 진행 기록을 서버에 전송
-     */
-    function logStudyProgress(questionId) {
-        if (!questionId) {
-            return;
+    // 이미 이 세션에서 로그된 question_id인지 확인
+    if (loggedQuestions.includes(questionId)) {
+      if (PTG_STUDY_DEBUG)
+        console.log(
+          "PTG Study: Already logged in this session, ignoring",
+          questionId
+        );
+      return;
+    }
+
+    const rest = getRestConfig();
+    if (!rest || !rest.baseUrl) {
+      return;
+    }
+
+    // 요청 시작 전에 sessionStorage에 추가 (중복 요청 방지)
+    loggedQuestions.push(questionId);
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(loggedQuestions));
+    } catch (e) {
+      if (PTG_STUDY_DEBUG)
+        console.warn("PTG Study: Failed to write sessionStorage", e);
+    }
+
+    $.ajax({
+      url: rest.baseUrl + "study-progress",
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({ question_id: questionId }),
+      processData: false,
+      beforeSend: function (xhr) {
+        if (rest.nonce) {
+          xhr.setRequestHeader("X-WP-Nonce", rest.nonce);
         }
-
-        // sessionStorage에서 이미 로그된 question_id 목록 가져오기
-        let loggedQuestions = [];
+      },
+    })
+      .done(function () {
+        // 성공 시 sessionStorage에 그대로 유지 (페이지 새로고침 시에만 초기화됨)
+        if (PTG_STUDY_DEBUG)
+          console.log("PTG Study: Progress logged successfully", questionId);
+      })
+      .fail(function () {
+        // 실패 시 sessionStorage에서 제거하여 재시도 가능하도록
         try {
-            const stored = sessionStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                loggedQuestions = JSON.parse(stored);
+          const stored = sessionStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const questions = JSON.parse(stored);
+            const index = questions.indexOf(questionId);
+            if (index > -1) {
+              questions.splice(index, 1);
+              sessionStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
             }
+          }
         } catch (e) {
-            if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to read sessionStorage', e);
+          if (PTG_STUDY_DEBUG)
+            console.warn("PTG Study: Failed to remove from sessionStorage", e);
         }
+      });
+  }
 
-        // 이미 이 세션에서 로그된 question_id인지 확인
-        if (loggedQuestions.includes(questionId)) {
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: Already logged in this session, ignoring', questionId);
-            return;
-        }
+  /**
+   * 사용량 제한 확인 (Usage Limit Check)
+   * @returns {boolean} true if allowed, false if blocked
+   */
+  function checkUsageLimit() {
+    // 설정이 없으면 통과 (안전장치)
+    if (typeof window.ptgStudy === "undefined") return true;
 
-        const rest = getRestConfig();
-        if (!rest || !rest.baseUrl) {
-            return;
-        }
+    const config = window.ptgStudy;
+    const isLoggedIn = config.is_user_logged_in;
+    const isPremium = config.is_premium;
+    const limits = config.limits || { guest: 5, free: 20 };
 
-        // 요청 시작 전에 sessionStorage에 추가 (중복 요청 방지)
-        loggedQuestions.push(questionId);
-        try {
-            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(loggedQuestions));
-        } catch (e) {
-            if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to write sessionStorage', e);
-        }
-
-        $.ajax({
-            url: rest.baseUrl + 'study-progress',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ question_id: questionId }),
-            processData: false,
-            beforeSend: function(xhr) {
-                if (rest.nonce) {
-                    xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
-                }
-            }
-        }).done(function() {
-            // 성공 시 sessionStorage에 그대로 유지 (페이지 새로고침 시에만 초기화됨)
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: Progress logged successfully', questionId);
-        }).fail(function() {
-            // 실패 시 sessionStorage에서 제거하여 재시도 가능하도록
-            try {
-                const stored = sessionStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    const questions = JSON.parse(stored);
-                    const index = questions.indexOf(questionId);
-                    if (index > -1) {
-                        questions.splice(index, 1);
-                        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-                    }
-                }
-            } catch (e) {
-                if (PTG_STUDY_DEBUG) console.warn('PTG Study: Failed to remove from sessionStorage', e);
-            }
-        });
+    // 프리미엄 회원은 무제한
+    if (isLoggedIn && isPremium) {
+      return true;
     }
 
-    /**
-     * 사용량 제한 확인 (Usage Limit Check)
-     * @returns {boolean} true if allowed, false if blocked
-     */
-    function checkUsageLimit() {
-        // 설정이 없으면 통과 (안전장치)
-        if (typeof window.ptgStudy === 'undefined') return true;
+    let storageKey = "";
+    let limit = 0;
+    let userType = "";
 
-        const config = window.ptgStudy;
-        const isLoggedIn = config.is_user_logged_in;
-        const isPremium = config.is_premium;
-        const limits = config.limits || { guest: 5, free: 20 };
-
-        // 프리미엄 회원은 무제한
-        if (isLoggedIn && isPremium) {
-            return true;
-        }
-
-        let storageKey = '';
-        let limit = 0;
-        let userType = '';
-
-        if (!isLoggedIn) {
-            storageKey = 'ptg_guest_view_count';
-            limit = limits.guest;
-            userType = 'guest';
-        } else {
-            storageKey = 'ptg_free_view_count';
-            limit = limits.free;
-            userType = 'free';
-        }
-
-        // 현재 사용량 가져오기
-        let currentCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
-
-        // 제한 확인
-        if (currentCount >= limit) {
-            if (userType === 'guest') {
-                if (confirm(`비회원은 하루 ${limit}문제까지만 정답을 확인할 수 있습니다.\n로그인하고 더 많은 문제를 풀어보세요!`)) {
-                    window.location.href = config.login_url;
-                }
-            } else {
-                if (confirm(`무료 회원은 하루 ${limit}문제까지만 정답을 확인할 수 있습니다.\n프리미엄 멤버십으로 업그레이드하고 무제한으로 이용하세요!`)) {
-                    window.location.href = config.membership_url;
-                }
-            }
-            return false;
-        }
-
-        // 사용량 증가 및 저장
-        currentCount++;
-        localStorage.setItem(storageKey, currentCount.toString());
-        
-        // (선택사항) 자정 초기화 로직이 필요하다면 여기에 추가 (현재는 단순 누적)
-        // 간단한 날짜 체크 추가
-        const today = new Date().toDateString();
-        const lastDate = localStorage.getItem(storageKey + '_date');
-        if (lastDate !== today) {
-            localStorage.setItem(storageKey, '1'); // 날짜 바뀌면 1로 리셋
-            localStorage.setItem(storageKey + '_date', today);
-        }
-
-        return true;
+    if (!isLoggedIn) {
+      storageKey = "ptg_guest_view_count";
+      limit = limits.guest;
+      userType = "guest";
+    } else {
+      storageKey = "ptg_free_view_count";
+      limit = limits.free;
+      userType = "free";
     }
 
-    /**
-     * 학습 Tip 모달 열기/닫기 핸들러 (공통 팝업 유틸리티 사용)
-     */
-    function setupStudyTipHandlers() {
-        const $openBtn = $('[data-ptg-tip-open]');
+    // 현재 사용량 가져오기
+    let currentCount = parseInt(localStorage.getItem(storageKey) || "0", 10);
 
-        if ($openBtn.length === 0) {
-            return;
+    // 제한 확인
+    if (currentCount >= limit) {
+      if (userType === "guest") {
+        if (
+          confirm(
+            `비회원은 하루 ${limit}문제까지만 정답을 확인할 수 있습니다.\n로그인하고 더 많은 문제를 풀어보세요!`
+          )
+        ) {
+          window.location.href = config.login_url;
         }
-
-        // 공통 팝업 유틸리티 사용
-        $openBtn.on('click', function(e) {
-            e.preventDefault();
-            
-            // 공통 팝업 유틸리티가 로드되었는지 확인
-            if (typeof window.PTGTips === 'undefined' || typeof window.PTGTips.show !== 'function') {
-                console.warn('[PTG Study] 공통 팝업 유틸리티가 아직 로드되지 않았습니다.');
-                return;
-            }
-            
-            // 공통 팝업 표시 (내용은 중앙 저장소에서 자동 가져옴)
-            window.PTGTips.show('study-tip');
-        });
+      } else {
+        if (
+          confirm(
+            `무료 회원은 하루 ${limit}문제까지만 정답을 확인할 수 있습니다.\n프리미엄 멤버십으로 업그레이드하고 무제한으로 이용하세요!`
+          )
+        ) {
+          window.location.href = config.membership_url;
+        }
+      }
+      return false;
     }
 
-	// 전역(페이지 전체) 위임 핸들러 - 테마/플러그인 간 충돌 시에도 로그를 보이게 함
-	$(document).on('click', '.ptg-subject-item', function(e) {
-		if (!window.PTG_STUDY_GLOBAL_CLICK_DEBUG) return;
-		if (PTG_STUDY_DEBUG) console.log('[GLOBAL] PTG Study: .ptg-subject-item clicked', e.target);
+    // 사용량 증가 및 저장
+    currentCount++;
+    localStorage.setItem(storageKey, currentCount.toString());
 
-		const $item = $(this);
-		const subjectId = $item.data('subject-id');
-		const subjectLabel = $item.text().trim();
-		const $container = $('#ptg-study-app');
-		const categoryLabel = $item.closest('.ptg-category').find('.ptg-category-title').text().trim();
+    // (선택사항) 자정 초기화 로직이 필요하다면 여기에 추가 (현재는 단순 누적)
+    // 간단한 날짜 체크 추가
+    const today = new Date().toDateString();
+    const lastDate = localStorage.getItem(storageKey + "_date");
+    if (lastDate !== today) {
+      localStorage.setItem(storageKey, "1"); // 날짜 바뀌면 1로 리셋
+      localStorage.setItem(storageKey + "_date", today);
+    }
 
-		if (PTG_STUDY_DEBUG) console.log('[GLOBAL] subjectId =', subjectId, 'subjectLabel =', subjectLabel, 'categoryLabel =', categoryLabel, 'container exists =', $container.length);
+    return true;
+  }
 
-		// 이미 컨테이너 위임 핸들러가 처리하는 경우 중복 방지
-		// 컨테이너가 없거나 컨테이너 핸들러가 동작하지 않는 상황에서만 직접 호출
-		if ($container.length) {
-			// 로딩 상태 표시
-			const displayName = subjectLabel || (subjectId ? decodeURIComponent(subjectId) : '');
-			$container.html(`<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`);
-			// 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
-			fetchAndRenderLessons($container, subjectId, subjectLabel, categoryLabel, 0, true);
-		}
-	});
+  /**
+   * 학습 Tip 모달 열기/닫기 핸들러 (공통 팝업 유틸리티 사용)
+   */
+  function setupStudyTipHandlers() {
+    const $openBtn = $("[data-ptg-tip-open]");
 
-    function renderSubjectList(subjects) {
-        if (!Array.isArray(subjects) || subjects.length === 0) {
-            return '<p class="ptg-empty-subjects">준비 중인 과목입니다.</p>';
-        }
+    if ($openBtn.length === 0) {
+      return;
+    }
 
-		let listHtml = '<ul class="ptg-subject-list ptg-subject-list--stack">';
-		subjects.forEach(function(subject) {
-			const sessText = typeof subject.session === 'number' ? `<span class="ptg-session-badge ptg-session-badge--sm">${subject.session}교시</span>` : '';
-			listHtml += `
+    // 공통 팝업 유틸리티 사용
+    $openBtn.on("click", function (e) {
+      e.preventDefault();
+
+      // 공통 팝업 유틸리티가 로드되었는지 확인
+      if (
+        typeof window.PTGTips === "undefined" ||
+        typeof window.PTGTips.show !== "function"
+      ) {
+        console.warn(
+          "[PTG Study] 공통 팝업 유틸리티가 아직 로드되지 않았습니다."
+        );
+        return;
+      }
+
+      // 공통 팝업 표시 (내용은 중앙 저장소에서 자동 가져옴)
+      window.PTGTips.show("study-tip");
+    });
+  }
+
+  // 전역(페이지 전체) 위임 핸들러 - 테마/플러그인 간 충돌 시에도 로그를 보이게 함
+  $(document).on("click", ".ptg-subject-item", function (e) {
+    if (!window.PTG_STUDY_GLOBAL_CLICK_DEBUG) return;
+    if (PTG_STUDY_DEBUG)
+      console.log("[GLOBAL] PTG Study: .ptg-subject-item clicked", e.target);
+
+    const $item = $(this);
+    const subjectId = $item.data("subject-id");
+    const subjectLabel = $item.text().trim();
+    const $container = $("#ptg-study-app");
+    const categoryLabel = $item
+      .closest(".ptg-category")
+      .find(".ptg-category-title")
+      .text()
+      .trim();
+
+    if (PTG_STUDY_DEBUG)
+      console.log(
+        "[GLOBAL] subjectId =",
+        subjectId,
+        "subjectLabel =",
+        subjectLabel,
+        "categoryLabel =",
+        categoryLabel,
+        "container exists =",
+        $container.length
+      );
+
+    // 이미 컨테이너 위임 핸들러가 처리하는 경우 중복 방지
+    // 컨테이너가 없거나 컨테이너 핸들러가 동작하지 않는 상황에서만 직접 호출
+    if ($container.length) {
+      // 로딩 상태 표시
+      const displayName =
+        subjectLabel || (subjectId ? decodeURIComponent(subjectId) : "");
+      $container.html(
+        `<p>${escapeHtml(displayName)} 과목의 학습 내용을 불러오는 중...</p>`
+      );
+      // 과목 선택 시 항상 랜덤 모드로 진입 (Smart Random)
+      fetchAndRenderLessons(
+        $container,
+        subjectId,
+        subjectLabel,
+        categoryLabel,
+        0,
+        true
+      );
+    }
+  });
+
+  function renderSubjectList(subjects) {
+    if (!Array.isArray(subjects) || subjects.length === 0) {
+      return '<p class="ptg-empty-subjects">준비 중인 과목입니다.</p>';
+    }
+
+    let listHtml = '<ul class="ptg-subject-list ptg-subject-list--stack">';
+    subjects.forEach(function (subject) {
+      const sessText =
+        typeof subject.session === "number"
+          ? `<span class="ptg-session-badge ptg-session-badge--sm">${subject.session}교시</span>`
+          : "";
+      listHtml += `
 				<li class="ptg-subject-item" data-subject-id="${escapeHtml(subject.id)}">
 					${sessText}${escapeHtml(subject.title)}
 				</li>
 			`;
-		});
-		listHtml += '</ul>';
-		return listHtml;
+    });
+    listHtml += "</ul>";
+    return listHtml;
+  }
+
+  /**
+   * 특정 과목의 학습 내용(문제)을 가져와서 렌더링
+   * @param {string} subjectId
+   * @param {string} subjectLabel
+   * @param {string} categoryLabel
+   * @param {number} offset  // 페이지네이션용 시작 위치
+   * @param {boolean} random
+   * @param {boolean} initialInfiniteState // 무한 스크롤 초기 상태
+   */
+  function fetchAndRenderLessons(
+    studyContainer,
+    subjectId,
+    subjectLabel,
+    categoryLabel,
+    offset = 0,
+    random = false,
+    initialInfiniteState = true,
+    isWrongOnly = false
+  ) {
+    const displayName = subjectLabel || decodeURIComponent(subjectId);
+
+    const rest = getRestConfig();
+    const pageSize = 5; // Batch size changed to 5
+    const params = new URLSearchParams();
+    params.set("limit", pageSize);
+    if (offset > 0) {
+      params.set("offset", offset);
+
+      // 현재 화면에 표시된 모든 레슨 ID 수집 (중복 방지)
+      const currentIds = [];
+      studyContainer.find(".ptg-lesson-item").each(function () {
+        const id = $(this).data("lesson-id");
+        if (id) currentIds.push(id);
+      });
+      if (currentIds.length > 0) {
+        params.set("exclude_ids", currentIds.join(","));
+      }
+    }
+    if (random) {
+      params.set("random", "1");
+    }
+    if (isWrongOnly) {
+      params.set("wrong_only", "1");
+    }
+    if (initialInfiniteState) {
+      params.set("infinite_scroll", "1");
+    }
+    const url = rest.baseUrl + "courses/" + subjectId + "?" + params.toString();
+    if (PTG_STUDY_DEBUG)
+      console.log("PTG Study: fetching lessons", {
+        url,
+        subjectId,
+        subjectLabel,
+        categoryLabel,
+        rest,
+        offset,
+        random,
+        isWrongOnly,
+      });
+
+    if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
+      return;
+    }
+    if (offset === 0 && currentXhr) {
+      currentXhr.abort();
     }
 
-    /**
-     * 특정 과목의 학습 내용(문제)을 가져와서 렌더링
-     * @param {string} subjectId 
-     * @param {string} subjectLabel
-     * @param {string} categoryLabel
-     * @param {number} offset  // 페이지네이션용 시작 위치
-     * @param {boolean} random
-     * @param {boolean} initialInfiniteState // 무한 스크롤 초기 상태
-     */
-    function fetchAndRenderLessons(studyContainer, subjectId, subjectLabel, categoryLabel, offset = 0, random = false, initialInfiniteState = true, isWrongOnly = false) {
-        const displayName = subjectLabel || decodeURIComponent(subjectId);
+    if (offset > 0) {
+      $("#ptg-infinite-loader").show();
+    }
 
-        const rest = getRestConfig();
-        const pageSize = 5; // Batch size changed to 5
-        const params = new URLSearchParams();
-        params.set('limit', pageSize);
-        if (offset > 0) {
-            params.set('offset', offset);
-            
-            // 현재 화면에 표시된 모든 레슨 ID 수집 (중복 방지)
-            const currentIds = [];
-            studyContainer.find('.ptg-lesson-item').each(function() {
-                const id = $(this).data('lesson-id');
-                if (id) currentIds.push(id);
-            });
-            if (currentIds.length > 0) {
-                params.set('exclude_ids', currentIds.join(','));
-            }
+    currentXhr = $.ajax({
+      url: url,
+      method: "GET",
+      beforeSend: function (xhr) {
+        if (rest.nonce) {
+          xhr.setRequestHeader("X-WP-Nonce", rest.nonce);
         }
-        if (random) {
-            params.set('random', '1');
-        }
-        if (isWrongOnly) {
-            params.set('wrong_only', '1');
-        }
-        const url = rest.baseUrl + 'courses/' + subjectId + '?' + params.toString();
-        if (PTG_STUDY_DEBUG) console.log('PTG Study: fetching lessons', { url, subjectId, subjectLabel, categoryLabel, rest, offset, random, isWrongOnly });
-        
-        if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
-            return;
-        }
-        if (offset === 0 && currentXhr) {
-            currentXhr.abort();
-        }
+      },
+      complete: function () {
+        currentXhr = null;
+      },
+    })
+      .done(function (courseDetail) {
+        if (PTG_STUDY_DEBUG)
+          console.log(
+            "PTG Study: lessons fetch success, courseDetail:",
+            courseDetail
+          );
+        $("#ptg-infinite-loader").hide();
 
-        if (offset > 0) {
-            $('#ptg-infinite-loader').show();
-        }
+        const lessons =
+          courseDetail && Array.isArray(courseDetail.lessons)
+            ? courseDetail.lessons
+            : [];
+        const total =
+          typeof courseDetail.total === "number" ? courseDetail.total : null;
 
-        currentXhr = $.ajax({
-			url: url,
-            method: 'GET',
-            beforeSend: function(xhr) {
-                if (rest.nonce) {
-					xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
-				}
-            },
-            complete: function() {
-                currentXhr = null;
-            }
-        }).done(function(courseDetail) {
-            if (PTG_STUDY_DEBUG) console.log('PTG Study: lessons fetch success, courseDetail:', courseDetail);
-            $('#ptg-infinite-loader').hide();
-
-            const lessons = courseDetail && Array.isArray(courseDetail.lessons) ? courseDetail.lessons : [];
-            const total = typeof courseDetail.total === 'number' ? courseDetail.total : null;
-            
-            if (offset === 0 && (!lessons || lessons.length === 0)) {
-                if (isWrongOnly) {
-                    // 틀린 문제 필터링 결과가 없는 경우 -> 빈 화면 렌더링 (헤더 유지)
-                     renderLessons(studyContainer, courseDetail || { lessons: [], total: 0 }, {
-                        subjectId: subjectId,
-                        subjectLabel: displayName,
-                        categoryLabel: categoryLabel,
-                        isCategory: false,
-                        offset: offset,
-                        limit: pageSize,
-                        total: 0,
-                        random: random,
-                        wrongOnly: true,
-                        initialInfiniteState: initialInfiniteState
-                    });
-                    // 안내 메시지 표시
-                    setTimeout(function() {
-                        alert('틀린 문제가 없습니다.');
-                        // studyContainer.find('.ptg-lesson-list').html('<div style="padding:40px; text-align:center; color:#666; font-size:15px;">틀린 문제가 없습니다.<br>모든 문제를 맞추셨거나 아직 학습하지 않았습니다.</div>');
-                    }, 50);
-                    return;
-                }
-
-                alert(`${displayName} 과목의 학습 내용이 없습니다.`);
-                // 데이터가 없으면 자동으로 과목 목록 화면으로 복귀
-                if (initialCoursesHTML !== null) {
-                    studyContainer.html(initialCoursesHTML);
-                    // 헤더/학습Tip 버튼 이벤트 다시 바인딩
-                    setupStudyTipHandlers();
-                }
-                return;
-            }
-
-            renderLessons(studyContainer, courseDetail, {
+        if (offset === 0 && (!lessons || lessons.length === 0)) {
+          if (isWrongOnly) {
+            // 틀린 문제 필터링 결과가 없는 경우 -> 빈 화면 렌더링 (헤더 유지)
+            renderLessons(
+              studyContainer,
+              courseDetail || { lessons: [], total: 0 },
+              {
                 subjectId: subjectId,
                 subjectLabel: displayName,
                 categoryLabel: categoryLabel,
                 isCategory: false,
                 offset: offset,
                 limit: pageSize,
-                total: total,
+                total: 0,
                 random: random,
-                wrongOnly: isWrongOnly,
-                initialInfiniteState: initialInfiniteState
-            });
-        }).fail(function(jqXHR, textStatus, errorThrown) {
-            $('#ptg-infinite-loader').hide();
-            if (textStatus === 'abort') return;
+                wrongOnly: true,
+                initialInfiniteState: initialInfiniteState,
+              }
+            );
+            // 안내 메시지 표시
+            setTimeout(function () {
+              alert("틀린 문제가 없습니다.");
+              // studyContainer.find('.ptg-lesson-list').html('<div style="padding:40px; text-align:center; color:#666; font-size:15px;">틀린 문제가 없습니다.<br>모든 문제를 맞추셨거나 아직 학습하지 않았습니다.</div>');
+            }, 50);
+            return;
+          }
 
-            console.error('PTG Study: lessons fetch failed', { status: jqXHR && jqXHR.status, textStatus, errorThrown });
-            if (offset === 0) {
-                alert(`${displayName} 과목의 학습 내용이 없습니다.`);
-                // 오류 시에도 과목 목록 화면으로 복귀
-                if (initialCoursesHTML !== null) {
-                    studyContainer.html(initialCoursesHTML);
-                    setupStudyTipHandlers();
-                }
-            }
+          alert(`${displayName} 과목의 학습 내용이 없습니다.`);
+          // 데이터가 없으면 자동으로 과목 목록 화면으로 복귀
+          if (initialCoursesHTML !== null) {
+            studyContainer.html(initialCoursesHTML);
+            // 헤더/학습Tip 버튼 이벤트 다시 바인딩
+            setupStudyTipHandlers();
+          }
+          return;
+        }
+
+        renderLessons(studyContainer, courseDetail, {
+          subjectId: subjectId,
+          subjectLabel: displayName,
+          categoryLabel: categoryLabel,
+          isCategory: false,
+          offset: offset,
+          limit: pageSize,
+          total: total,
+          random: random,
+          wrongOnly: isWrongOnly,
+          initialInfiniteState: initialInfiniteState,
         });
+      })
+      .fail(function (jqXHR, textStatus, errorThrown) {
+        $("#ptg-infinite-loader").hide();
+        if (textStatus === "abort") return;
+
+        console.error("PTG Study: lessons fetch failed", {
+          status: jqXHR && jqXHR.status,
+          textStatus,
+          errorThrown,
+        });
+        if (offset === 0) {
+          alert(`${displayName} 과목의 학습 내용이 없습니다.`);
+          // 오류 시에도 과목 목록 화면으로 복귀
+          if (initialCoursesHTML !== null) {
+            studyContainer.html(initialCoursesHTML);
+            setupStudyTipHandlers();
+          }
+        }
+      });
+  }
+
+  function fetchAndRenderCategoryLessons(
+    studyContainer,
+    category,
+    offset = 0,
+    initialInfiniteState = true,
+    isRandom = false,
+    isWrongOnly = false
+  ) {
+    const categoryTitle = category.title || category.label || "";
+    const rawSubjects = Array.isArray(category.subjects)
+      ? category.subjects
+      : [];
+
+    if (rawSubjects.length === 0) {
+      alert("이 과목에는 학습 가능한 세부과목이 없습니다.");
+      return;
     }
 
-    function fetchAndRenderCategoryLessons(studyContainer, category, offset = 0, initialInfiniteState = true, isRandom = false, isWrongOnly = false) {
-        const categoryTitle = category.title || category.label || '';
-        const rawSubjects = Array.isArray(category.subjects) ? category.subjects : [];
-
-        if (rawSubjects.length === 0) {
-            alert('이 과목에는 학습 가능한 세부과목이 없습니다.');
-            return;
+    // 문자열 배열 또는 { title } 배열 모두 지원
+    const subjectNames = rawSubjects
+      .map(function (subject) {
+        if (typeof subject === "string") {
+          return subject;
         }
+        return subject && subject.title ? subject.title : "";
+      })
+      .filter(function (name) {
+        return !!name;
+      });
 
-        // 문자열 배열 또는 { title } 배열 모두 지원
-        const subjectNames = rawSubjects.map(function(subject) {
-            if (typeof subject === 'string') {
-                return subject;
-            }
-            return subject && subject.title ? subject.title : '';
-        }).filter(function(name) { return !!name; });
+    const rest = getRestConfig();
+    const pageSize = 5; // Batch size changed to 5
 
-        const rest = getRestConfig();
-        const pageSize = 5; // Batch size changed to 5
-        
-        if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
-            return;
-        }
-        if (offset === 0 && currentXhr) {
-            currentXhr.abort();
-        }
-        
-        if (offset > 0) {
-            $('#ptg-infinite-loader').show();
-        }
-
-        // 현재 화면에 표시된 모든 레슨 ID 수집
-        let excludeIds = '';
-        if (offset > 0) {
-            const currentIds = [];
-            studyContainer.find('.ptg-lesson-item').each(function() {
-                const id = $(this).data('lesson-id');
-                if (id) currentIds.push(id);
-            });
-            if (currentIds.length > 0) {
-                excludeIds = currentIds.join(',');
-            }
-        }
-
-        currentXhr = $.ajax({
-            url: rest.baseUrl + 'courses/' + category.id,
-            method: 'GET',
-            data: {
-				subjects: subjectNames,
-                subject_category: category.id, // 최적화를 위해 대분류 ID 전달
-                limit: pageSize,
-                offset: offset,
-                exclude_ids: excludeIds,
-                random: isRandom ? 1 : 0,
-                wrong_only: isWrongOnly ? 1 : 0
-            },
-            beforeSend: function(xhr) {
-                if (rest.nonce) {
-					xhr.setRequestHeader('X-WP-Nonce', rest.nonce);
-				}
-            },
-            complete: function() {
-                currentXhr = null;
-            }
-        }).done(function(courseDetail) {
-            $('#ptg-infinite-loader').hide();
-
-            const lessons = courseDetail && Array.isArray(courseDetail.lessons) ? courseDetail.lessons : [];
-            const total = typeof courseDetail.total === 'number' ? courseDetail.total : null;
-            
-            if (offset === 0 && (!lessons || lessons.length === 0)) {
-                if (isWrongOnly) {
-                     renderLessons(studyContainer, courseDetail || { lessons: [], total: 0 }, {
-                        categoryId: category.id,
-                        subjectLabel: categoryTitle,
-                        categoryLabel: categoryTitle,
-                        isCategory: true,
-                        offset: offset,
-                        limit: pageSize,
-                        total: 0,
-                        random: !!isRandom,
-                        wrongOnly: true,
-                        rawSubjects: rawSubjects,
-                        initialInfiniteState: initialInfiniteState
-                    });
-                    setTimeout(function() { alert('틀린 문제가 없습니다.'); }, 50);
-                    return;
-                }
-
-                alert('과목의 학습 내용이 없습니다.');
-                if (initialCoursesHTML !== null) {
-                    studyContainer.html(initialCoursesHTML);
-                    setupStudyTipHandlers();
-                }
-                return;
-            }
-
-            renderLessons(studyContainer, courseDetail, {
-                categoryId: category.id,
-                subjectLabel: categoryTitle,
-                categoryLabel: categoryTitle,
-                isCategory: true,
-                offset: offset,
-                limit: pageSize,
-                total: total,
-                random: !!isRandom,
-                wrongOnly: !!isWrongOnly,
-                rawSubjects: rawSubjects,
-                initialInfiniteState: initialInfiniteState
-            });
-        });
+    if (offset > 0 && currentXhr && currentXhr.readyState !== 4) {
+      return;
+    }
+    if (offset === 0 && currentXhr) {
+      currentXhr.abort();
     }
 
-    /**
-     * 학습 내용을 HTML로 렌더링 (무한 스크롤 지원)
-     * @param {jQuery} studyContainer
-     * @param {Object} courseDetail 
-     * @param {Object} meta
-     */
-    function renderLessons(studyContainer, courseDetail, meta) {
-        const isCategory    = meta && meta.isCategory;
-        const subjectTitle  = meta && meta.subjectLabel ? meta.subjectLabel : courseDetail.title;
-        const categoryTitle = meta && meta.categoryLabel ? meta.categoryLabel : '';
-        const subjectId     = meta && meta.subjectId ? meta.subjectId : null;
-        const categoryId    = meta && meta.categoryId ? meta.categoryId : null;
-        const currentOffset = typeof meta.offset === 'number' ? meta.offset : 0;
-        const pageSize      = typeof meta.limit === 'number' ? meta.limit : 0;
-        const totalCount    = typeof meta.total === 'number' ? meta.total : null;
-        const isRandom      = !!(meta && meta.random);
-        const isWrongOnly   = !!(meta && meta.wrongOnly);
-        const rawSubjects   = meta.rawSubjects || []; // For category context
-        const initialInfiniteState = typeof meta.initialInfiniteState === 'boolean' ? meta.initialInfiniteState : true;
+    if (offset > 0) {
+      $("#ptg-infinite-loader").show();
+    }
 
-        const lessons = courseDetail && Array.isArray(courseDetail.lessons) ? courseDetail.lessons : [];
-        
-        // 1. 초기 로드 (Offset 0) - 전체 레이아웃 생성
-        if (currentOffset === 0) {
-            let heading;
-            if (isCategory) {
-                heading = `${categoryTitle || subjectTitle} 전체 학습`;
-            } else {
-                heading = categoryTitle ? `${categoryTitle} · ${subjectTitle}` : `${subjectTitle}`;
+    // 현재 화면에 표시된 모든 레슨 ID 수집
+    let excludeIds = "";
+    if (offset > 0) {
+      const currentIds = [];
+      studyContainer.find(".ptg-lesson-item").each(function () {
+        const id = $(this).data("lesson-id");
+        if (id) currentIds.push(id);
+      });
+      if (currentIds.length > 0) {
+        excludeIds = currentIds.join(",");
+      }
+    }
+
+    currentXhr = $.ajax({
+      url: rest.baseUrl + "courses/" + category.id,
+      method: "GET",
+      data: {
+        subjects: subjectNames,
+        subject_category: category.id, // 최적화를 위해 대분류 ID 전달
+        limit: pageSize,
+        offset: offset,
+        exclude_ids: excludeIds,
+        random: isRandom ? 1 : 0,
+        wrong_only: isWrongOnly ? 1 : 0,
+        infinite_scroll: initialInfiniteState ? 1 : 0,
+      },
+      beforeSend: function (xhr) {
+        if (rest.nonce) {
+          xhr.setRequestHeader("X-WP-Nonce", rest.nonce);
+        }
+      },
+      complete: function () {
+        currentXhr = null;
+      },
+    }).done(function (courseDetail) {
+      $("#ptg-infinite-loader").hide();
+
+      const lessons =
+        courseDetail && Array.isArray(courseDetail.lessons)
+          ? courseDetail.lessons
+          : [];
+      const total =
+        typeof courseDetail.total === "number" ? courseDetail.total : null;
+
+      if (offset === 0 && (!lessons || lessons.length === 0)) {
+        if (isWrongOnly) {
+          renderLessons(
+            studyContainer,
+            courseDetail || { lessons: [], total: 0 },
+            {
+              categoryId: category.id,
+              subjectLabel: categoryTitle,
+              categoryLabel: categoryTitle,
+              isCategory: true,
+              offset: offset,
+              limit: pageSize,
+              total: 0,
+              random: !!isRandom,
+              wrongOnly: true,
+              rawSubjects: rawSubjects,
+              initialInfiniteState: initialInfiniteState,
             }
+          );
+          setTimeout(function () {
+            alert("틀린 문제가 없습니다.");
+          }, 50);
+          return;
+        }
 
-            let html = `
+        alert("과목의 학습 내용이 없습니다.");
+        if (initialCoursesHTML !== null) {
+          studyContainer.html(initialCoursesHTML);
+          setupStudyTipHandlers();
+        }
+        return;
+      }
+
+      renderLessons(studyContainer, courseDetail, {
+        categoryId: category.id,
+        subjectLabel: categoryTitle,
+        categoryLabel: categoryTitle,
+        isCategory: true,
+        offset: offset,
+        limit: pageSize,
+        total: total,
+        random: !!isRandom,
+        wrongOnly: !!isWrongOnly,
+        rawSubjects: rawSubjects,
+        initialInfiniteState: initialInfiniteState,
+      });
+    });
+  }
+
+  /**
+   * 학습 내용을 HTML로 렌더링 (무한 스크롤 지원)
+   * @param {jQuery} studyContainer
+   * @param {Object} courseDetail
+   * @param {Object} meta
+   */
+  function renderLessons(studyContainer, courseDetail, meta) {
+    const isCategory = meta && meta.isCategory;
+    const subjectTitle =
+      meta && meta.subjectLabel ? meta.subjectLabel : courseDetail.title;
+    const categoryTitle = meta && meta.categoryLabel ? meta.categoryLabel : "";
+    const subjectId = meta && meta.subjectId ? meta.subjectId : null;
+    const categoryId = meta && meta.categoryId ? meta.categoryId : null;
+    const currentOffset = typeof meta.offset === "number" ? meta.offset : 0;
+    const pageSize = typeof meta.limit === "number" ? meta.limit : 0;
+    const totalCount = typeof meta.total === "number" ? meta.total : null;
+    const isRandom = !!(meta && meta.random);
+    const isWrongOnly = !!(meta && meta.wrongOnly);
+    const rawSubjects = meta.rawSubjects || []; // For category context
+    const initialInfiniteState =
+      typeof meta.initialInfiniteState === "boolean"
+        ? meta.initialInfiniteState
+        : true;
+
+    const lessons =
+      courseDetail && Array.isArray(courseDetail.lessons)
+        ? courseDetail.lessons
+        : [];
+
+    // 1. 초기 로드 (Offset 0) - 전체 레이아웃 생성
+    if (currentOffset === 0) {
+      let heading;
+      if (isCategory) {
+        heading = `${categoryTitle || subjectTitle} 전체 학습`;
+      } else {
+        heading = categoryTitle
+          ? `${categoryTitle} · ${subjectTitle}`
+          : `${subjectTitle}`;
+      }
+
+      let html = `
                 <div class="ptg-lesson-view">
                     <button id="back-to-courses" class="ptg-btn ptg-btn-secondary">&laquo; 과목 목록으로 돌아가기</button>
                     <div class="ptg-lesson-header" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
                         <h3 style="margin: 0;">${escapeHtml(heading)}</h3>
                         <div class="ptg-controls-wrapper" style="display: flex; gap: 15px; align-items: center;">
                              <label class="ptg-infinite-toggle">
-                                <input type="checkbox" id="ptg-infinite-scroll-toggle" ${initialInfiniteState ? 'checked' : ''}>
+                                <input type="checkbox" id="ptg-infinite-scroll-toggle" ${
+                                  initialInfiniteState ? "checked" : ""
+                                }>
                                 <span>무한스크롤</span>
                             </label>
-                            ${(subjectId || isCategory) ? `
+                            ${
+                              subjectId || isCategory
+                                ? `
                                 <label class="ptg-random-toggle">
-                                    <input type="checkbox" id="ptg-random-toggle" ${isRandom ? 'checked' : ''}>
+                                    <input type="checkbox" id="ptg-random-toggle" ${
+                                      isRandom ? "checked" : ""
+                                    }>
                                     <span>랜덤 섞기</span>
                                 </label>
                                 <label class="ptg-wrong-only-toggle" style="margin-left: 10px;">
-                                    <input type="checkbox" id="ptg-wrong-only-toggle" ${isWrongOnly ? 'checked' : ''}>
+                                    <input type="checkbox" id="ptg-wrong-only-toggle" ${
+                                      isWrongOnly ? "checked" : ""
+                                    }>
                                     <span>틀린문제만</span>
                                 </label>
-                            ` : ''}
+                            `
+                                : ""
+                            }
                         </div>
                     </div>
             `;
 
-            if (isCategory && Array.isArray(courseDetail.subjects) && courseDetail.subjects.length > 0) {
-                const subjectList = courseDetail.subjects.map(function(subjectName) {
-                    return `<span class="ptg-lesson-subject-chip">${escapeHtml(subjectName)}</span>`;
-                }).join('\n');
-                html += `<div class="ptg-lesson-subjects">포함 과목: ${subjectList}</div>`;
-            }
+      if (
+        isCategory &&
+        Array.isArray(courseDetail.subjects) &&
+        courseDetail.subjects.length > 0
+      ) {
+        const subjectList = courseDetail.subjects
+          .map(function (subjectName) {
+            return `<span class="ptg-lesson-subject-chip">${escapeHtml(
+              subjectName
+            )}</span>`;
+          })
+          .join("\n");
+        html += `<div class="ptg-lesson-subjects">포함 과목: ${subjectList}</div>`;
+      }
 
-            // Count Display (Fixed at top or just below header)
-            const currentCount = lessons.length;
-            html += `<div class="ptg-lesson-count-info" style="margin: 10px 0; font-weight: bold; color: #555;">
+      // Count Display (Fixed at top or just below header)
+      const currentCount = lessons.length;
+      html += `<div class="ptg-lesson-count-info" style="margin: 10px 0; font-weight: bold; color: #555;">
                         <span id="ptg-current-count">${currentCount}</span> / 총 ${totalCount}문제
                      </div>`;
 
-            html += '<div class="ptg-lesson-list"></div>'; // Empty container for appending
-            
-            // Loader for infinite scroll
-            html += '<div id="ptg-infinite-loader" style="display:none; text-align:center; padding:20px;"><span class="ptg-spinner"></span> 불러오는 중...</div>';
-            
-            // Sentinel for IntersectionObserver
-            html += '<div id="ptg-scroll-sentinel" style="height: 20px;"></div>';
+      html += '<div class="ptg-lesson-list"></div>'; // Empty container for appending
 
-            // Manual Load Button
-            html += '<div id="ptg-manual-load-btn-wrapper" style="text-align: center; margin: 20px 0; display: none;">';
-            html += '<div style="display: flex; justify-content: center; gap: 10px;">';
-            html += '<button id="ptg-load-more-btn" class="ptg-btn ptg-btn-primary" style="min-width: 150px;">다음 5문제 보기</button>';
-            html += '<button id="ptg-go-first-btn" class="ptg-btn ptg-btn-secondary">처음으로</button>';
-            html += '<button id="ptg-go-list-btn" class="ptg-btn ptg-btn-secondary">과목 목록</button>';
-            html += '</div>';
-            html += '</div>';
+      // Loader for infinite scroll
+      html +=
+        '<div id="ptg-infinite-loader" style="display:none; text-align:center; padding:20px;"><span class="ptg-spinner"></span> 불러오는 중...</div>';
 
-            html += '</div>'; // End ptg-lesson-view
-            
-            studyContainer.html(html);
+      // Sentinel for IntersectionObserver
+      html += '<div id="ptg-scroll-sentinel" style="height: 20px;"></div>';
 
-            // Scroll to top of container to ensure user sees the first item
-            $('html, body').animate({ scrollTop: studyContainer.offset().top - 20 }, 300);
+      // Manual Load Button
+      html +=
+        '<div id="ptg-manual-load-btn-wrapper" style="text-align: center; margin: 20px 0; display: none;">';
+      html +=
+        '<div style="display: flex; justify-content: center; gap: 10px;">';
+      html +=
+        '<button id="ptg-load-more-btn" class="ptg-btn ptg-btn-primary" style="min-width: 150px;">다음 5문제 보기</button>';
+      html +=
+        '<button id="ptg-go-first-btn" class="ptg-btn ptg-btn-secondary">처음으로</button>';
+      html +=
+        '<button id="ptg-go-list-btn" class="ptg-btn ptg-btn-secondary">과목 목록</button>';
+      html += "</div>";
+      html += "</div>";
 
-            // Event Handlers for Header
-            $('#back-to-courses').on('click', function() {
-                if (initialCoursesHTML !== null) {
-                    studyContainer.html(initialCoursesHTML);
-                    setupStudyTipHandlers();
-                }
-            });
+      html += "</div>"; // End ptg-lesson-view
 
-            // Infinite Scroll Toggle Handler
-            $('#ptg-infinite-scroll-toggle').on('change', function() {
-                const isInfinite = $(this).is(':checked');
-                const $sentinel = $('#ptg-scroll-sentinel');
-                const $manualBtn = $('#ptg-manual-load-btn-wrapper');
-                
-                // Check if there are more items to load based on current state
-                const currentTxt = $('#ptg-current-count').text();
-                const currentNum = parseInt(currentTxt, 10) || 0;
-                
-                // Use totalCount from closure (captured from first render call)
-                // Note: totalCount is constant for the session.
-                const hasMoreItems = totalCount > currentNum;
+      studyContainer.html(html);
 
-                if (isInfinite) {
-                    $manualBtn.hide();
-                    if (hasMoreItems) {
-                        $sentinel.show();
-                    } else {
-                        $sentinel.hide();
-                    }
-                } else {
-                    $sentinel.hide();
-                    if (hasMoreItems) {
-                        $manualBtn.show();
-                    } else {
-                        $manualBtn.hide();
-                    }
-                }
-            });
+      // Scroll to top of container to ensure user sees the first item
+      $("html, body").animate(
+        { scrollTop: studyContainer.offset().top - 20 },
+        300
+      );
 
-            if (subjectId || isCategory) {
-                $('#ptg-random-toggle').on('change', function() {
-                    const useRandom = $(this).is(':checked');
-                    const useWrongOnly = $('#ptg-wrong-only-toggle').is(':checked');
-                    const useInfinite = $('#ptg-infinite-scroll-toggle').is(':checked');
-                    
-                    if (isCategory) {
-                        fetchAndRenderCategoryLessons(studyContainer, {
-                            id: categoryId,
-                            title: categoryTitle,
-                            subjects: rawSubjects
-                        }, 0, useInfinite, useRandom, useWrongOnly);
-                    } else {
-                        fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, useRandom, useInfinite, useWrongOnly);
-                    }
-                });
-
-                $('#ptg-wrong-only-toggle').on('change', function() {
-                    const useWrongOnly = $(this).is(':checked');
-                    const useRandom = $('#ptg-random-toggle').is(':checked');
-                    const useInfinite = $('#ptg-infinite-scroll-toggle').is(':checked');
-                    
-                    if (isCategory) {
-                        fetchAndRenderCategoryLessons(studyContainer, {
-                            id: categoryId,
-                            title: categoryTitle,
-                            subjects: rawSubjects
-                        }, 0, useInfinite, useRandom, useWrongOnly);
-                    } else {
-                        fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, useRandom, useInfinite, useWrongOnly);
-                    }
-                });
-            }
+      // Event Handlers for Header
+      $("#back-to-courses").on("click", function () {
+        if (initialCoursesHTML !== null) {
+          studyContainer.html(initialCoursesHTML);
+          setupStudyTipHandlers();
         }
+      });
 
-        // 2. Append Lessons
-        const $listContainer = studyContainer.find('.ptg-lesson-list');
-        let newItemsHtml = '';
+      // Infinite Scroll Toggle Handler
+      $("#ptg-infinite-scroll-toggle").on("change", function () {
+        const isInfinite = $(this).is(":checked");
+        const $sentinel = $("#ptg-scroll-sentinel");
+        const $manualBtn = $("#ptg-manual-load-btn-wrapper");
 
-        lessons.forEach(function(lesson, index) {
-            // Calculate absolute index for numbering (optional, if needed)
-            const absIndex = currentOffset + index + 1; 
-            const questionHtml = renderQuestionFromUI(lesson, absIndex);
+        // Check if there are more items to load based on current state
+        const currentTxt = $("#ptg-current-count").text();
+        const currentNum = parseInt(currentTxt, 10) || 0;
 
-            const explanationSubject = (lesson.category && lesson.category.subject)
-                ? lesson.category.subject
-                : subjectTitle;
+        // Use totalCount from closure (captured from first render call)
+        // Note: totalCount is constant for the session.
+        const hasMoreItems = totalCount > currentNum;
 
-            let imageUrl = '';
-            if (lesson.question_image && lesson.category) {
-                const year = lesson.category.year || '';
-                const session = lesson.category.session || '';
-                if (year && session) {
-                    imageUrl = `/wp-content/uploads/ptgates-questions/${year}/${session}/${lesson.question_image}`;
-                }
-            }
+        if (isInfinite) {
+          $manualBtn.hide();
+          if (hasMoreItems) {
+            $sentinel.show();
+          } else {
+            $sentinel.hide();
+          }
+        } else {
+          $sentinel.hide();
+          if (hasMoreItems) {
+            $manualBtn.show();
+          } else {
+            $manualBtn.hide();
+          }
+        }
+      });
 
-            let statsHtml = '';
-            // Always show stats, default to 0 if null
-            const s = lesson.user_stats || { study_count: 0, correct_count: 0, wrong_count: 0, last_study_date: null };
-            const lastDate = s.last_study_date ? s.last_study_date.substring(0, 10) : '-';
-            statsHtml = `
+      if (subjectId || isCategory) {
+        $("#ptg-random-toggle").on("change", function () {
+          const useRandom = $(this).is(":checked");
+          const useWrongOnly = $("#ptg-wrong-only-toggle").is(":checked");
+          const useInfinite = $("#ptg-infinite-scroll-toggle").is(":checked");
+
+          if (isCategory) {
+            fetchAndRenderCategoryLessons(
+              studyContainer,
+              {
+                id: categoryId,
+                title: categoryTitle,
+                subjects: rawSubjects,
+              },
+              0,
+              useInfinite,
+              useRandom,
+              useWrongOnly
+            );
+          } else {
+            fetchAndRenderLessons(
+              studyContainer,
+              subjectId,
+              subjectTitle,
+              categoryTitle,
+              0,
+              useRandom,
+              useInfinite,
+              useWrongOnly
+            );
+          }
+        });
+
+        $("#ptg-wrong-only-toggle").on("change", function () {
+          const useWrongOnly = $(this).is(":checked");
+          const useRandom = $("#ptg-random-toggle").is(":checked");
+          const useInfinite = $("#ptg-infinite-scroll-toggle").is(":checked");
+
+          if (isCategory) {
+            fetchAndRenderCategoryLessons(
+              studyContainer,
+              {
+                id: categoryId,
+                title: categoryTitle,
+                subjects: rawSubjects,
+              },
+              0,
+              useInfinite,
+              useRandom,
+              useWrongOnly
+            );
+          } else {
+            fetchAndRenderLessons(
+              studyContainer,
+              subjectId,
+              subjectTitle,
+              categoryTitle,
+              0,
+              useRandom,
+              useInfinite,
+              useWrongOnly
+            );
+          }
+        });
+      }
+    }
+
+    // 2. Append Lessons
+    const $listContainer = studyContainer.find(".ptg-lesson-list");
+    let newItemsHtml = "";
+
+    lessons.forEach(function (lesson, index) {
+      // Calculate absolute index for numbering (optional, if needed)
+      const absIndex = currentOffset + index + 1;
+      const questionHtml = renderQuestionFromUI(lesson, absIndex);
+
+      const explanationSubject =
+        lesson.category && lesson.category.subject
+          ? lesson.category.subject
+          : subjectTitle;
+
+      let imageUrl = "";
+      if (lesson.question_image && lesson.category) {
+        const year = lesson.category.year || "";
+        const session = lesson.category.session || "";
+        if (year && session) {
+          imageUrl = `/wp-content/uploads/ptgates-questions/${year}/${session}/${lesson.question_image}`;
+        }
+      }
+
+      let statsHtml = "";
+      // Always show stats, default to 0 if null
+      const s = lesson.user_stats || {
+        study_count: 0,
+        correct_count: 0,
+        wrong_count: 0,
+        last_study_date: null,
+      };
+      const lastDate = s.last_study_date
+        ? s.last_study_date.substring(0, 10)
+        : "-";
+      statsHtml = `
                 <span class="ptg-question-stats-info" style="font-size: 12px; color: #888; margin-left: 10px;">
                     학습: ${s.study_count}회 | 정답: ${s.correct_count} | 오답: ${s.wrong_count} | 최근: ${lastDate}
                 </span>
             `;
 
-            newItemsHtml += `
-                <div class="ptg-lesson-item ptg-quiz-card" data-lesson-id="${escapeHtml(lesson.id)}">
+      newItemsHtml += `
+                <div class="ptg-lesson-item ptg-quiz-card" data-lesson-id="${escapeHtml(
+                  lesson.id
+                )}">
                     ${questionHtml}
                     <div class="ptg-lesson-answer-area">
                         <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 5px;">
                             <button class="toggle-answer ptg-btn ptg-btn-primary">정답 및 해설 보기</button>
-                            ${lesson.question_image ? '<button class="toggle-answer-img ptg-btn ptg-btn-primary">학습 이미지</button>' : ''}
+                            ${
+                              lesson.question_image
+                                ? '<button class="toggle-answer-img ptg-btn ptg-btn-primary">학습 이미지</button>'
+                                : ""
+                            }
                             <div class="ptg-answer-buttons-container"></div>
                             ${statsHtml}
                         </div>
                         <div class="answer-content" style="display: none;">
-                            <p><strong>정답:</strong> ${escapeHtml(lesson.answer)}</p>
+                            <p><strong>정답:</strong> ${escapeHtml(
+                              lesson.answer
+                            )}</p>
                             <hr>
-                            <p><strong>해설 (${escapeHtml(explanationSubject)}) - quiz-ID: ${escapeHtml(lesson.id)}</strong></p>
-                            <div>${lesson.explanation ? formatExplanationText(lesson.explanation) : '해설이 없습니다.'}</div>
+                            <p><strong>해설 (${escapeHtml(
+                              explanationSubject
+                            )}) - quiz-ID: ${escapeHtml(lesson.id)}</strong></p>
+                            <div>${
+                              lesson.explanation
+                                ? formatExplanationText(lesson.explanation)
+                                : "해설이 없습니다."
+                            }</div>
                         </div>
-                        ${imageUrl ? `<div class="question-image-content" style="display: none;"><img src="${imageUrl}" alt="문제 이미지" style="max-width: 100%; height: auto;" /></div>` : ''}
+                        ${
+                          imageUrl
+                            ? `<div class="question-image-content" style="display: none;"><img src="${imageUrl}" alt="문제 이미지" style="max-width: 100%; height: auto;" /></div>`
+                            : ""
+                        }
                     </div>
                 </div>
             `;
-        });
+    });
 
-        $listContainer.append(newItemsHtml);
+    $listContainer.append(newItemsHtml);
 
-        // 3. Update Count
-        const totalDisplayed = currentOffset + lessons.length;
-        $('#ptg-current-count').text(totalDisplayed);
+    // 3. Update Count
+    const totalDisplayed = currentOffset + lessons.length;
+    $("#ptg-current-count").text(totalDisplayed);
 
-        // 4. Re-bind Toggle Events (Delegated events handled in init or re-bound here)
-        // Re-binding logic for toggles (Delegated style, idempotent)
-        studyContainer.off('click', '.toggle-answer');
-        studyContainer.on('click', '.toggle-answer', function() {
-            // Check Usage Limit
-            if (!checkUsageLimit()) {
-                return;
-            }
+    // 4. Re-bind Toggle Events (Delegated events handled in init or re-bound here)
+    // Re-binding logic for toggles (Delegated style, idempotent)
+    studyContainer.off("click", ".toggle-answer");
+    studyContainer.on("click", ".toggle-answer", function () {
+      // Check Usage Limit
+      if (!checkUsageLimit()) {
+        return;
+      }
 
-            $(this).closest('.ptg-lesson-answer-area').find('.answer-content').slideToggle();
-            const lessonId = $(this).closest('.ptg-lesson-item').data('lesson-id');
-            const questionId = lessonId ? parseInt(lessonId, 10) : 0;
-            if (questionId > 0) {
-                logStudyProgress(questionId);
-            }
-        });
+      $(this)
+        .closest(".ptg-lesson-answer-area")
+        .find(".answer-content")
+        .slideToggle();
+      const lessonId = $(this).closest(".ptg-lesson-item").data("lesson-id");
+      const questionId = lessonId ? parseInt(lessonId, 10) : 0;
+      if (questionId > 0) {
+        logStudyProgress(questionId);
+      }
+    });
 
-        studyContainer.off('click', '.toggle-answer-img');
-        studyContainer.on('click', '.toggle-answer-img', function() {
-            $(this).closest('.ptg-lesson-answer-area').find('.question-image-content').slideToggle();
-        });
+    studyContainer.off("click", ".toggle-answer-img");
+    studyContainer.on("click", ".toggle-answer-img", function () {
+      $(this)
+        .closest(".ptg-lesson-answer-area")
+        .find(".question-image-content")
+        .slideToggle();
+    });
 
-        // 5. Setup Infinite Scroll Observer & Manual Load Button
-        const hasMore = totalCount > totalDisplayed;
-        
-        // Check current toggle state (if element exists, otherwise default true)
-        const $toggle = $('#ptg-infinite-scroll-toggle');
-        const isInfiniteEnabled = $toggle.length ? $toggle.is(':checked') : true;
-        
-        const loadNextBatch = () => {
-            const nextOffset = currentOffset + lessons.length;
-            if (isCategory) {
-                fetchAndRenderCategoryLessons(studyContainer, {
-                    id: categoryId,
-                    title: categoryTitle,
-                    subjects: rawSubjects
-                }, nextOffset, isInfiniteEnabled, isRandom, isWrongOnly);
-            } else {
-                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, nextOffset, isRandom, isInfiniteEnabled, isWrongOnly);
-            }
-        };
+    // 5. Setup Infinite Scroll Observer & Manual Load Button
+    const hasMoreTotal = totalCount > totalDisplayed;
 
-        // Unbind previous click to avoid duplicates
-        $('#ptg-load-more-btn').off('click').on('click', function() {
-            loadNextBatch();
-        });
+    // Check current toggle state (if element exists, otherwise default true)
+    const $toggle = $("#ptg-infinite-scroll-toggle");
+    const isInfiniteEnabled = $toggle.length ? $toggle.is(":checked") : true;
 
-        $('#ptg-go-first-btn').off('click').on('click', function() {
-            const currentState = $('#ptg-infinite-scroll-toggle').is(':checked');
-            if (isCategory) {
-                fetchAndRenderCategoryLessons(studyContainer, {
-                    id: categoryId,
-                    title: categoryTitle,
-                    subjects: rawSubjects
-                }, 0, currentState, isRandom, isWrongOnly);
-            } else {
-                fetchAndRenderLessons(studyContainer, subjectId, subjectTitle, categoryTitle, 0, isRandom, currentState, isWrongOnly);
-            }
-        });
+    // 무한 스크롤 모드이면 '현재 배치 꽉 찼는지' 기준 (DB 무한 스크롤)
+    let hasMore = hasMoreTotal;
+    if (isInfiniteEnabled) {
+      hasMore = lessons.length >= pageSize;
+    }
 
-        $('#ptg-go-list-btn').off('click').on('click', function() {
-            if (initialCoursesHTML !== null) {
-                studyContainer.html(initialCoursesHTML);
-                setupStudyTipHandlers();
-            }
-        });
+    const loadNextBatch = () => {
+      const nextOffset = currentOffset + lessons.length;
+      if (isCategory) {
+        fetchAndRenderCategoryLessons(
+          studyContainer,
+          {
+            id: categoryId,
+            title: categoryTitle,
+            subjects: rawSubjects,
+          },
+          nextOffset,
+          isInfiniteEnabled,
+          isRandom,
+          isWrongOnly
+        );
+      } else {
+        fetchAndRenderLessons(
+          studyContainer,
+          subjectId,
+          subjectTitle,
+          categoryTitle,
+          nextOffset,
+          isRandom,
+          isInfiniteEnabled,
+          isWrongOnly
+        );
+      }
+    };
 
-        if (hasMore) {
-            if (isInfiniteEnabled) {
-                $('#ptg-scroll-sentinel').show();
-                $('#ptg-manual-load-btn-wrapper').hide();
-            } else {
-                $('#ptg-scroll-sentinel').hide();
-                $('#ptg-manual-load-btn-wrapper').show();
-            }
+    // Unbind previous click to avoid duplicates
+    $("#ptg-load-more-btn")
+      .off("click")
+      .on("click", function () {
+        loadNextBatch();
+      });
 
-            const sentinel = document.getElementById('ptg-scroll-sentinel');
-            if (sentinel) {
-                // Disconnect previous observer if any
-                if (window.ptgStudyObserver) {
-                    window.ptgStudyObserver.disconnect();
-                }
-
-                window.ptgStudyObserver = new IntersectionObserver((entries) => {
-                    // Only load if intersecting AND infinite scroll is enabled
-                    // Re-check checkbox state here to be sure
-                    if (entries[0].isIntersecting && $('#ptg-infinite-scroll-toggle').is(':checked')) {
-                        loadNextBatch();
-                    }
-                }, { rootMargin: '200px' });
-
-                window.ptgStudyObserver.observe(sentinel);
-            }
+    $("#ptg-go-first-btn")
+      .off("click")
+      .on("click", function () {
+        const currentState = $("#ptg-infinite-scroll-toggle").is(":checked");
+        if (isCategory) {
+          fetchAndRenderCategoryLessons(
+            studyContainer,
+            {
+              id: categoryId,
+              title: categoryTitle,
+              subjects: rawSubjects,
+            },
+            0,
+            currentState,
+            isRandom,
+            isWrongOnly
+          );
         } else {
-            // No more items
-            $('#ptg-scroll-sentinel').hide();
-            $('#ptg-manual-load-btn-wrapper').hide();
-            if (window.ptgStudyObserver) {
-                window.ptgStudyObserver.disconnect();
-            }
+          fetchAndRenderLessons(
+            studyContainer,
+            subjectId,
+            subjectTitle,
+            categoryTitle,
+            0,
+            isRandom,
+            currentState,
+            isWrongOnly
+          );
         }
+      });
+
+    $("#ptg-go-list-btn")
+      .off("click")
+      .on("click", function () {
+        if (initialCoursesHTML !== null) {
+          studyContainer.html(initialCoursesHTML);
+          setupStudyTipHandlers();
+        }
+      });
+
+    if (hasMore) {
+      if (isInfiniteEnabled) {
+        $("#ptg-scroll-sentinel").show();
+        $("#ptg-manual-load-btn-wrapper").hide();
+      } else {
+        $("#ptg-scroll-sentinel").hide();
+        $("#ptg-manual-load-btn-wrapper").show();
+      }
+
+      const sentinel = document.getElementById("ptg-scroll-sentinel");
+      if (sentinel) {
+        // Disconnect previous observer if any
+        if (window.ptgStudyObserver) {
+          window.ptgStudyObserver.disconnect();
+        }
+
+        window.ptgStudyObserver = new IntersectionObserver(
+          (entries) => {
+            // Only load if intersecting AND infinite scroll is enabled
+            // Re-check checkbox state here to be sure
+            if (
+              entries[0].isIntersecting &&
+              $("#ptg-infinite-scroll-toggle").is(":checked")
+            ) {
+              loadNextBatch();
+            }
+          },
+          { rootMargin: "200px" }
+        );
+
+        window.ptgStudyObserver.observe(sentinel);
+      }
+    } else {
+      // No more items
+      $("#ptg-scroll-sentinel").hide();
+      $("#ptg-manual-load-btn-wrapper").hide();
+      if (window.ptgStudyObserver) {
+        window.ptgStudyObserver.disconnect();
+      }
+    }
+  }
+
+  function renderQuestionFromUI(lesson, questionNumber) {
+    // 이미지 HTML 생성 로직
+    let questionImageHtml = "";
+    if (lesson.question_image && lesson.category) {
+      const year = lesson.category.year || "";
+      const session = lesson.category.session || "";
+      if (year && session) {
+        const imageUrl = `/wp-content/uploads/ptgates-questions/${year}/${session}/${lesson.question_image}`;
+        questionImageHtml = `<img src="${imageUrl}" alt="문제 이미지" style="max-width: 100%; height: auto; display: block; margin: 10px 0;">`;
+      }
     }
 
-    function renderQuestionFromUI(lesson, questionNumber) {
-		function getCircledNumber(n) {
-			// 1→① ... 20→⑳
-			const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
-			return circled[(n - 1) % circled.length] || '';
-		}
-		// 보기가 별도 배열로 없는 경우, 지문 내 ①~⑤ 또는 1)~5) 패턴을 파싱해 줄바꿈 렌더링
-		function renderBasicFormatted(lessonData) {
-			const rawText = String(lessonData.content || '');
-			const normalized = rawText.replace(/\r\n/g, '\n');
+    function getCircledNumber(n) {
+      // 1→① ... 20→⑳
+      const circled = [
+        "①",
+        "②",
+        "③",
+        "④",
+        "⑤",
+        "⑥",
+        "⑦",
+        "⑧",
+        "⑨",
+        "⑩",
+        "⑪",
+        "⑫",
+        "⑬",
+        "⑭",
+        "⑮",
+        "⑯",
+        "⑰",
+        "⑱",
+        "⑲",
+        "⑳",
+      ];
+      return circled[(n - 1) % circled.length] || "";
+    }
+    // 보기가 별도 배열로 없는 경우, 지문 내 ①~⑤ 또는 1)~5) 패턴을 파싱해 줄바꿈 렌더링
+    function renderBasicFormatted(lessonData) {
+      const rawText = String(lessonData.content || "");
+      const normalized = rawText.replace(/\r\n/g, "\n");
 
-			// 1) circled numbers ①-⑳
-			const circledRegex = /([①-⑳])\s*([^①-⑳]*)/g;
-			// 2) numeric 1) or 1. or 1:
-			const numericRegex = /(?:^|\s)([1-9])[\)\.\:]\s*([^\n]*)/g;
+      // 1) circled numbers ①-⑳
+      const circledRegex = /([①-⑳])\s*([^①-⑳]*)/g;
+      // 2) numeric 1) or 1. or 1:
+      const numericRegex = /(?:^|\s)([1-9])[\)\.\:]\s*([^\n]*)/g;
 
-			let options = [];
-			let stem = normalized;
+      let options = [];
+      let stem = normalized;
 
-			// Try circled pattern first
-			let circledMatches = [];
-			let m;
-			while ((m = circledRegex.exec(normalized)) !== null) {
-				circledMatches.push({ mark: m[1], text: (m[2] || '').trim() });
-			}
+      // Try circled pattern first
+      let circledMatches = [];
+      let m;
+      while ((m = circledRegex.exec(normalized)) !== null) {
+        circledMatches.push({ mark: m[1], text: (m[2] || "").trim() });
+      }
 
-			if (circledMatches.length >= 2) {
-				options = circledMatches.map(x => x.text).filter(Boolean);
-				// Remove matched segments from stem roughly by splitting at first circled marker
-				const firstIdx = normalized.search(/[①-⑳]/);
-				stem = firstIdx > -1 ? normalized.slice(0, firstIdx).trim() : normalized.trim();
-			} else {
-				// Fallback to numeric pattern
-				let numericMatches = [];
-				while ((m = numericRegex.exec(normalized)) !== null) {
-					numericMatches.push({ num: m[1], text: (m[2] || '').trim() });
-				}
-				if (numericMatches.length >= 2) {
-					// Sort by number just in case
-					numericMatches.sort((a, b) => parseInt(a.num, 10) - parseInt(b.num, 10));
-					options = numericMatches.map(x => x.text).filter(Boolean);
-					const firstIdx2 = normalized.search(/[1-9][\)\.\:]/);
-					stem = firstIdx2 > -1 ? normalized.slice(0, firstIdx2).trim() : normalized.trim();
-				}
-			}
+      if (circledMatches.length >= 2) {
+        options = circledMatches.map((x) => x.text).filter(Boolean);
+        // Remove matched segments from stem roughly by splitting at first circled marker
+        const firstIdx = normalized.search(/[①-⑳]/);
+        stem =
+          firstIdx > -1
+            ? normalized.slice(0, firstIdx).trim()
+            : normalized.trim();
+      } else {
+        // Fallback to numeric pattern
+        let numericMatches = [];
+        while ((m = numericRegex.exec(normalized)) !== null) {
+          numericMatches.push({ num: m[1], text: (m[2] || "").trim() });
+        }
+        if (numericMatches.length >= 2) {
+          // Sort by number just in case
+          numericMatches.sort(
+            (a, b) => parseInt(a.num, 10) - parseInt(b.num, 10)
+          );
+          options = numericMatches.map((x) => x.text).filter(Boolean);
+          const firstIdx2 = normalized.search(/[1-9][\)\.\:]/);
+          stem =
+            firstIdx2 > -1
+              ? normalized.slice(0, firstIdx2).trim()
+              : normalized.trim();
+        }
+      }
 
-			// Convert \n in stem to <br>
-			const stemHtml = escapeHtml(stem).replace(/\n/g, '<br>');
+      // Convert \n in stem to <br>
+      const stemHtml = escapeHtml(stem).replace(/\n/g, "<br>");
 
-			let html = `<div class="ptg-question-text"><span class="ptg-question-number">${questionNumber}.</span> ${stemHtml}</div>`;
-			if (options.length > 0) {
-				html += `<ul class="ptg-question-options">`;
-				options.forEach((opt, idx) => {
-					const mark = getCircledNumber(idx + 1);
-					const trimmedOpt = String(opt || '').trim();
-					html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(trimmedOpt)}</li>`;
-				});
-				html += `</ul>`;
-			}
-			return html;
-		}
+      let html = `<div class="ptg-question-text"><span class="ptg-question-number">${questionNumber}.</span> ${stemHtml}</div>`;
+      // 이미지 삽입
+      if (questionImageHtml) {
+        html += questionImageHtml;
+      }
 
-		// 우선 공용 UI가 있으면 그대로 사용하되, 옵션 배열이 없을 땐 파싱 폴백
-		if (typeof window.PTGQuizUI === 'undefined') {
-			if (!PTG_QUIZUI_WARNED) {
-				console.warn('PTGQuizUI is not available. Falling back to basic rendering.');
-				PTG_QUIZUI_WARNED = true;
-			}
-			return renderBasicFormatted(lesson);
-		}
-
-		const questionText = lesson.content || '';
-		const options = Array.isArray(lesson.options) ? lesson.options : [];
-
-		if (options.length === 0) {
-			return renderBasicFormatted(lesson);
-		}
-
-		// 기본: 지문 줄바꿈 보존 + 배열 보기를 줄바꿈 리스트로
-		const stemHtml = escapeHtml(questionText).replace(/\r?\n/g, '<br>');
-		let html = `<div class="ptg-question-text"><span class="ptg-question-number">${questionNumber}.</span> ${stemHtml}</div>`;
-		html += `<ul class="ptg-question-options">`;
-		options.forEach((option, idx) => {
-			const mark = getCircledNumber(idx + 1);
-			const trimmedOption = String(option || '').trim();
-			html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(trimmedOption)}</li>`;
-		});
-		html += `</ul>`;
-		return html;
+      if (options.length > 0) {
+        html += `<ul class="ptg-question-options">`;
+        options.forEach((opt, idx) => {
+          const mark = getCircledNumber(idx + 1);
+          const trimmedOpt = String(opt || "").trim();
+          html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(
+            trimmedOpt
+          )}</li>`;
+        });
+        html += `</ul>`;
+      }
+      return html;
     }
 
+    // 우선 공용 UI가 있으면 그대로 사용하되, 옵션 배열이 없을 땐 파싱 폴백
+    if (typeof window.PTGQuizUI === "undefined") {
+      if (!PTG_QUIZUI_WARNED) {
+        console.warn(
+          "PTGQuizUI is not available. Falling back to basic rendering."
+        );
+        PTG_QUIZUI_WARNED = true;
+      }
+      return renderBasicFormatted(lesson);
+    }
 
-    /*
+    const questionText = lesson.content || "";
+    const options = Array.isArray(lesson.options) ? lesson.options : [];
+
+    if (options.length === 0) {
+      return renderBasicFormatted(lesson);
+    }
+
+    // 기본: 지문 줄바꿈 보존 + 배열 보기를 줄바꿈 리스트로
+    const stemHtml = escapeHtml(questionText).replace(/\r?\n/g, "<br>");
+    let html = `<div class="ptg-question-text"><span class="ptg-question-number">${questionNumber}.</span> ${stemHtml}</div>`;
+
+    // 이미지 삽입
+    if (questionImageHtml) {
+      html += questionImageHtml;
+    }
+
+    html += `<ul class="ptg-question-options">`;
+    options.forEach((option, idx) => {
+      const mark = getCircledNumber(idx + 1);
+      const trimmedOption = String(option || "").trim();
+      html += `<li class="ptg-question-option"><span class="ptg-option-index">${mark}</span>${escapeHtml(
+        trimmedOption
+      )}</li>`;
+    });
+    html += `</ul>`;
+    return html;
+  }
+
+  /*
     function formatQuestion(lesson) {
         let questionText = lesson.content || '';
         let optionsHtml = '';
@@ -1148,10 +1549,10 @@
     }
     */
 
-    // DOM 로드 후 초기화
-    $(document).ready(function() {
-        if (PTG_STUDY_DEBUG) console.log('PTG Study: Document is ready. Calling init().');
-        init();
-    });
-
+  // DOM 로드 후 초기화
+  $(document).ready(function () {
+    if (PTG_STUDY_DEBUG)
+      console.log("PTG Study: Document is ready. Calling init().");
+    init();
+  });
 })(jQuery);

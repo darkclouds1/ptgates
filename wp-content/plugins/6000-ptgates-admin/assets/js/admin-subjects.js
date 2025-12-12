@@ -407,9 +407,72 @@
         }
       };
 
+      // Question IDs Modal State
+      const questionIdsModal = reactive({
+        visible: false,
+        ids: [],
+        title: "",
+      });
+
+      const openQuestionIdsModal = (rawItem) => {
+        if (!rawItem.question_ids) {
+          alert("연결된 문제 ID 정보가 없습니다.");
+          return;
+        }
+        questionIdsModal.title = `${rawItem.subject} (${rawItem.count}문제)`;
+        questionIdsModal.ids = rawItem.question_ids
+          .split(",")
+          .map((id) => id.trim());
+        questionIdsModal.visible = true;
+      };
+
+      const closeQuestionIdsModal = () => {
+        questionIdsModal.visible = false;
+        questionIdsModal.ids = [];
+      };
+
       onMounted(() => {
         fetchData();
       });
+
+      // Backfill Tool Logic
+      const backfill = reactive({
+        loading: false,
+        result: null,
+      });
+
+      const runBackfill = async () => {
+        if (!confirm("업데이트를 실행하시겠습니까?")) return;
+
+        backfill.loading = true;
+        backfill.result = null;
+
+        try {
+          const response = await fetch(`${apiUrl}backfill-categories`, {
+            method: "POST",
+            headers: {
+              "X-WP-Nonce": nonce,
+            },
+          });
+          const result = await response.json();
+
+          if (response.ok) {
+            let msg =
+              result.message || result.data?.message || JSON.stringify(result);
+            backfill.result = { success: true, message: msg };
+            showMessage(msg, "success");
+          } else {
+            let msg = result.message || "업데이트 실패";
+            backfill.result = { success: false, message: msg };
+            showMessage(msg, "error");
+          }
+        } catch (error) {
+          backfill.result = { success: false, message: error.message };
+          showMessage("오류: " + error.message, "error");
+        } finally {
+          backfill.loading = false;
+        }
+      };
 
       return {
         loading,
@@ -434,6 +497,11 @@
         rawSubjects,
         officialSubjectsList,
         saveMapping,
+        questionIdsModal,
+        openQuestionIdsModal,
+        closeQuestionIdsModal,
+        backfill,
+        runBackfill,
       };
     },
   });

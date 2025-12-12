@@ -109,30 +109,8 @@ class LegacyRepo {
         if (!empty($args['random']) && $args['random']) {
             $order_by = "ORDER BY RAND()";
             
-            // Smart Random (Logged-in User Priority)
-            if (!empty($args['smart_random_user_id'])) {
-                $user_id = absint($args['smart_random_user_id']);
-                $join_clause .= " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = %d";
-                
-                // JOIN comes before WHERE, so prepend user_id
-                array_unshift($where_values, $user_id);
-
-                // Exclude Correct Answers if requested
-                if (!empty($args['smart_random_exclude_correct']) && $args['smart_random_exclude_correct']) {
-                    $where_clause .= " AND (us.last_result IS NULL OR us.last_result != 'correct')";
-                }
-                
-                // Priority: 1. Wrong, 2. Unstudied (NULL), 3. Correct (if not excluded)
-                $order_by = "
-                    ORDER BY 
-                    CASE 
-                        WHEN us.last_result = 'wrong' THEN 1 
-                        WHEN us.last_result IS NULL THEN 2 
-                        ELSE 3 
-                    END ASC, 
-                    RAND()
-                ";
-            }
+            // Smart Random 로직 제거됨 (사용자 요청: 틀린 문제 우선 조회 기능 삭제)
+            // if (!empty($args['smart_random_user_id'])) { ... }
         }
 
         // Wrong Only Filter (Can be used with or without random)

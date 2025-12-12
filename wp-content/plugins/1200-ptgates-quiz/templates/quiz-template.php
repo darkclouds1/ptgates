@@ -120,6 +120,202 @@ $is_admin = current_user_can('manage_options');
             <input type="text" id="ptg-quiz-search-keyword" class="ptgates-filter-input" placeholder="지문 또는 해설 검색...">
         </div>
     </div>
+
+    <?php
+    // --- 과목 그리드 데이터 준비 ---
+    $subjects_map = [];
+    if ( class_exists( '\\PTG\\Quiz\\Subjects' ) && method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
+        $subjects_map = \PTG\Quiz\Subjects::get_map();
+    } elseif ( class_exists( '\\PTG\\Quiz\\Subjects' ) && defined( '\\PTG\\Quiz\\Subjects::MAP' ) ) {
+        $subjects_map = \PTG\Quiz\Subjects::MAP;
+    }
+
+    $category_meta = [
+        '물리치료 기초'   => [ 'id' => 'ptg-foundation', 'description' => '해부생리 · 운동학 · 물리적 인자치료 · 공중보건학' ],
+        '물리치료 진단평가' => [ 'id' => 'ptg-assessment', 'description' => '근골격 · 신경계 · 원리 · 심폐혈관 · 기타 · 임상의사결정' ],
+        '물리치료 중재'   => [ 'id' => 'ptg-intervention', 'description' => '근골격 · 신경계 · 심폐혈관 · 림프·피부 · 문제해결' ],
+        '의료관계법규'    => [ 'id' => 'ptg-medlaw', 'description' => '의료법 · 의료기사법 · 노인복지법 · 장애인복지법 · 건보법' ],
+    ];
+    ?>
+
+    <!-- 과목 선택 그리드 (Study 플러그인 스타일 복제) -->
+    <style>
+        .ptg-quiz-course-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        .ptg-quiz-session-group {
+            grid-column: 1 / -1;
+            padding: 0;
+        }
+        .ptg-quiz-session-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .ptg-quiz-category {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+            overflow: hidden;
+            height: 100%; /* 카드 높이 맞춤 */
+        }
+        .ptg-quiz-category:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(15,23,42,0.08);
+            border-color: #d1d5db;
+        }
+        .ptg-quiz-category-header {
+            padding: 14px 16px 8px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+        }
+        .ptg-quiz-category-title {
+            margin: 0 0 6px 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ptg-quiz-session-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            margin-right: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #0b3d2e;
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            border-radius: 9999px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .ptg-quiz-category-desc {
+            margin: 0;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+        .ptg-quiz-subject-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); /* Quiz 모드에서는 조금 더 좁게 */
+            gap: 8px;
+            margin: 0;
+            padding: 12px 12px 14px 12px;
+            list-style: none;
+        }
+        .ptg-quiz-subject-item {
+            padding: 8px 10px;
+            min-height: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center; /* 가운데 정렬 */
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all .16s ease;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+        }
+        .ptg-quiz-subject-item:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            box-shadow: 0 2px 6px rgba(79,70,229,0.12);
+            color: #4338ca;
+        }
+        
+        /* Category Theme Colors */
+        .ptg-quiz-category[data-category-id="ptg-foundation"] .ptg-quiz-category-header {
+            background: linear-gradient(180deg, #ecfeff 0%, #f0fdf4 100%);
+            border-bottom-color: #dcfce7;
+        }
+        .ptg-quiz-category[data-category-id="ptg-foundation"] .ptg-quiz-session-badge {
+            color: #064e3b; background: #d1fae5; border-color: #10b981;
+        }
+        .ptg-quiz-category[data-category-id="ptg-assessment"] .ptg-quiz-category-header {
+            background: linear-gradient(180deg, #eff6ff 0%, #e0f2fe 100%);
+            border-bottom-color: #dbeafe;
+        }
+        .ptg-quiz-category[data-category-id="ptg-assessment"] .ptg-quiz-session-badge {
+            color: #1e3a8a; background: #dbeafe; border-color: #60a5fa;
+        }
+        .ptg-quiz-category[data-category-id="ptg-intervention"] .ptg-quiz-category-header {
+            background: linear-gradient(180deg, #f5f3ff 0%, #eef2ff 100%);
+            border-bottom-color: #e9d5ff;
+        }
+        .ptg-quiz-category[data-category-id="ptg-intervention"] .ptg-quiz-session-badge {
+            color: #3730a3; background: #e0e7ff; border-color: #818cf8;
+        }
+        .ptg-quiz-category[data-category-id="ptg-medlaw"] .ptg-quiz-category-header {
+            background: linear-gradient(180deg, #fffbeb 0%, #fef2f2 100%);
+            border-bottom-color: #fde68a;
+        }
+        .ptg-quiz-category[data-category-id="ptg-medlaw"] .ptg-quiz-session-badge {
+            color: #7c2d12; background: #fef3c7; border-color: #f59e0b;
+        }
+
+        @media (max-width: 768px) {
+            .ptg-quiz-course-categories {
+                grid-template-columns: 1fr;
+            }
+            .ptg-quiz-session-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
+    <div class="ptg-quiz-course-categories" id="ptg-quiz-grid-section">
+        <?php if ( ! empty( $subjects_map ) ) : ?>
+            <?php foreach ( $subjects_map as $session_key => $session_data ) : ?>
+                <?php
+                $sess_num = (int) $session_key;
+                $subjects = isset( $session_data['subjects'] ) && is_array( $session_data['subjects'] ) ? $session_data['subjects'] : [];
+                ?>
+                <div class="ptg-quiz-session-group" data-session="<?php echo esc_attr( $sess_num ); ?>">
+                    <div class="ptg-quiz-session-grid">
+                        <?php foreach ( $subjects as $subject_name => $subject_data ) : ?>
+                            <?php
+                            $subs          = isset( $subject_data['subs'] ) && is_array( $subject_data['subs'] ) ? $subject_data['subs'] : [];
+                            $meta          = isset( $category_meta[ $subject_name ] ) ? $category_meta[ $subject_name ] : [];
+                            $category_id   = isset( $meta['id'] ) ? $meta['id'] : sanitize_title( $subject_name );
+                            $description   = isset( $meta['description'] ) ? $meta['description'] : '';
+                            ?>
+                            <div class="ptg-quiz-category" data-category-id="<?php echo esc_attr( $category_id ); ?>">
+                                <div class="ptg-quiz-category-header">
+                                    <h4 class="ptg-quiz-category-title">
+                                        <span class="ptg-quiz-session-badge"><?php echo esc_html( $sess_num ); ?>교시</span>
+                                        <?php echo esc_html( $subject_name ); ?>
+                                    </h4>
+                                    <?php if ( $description ) : ?>
+                                        <p class="ptg-quiz-category-desc"><?php echo esc_html( $description ); ?></p>
+                                    <?php endif; ?>
+                                </div>
+                                <ul class="ptg-quiz-subject-list">
+                                    <?php foreach ( $subs as $sub_name => $count ) : ?>
+                                        <!-- 클릭 이벤트: window.PTGQuiz.selectFilterAndStart(...) 호출 -->
+                                        <li class="ptg-quiz-subject-item"
+                                            onclick="if(window.PTGQuiz && window.PTGQuiz.selectFilterAndStart) { window.PTGQuiz.selectFilterAndStart(<?php echo $sess_num; ?>, '<?php echo esc_js($subject_name); ?>', '<?php echo esc_js($sub_name); ?>'); }">
+                                            <?php echo esc_html( $sub_name ); ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
     
     <!-- 문제 ID 확인 메시지 제거: 기본값으로 자동 처리됨 -->
     <!-- 에러 메시지가 여기에 표시되지 않도록 확인 -->

@@ -1798,6 +1798,27 @@ function update_exam_session($wpdb) {
         $condition_params[] = $old_session;
     }
     
+    // 이미지 파일 이동을 위해 업데이트 전 해당 조건의 문제들 조회
+    $questions_to_move = array();
+    
+    // 조건에 맞는 문제들의 ID와 현재 이미지 파일명을 조회
+    $query_questions = "SELECT q.question_id, q.question_image 
+                        FROM {$categories_table} c
+                        INNER JOIN ptgates_questions q ON c.question_id = q.question_id
+                        WHERE {$conditions} AND q.question_image IS NOT NULL AND q.question_image != ''";
+    
+    $questions_to_check = $wpdb->get_results($wpdb->prepare($query_questions, $condition_params));
+    
+    if (!empty($questions_to_check)) {
+        foreach ($questions_to_check as $q) {
+            $questions_to_move[] = array(
+                'id' => $q->question_id,
+                'image' => $q->question_image
+            );
+        }
+    }
+
+    $sql = ""; // Initialize $sql variable
     if ($new_session === null) {
         $sql = $wpdb->prepare(
             "UPDATE {$categories_table} SET exam_session = NULL WHERE {$conditions}",
@@ -1829,11 +1850,61 @@ function update_exam_session($wpdb) {
         ));
         return;
     }
+
+    // DB 업데이트 성공 후 이미지 파일 이동 처리
+    $moved_images_count = 0;
+    if (!empty($questions_to_move)) {
+        $upload_dir = wp_upload_dir();
+        $base_dir = $upload_dir['basedir'] . '/ptgates-questions';
+        
+        // Old Path Components
+        $old_year_dir = $exam_year; // 연도는 변경되지 않음 (현재 로직상)
+        $old_session_dir = ($old_session !== null) ? $old_session : 'null'; // null 세션인 경우 폴더명이 불하명하지만, 보통 이미지가 있다면 특정 폴더에 있을 것임. 
+        // 주의: 기존 로직상 session이 null이면 이미지가 어디 저장되었는지 확인 필요. 
+        // 보통 0 또는 특정 폴더일 수 있음. 여기서는 일단 $old_session 값을 그대로 사용.
+        // 만약 $old_session이 null이라면, 기존 파일 경로 추적이 어려울 수 있음. 
+        // 하지만 문제 설명상 1010 -> 9999 처럼 명시된 회차 변경이 주 목적임.
+        
+        // New Path Components
+        $new_year_dir = $exam_year;
+        $new_session_dir = ($new_session !== null) ? $new_session : 'null';
+        
+        foreach ($questions_to_move as $q_info) {
+            $image_name = $q_info['image'];
+            
+            // 기존 파일 경로 (session이 null인 경우 경로 처리가 애매할 수 있으므로, old_session이 있는 경우만 주로 처리)
+            if ($old_session !== null) {
+                $old_path = $base_dir . '/' . $old_year_dir . '/' . $old_session_dir . '/' . $image_name;
+                
+                // 새 파일 경로
+                // 새 세션 디렉토리 (없으면 생성)
+                if ($new_session !== null) {
+                   $new_dir_path = $base_dir . '/' . $new_year_dir . '/' . $new_session_dir;
+                   
+                   // 소스 파일이 존재하는지 확인
+                   if (file_exists($old_path)) {
+                       // 타겟 디렉토리 생성
+                       if (!file_exists($new_dir_path)) {
+                           wp_mkdir_p($new_dir_path);
+                       }
+                       
+                       $new_path = $new_dir_path . '/' . $image_name;
+                       
+                       // 파일 이동 (rename)
+                       if (@rename($old_path, $new_path)) {
+                           $moved_images_count++;
+                       }
+                   }
+                }
+            }
+        }
+    }
     
     echo json_encode(array(
         'success' => true,
-        'message' => '회차가 성공적으로 수정되었습니다.',
+        'message' => '회차가 성공적으로 수정되었습니다.' . ($moved_images_count > 0 ? " (이미지 {$moved_images_count}개 이동됨)" : ""),
         'updated_rows' => $result,
+        'moved_images' => $moved_images_count,
         'new_exam_session' => $new_session
     ));
 }

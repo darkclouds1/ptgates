@@ -371,12 +371,12 @@ class API {
             'permission_callback' => '__return_true', // 공개 API
             'args' => array(
                 'session' => array(
-                    'required' => true,
+                    'required' => false,
                     'type' => 'integer',
                     'sanitize_callback' => 'absint',
                 ),
                 'subject' => array(
-                    'required' => true,
+                    'required' => false,
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
                 ),
@@ -640,8 +640,9 @@ class API {
             // 과목/세부과목 필터
             if (!empty($subsubject)) {
                 $sub_name = trim(sanitize_text_field($subsubject));
-                $like = '%' . $wpdb->esc_like($sub_name) . '%';
-                $where[] = $wpdb->prepare("(c.subject = %s OR c.subject LIKE %s)", $sub_name, $like);
+                // $like = '%' . $wpdb->esc_like($sub_name) . '%';
+                // Strict equality for subsubject
+                $where[] = $wpdb->prepare("c.subject = %s", $sub_name);
             } elseif (!empty($subject)) {
                 $subject_filter = trim(sanitize_text_field($subject));
                 
@@ -663,13 +664,17 @@ class API {
                     $or_parts = array();
                     $or_params = array();
                     foreach ($subs_to_include as $sub_name) {
-                        $or_parts[] = "(c.subject = %s OR c.subject LIKE %s)";
+                        // Strict equality for included subjects
+                        $or_parts[] = "c.subject = %s";
                         $or_params[] = $sub_name;
-                        $or_params[] = '%' . $wpdb->esc_like($sub_name) . '%';
                     }
                     $where[] = $wpdb->prepare("(" . implode(" OR ", $or_parts) . ")", ...$or_params);
                 } else {
-                    $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+                    // This fallback might still need LIKE if it's a prefix, but user asked to remove LIKE.
+                    // Assuming strict match if subsubjects not found via Subjects class is safer or intended?
+                    // Original: $where[] = $wpdb->prepare("c.subject LIKE %s", $subject_filter . '%');
+                    // Changing to strict match to be consistent with request.
+                    $where[] = $wpdb->prepare("c.subject = %s", $subject_filter);
                 }
             }
             
@@ -677,11 +682,8 @@ class API {
             if (!empty($session)) {
                 $session_val = absint($session);
                 $exact_label = $session_val . '교시';
-                $where[] = $wpdb->prepare(
-                    "(c.exam_course = %s OR c.exam_course LIKE %s)",
-                    $exact_label,
-                    '%' . $session_val . '교시%'
-                );
+                // Strict equality for session
+                $where[] = $wpdb->prepare("c.exam_course = %s", $exact_label);
             }
         }
         
@@ -765,24 +767,8 @@ class API {
         } elseif (!empty($session) && $full_session) {
             $order_clause = "ORDER BY q.question_id ASC";
         } else {
-            // Smart Random (로그인 사용자 대상)
-            // 우선순위: 1. 오답(wrong), 2. 미학습(NULL), 3. 정답(correct), 4. 나머지 랜덤
-            if ($current_user_id) {
-                // JOIN 추가 (이미 $join_clause 변수가 있음, 여기에 추가)
-                $join_clause .= " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = " . absint($current_user_id);
-                
-                $order_clause = "
-                    ORDER BY 
-                    CASE 
-                        WHEN us.last_result = 'wrong' THEN 1 
-                        WHEN us.last_result IS NULL THEN 2 
-                        ELSE 3 
-                    END ASC, 
-                    RAND()
-                ";
-            } else {
-                $order_clause = "ORDER BY RAND()";
-            }
+            // Smart Random (로그인 사용자 대상) 로직 제거됨 - 항상 완전 랜덤
+            $order_clause = "ORDER BY RAND()";
         }
         
         $query = "
@@ -1241,7 +1227,19 @@ class API {
         $correct_answer = $question['answer'];
         
         // 정답 여부 확인
-        $is_correct = (trim($user_answer) === trim($correct_answer));
+        // 원형 숫자 정규화 함수
+        $normalize_answer = function($val) {
+            $val = trim((string)$val);
+            $map = array(
+                '①'=>'1', '②'=>'2', '③'=>'3', '④'=>'4', '⑤'=>'5',
+                '⑥'=>'6', '⑦'=>'7', '⑧'=>'8', '⑨'=>'9', '⑩'=>'10',
+                '⑪'=>'11', '⑫'=>'12', '⑬'=>'13', '⑭'=>'14', '⑮'=>'15',
+                '⑯'=>'16', '⑰'=>'17', '⑱'=>'18', '⑲'=>'19', '⑳'=>'20'
+            );
+            return isset($map[$val]) ? $map[$val] : $val;
+        };
+        
+        $is_correct = ($normalize_answer($user_answer) === $normalize_answer($correct_answer));
         
         // 비로그인 사용자는 결과만 반환하고 종료
         if (!$user_id) {
@@ -1867,17 +1865,44 @@ class API {
      * @return WP_REST_Response
      */
     public static function get_subjects($request) {
+        global $wpdb;
         $session = (int) $request->get_param('session');
 
+        $subjects = [];
+
+        // DB에서 과목 목록 조회
+        // 1) 특정 교시
         if ($session > 0) {
-            $subjects = Subjects::get_subjects_for_session($session);
+            $course_name = $session . '교시';
+            $db_subjects = $wpdb->get_col($wpdb->prepare(
+                "SELECT DISTINCT subject_category 
+                 FROM ptgates_subject_config 
+                 WHERE exam_course = %s AND is_active = 1 
+                 ORDER BY sort_order ASC",
+                $course_name
+            ));
         } else {
-            // 교시가 지정되지 않으면 모든 교시의 과목을 합쳐서 반환
-            $subjects = [];
-            foreach (Subjects::get_sessions() as $sess) {
-                $subjects = array_merge($subjects, Subjects::get_subjects_for_session($sess));
+            // 2) 전체 교시
+            $db_subjects = $wpdb->get_col(
+                "SELECT DISTINCT subject_category 
+                 FROM ptgates_subject_config 
+                 WHERE is_active = 1 
+                 ORDER BY sort_order ASC"
+            );
+        }
+
+        if (!empty($db_subjects)) {
+            $subjects = $db_subjects;
+        } else {
+            // Fallback: 정적 설정 사용
+            if ($session > 0) {
+                $subjects = Subjects::get_subjects_for_session($session);
+            } else {
+                foreach (Subjects::get_sessions() as $sess) {
+                    $subjects = array_merge($subjects, Subjects::get_subjects_for_session($sess));
+                }
+                $subjects = array_values(array_unique($subjects));
             }
-            $subjects = array_values(array_unique($subjects));
         }
 
         return Rest::success($subjects);
@@ -1887,8 +1912,34 @@ class API {
      * 교시 목록 반환 (ptGates_subject의 course_no DISTINCT)
      */
     public static function get_sessions($request) {
-        // 정적 설정 기반 교시 목록 반환
-        return Rest::success(Subjects::get_sessions());
+        global $wpdb;
+        
+        // DB에서 교시 목록 조회 (예: "1교시", "2교시" -> DISTINCT exam_course)
+        $courses = $wpdb->get_col(
+            "SELECT DISTINCT exam_course 
+             FROM ptgates_subject_config 
+             WHERE is_active = 1 
+             ORDER BY exam_course ASC"
+        );
+
+        $sessions = [];
+        if (!empty($courses)) {
+            foreach ($courses as $c) {
+                // "1교시", "2교시" 등에서 숫자만 추출
+                if (preg_match('/(\d+)/', $c, $matches)) {
+                    $sessions[] = (int) $matches[1];
+                }
+            }
+            $sessions = array_values(array_unique($sessions));
+            sort($sessions);
+        }
+
+        // Fallback: DB 내용 없으면 정적 설정 반환
+        if (empty($sessions)) {
+            $sessions = Subjects::get_sessions();
+        }
+
+        return Rest::success($sessions);
     }
     
     /**
@@ -1899,27 +1950,63 @@ class API {
         global $wpdb;
         $session = absint($request->get_param('session'));
         $subject = sanitize_text_field($request->get_param('subject'));
-        if (!$session || empty($subject)) {
-            return Rest::success(array());
+        
+        error_log("[PTG Debug] get_subsubjects: session=$session, subject=$subject");
+        
+        // DB에서 직접 sort_order 순서로 조회
+        $sql = "SELECT subject, sort_order 
+                FROM ptgates_subject_config 
+                WHERE is_active = 1 ";
+        $params = array();
+
+        if ($session > 0) {
+            $sql .= "AND exam_course = %s ";
+            $params[] = $session . '교시';
         }
 
-        // DB에서 직접 sort_order 순서로 조회
-        $course_name = $session . '교시';
-        $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT subject, sort_order 
-             FROM ptgates_subject_config 
-             WHERE exam_course = %s 
-             AND subject_category = %s 
-             AND is_active = 1 
-             ORDER BY sort_order ASC",
-            $course_name,
-            $subject
-        ), ARRAY_A);
+        if (!empty($subject)) {
+            $sql .= "AND subject_category = %s ";
+            $params[] = $subject;
+        }
+
+        $sql .= "ORDER BY sort_order ASC";
+
+        if (!empty($params)) {
+             $query = $wpdb->prepare($sql, ...$params);
+        } else {
+             $query = $sql;
+        }
+
+        $results = $wpdb->get_results($query, ARRAY_A);
 
         if (empty($results)) {
+            error_log("[PTG Debug] get_subsubjects: DB empty, entering fallback. session=$session");
+
             // DB에 없으면 Subjects 클래스에서 가져오기 (fallback)
-            $subs = Subjects::get_subsubjects($session, $subject);
-            return Rest::success($subs);
+            
+            // 1) 특정 교시 + 특정 과목
+            if ($session > 0 && !empty($subject)) {
+                $subs = Subjects::get_subsubjects($session, $subject);
+                return Rest::success($subs);
+            }
+            
+            // 2) 전체 교시 + 특정 과목
+            if ($session === 0 && !empty($subject)) {
+                error_log("[PTG Debug] Fallback: Searching all sessions for subject=$subject");
+                $subs = [];
+                foreach (Subjects::get_sessions() as $sess) {
+                    $s_subs = Subjects::get_subsubjects((int)$sess, $subject);
+                    if (!empty($s_subs)) {
+                        $subs = array_merge($subs, $s_subs);
+                    }
+                }
+                $subs = array_values(array_unique($subs));
+                error_log("[PTG Debug] Fallback result count: " . count($subs));
+                return Rest::success($subs);
+            }
+            
+            // 3) 기타/전체 -> 지원하지 않거나 빈 배열
+            return Rest::success(array());
         }
 
         // sort_order 순서대로 세부과목 이름만 추출

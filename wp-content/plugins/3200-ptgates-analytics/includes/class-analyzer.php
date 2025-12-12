@@ -70,8 +70,8 @@ class Analyzer {
 
 					$attempted = $user_stat ? (int)$user_stat->attempted : 0;
 					$correct = $user_stat ? (int)$user_stat->correct : 0;
-					// Use DB count if available, otherwise fallback to static map count
-					$total_available = $total_stat ? (int)$total_stat->total_available : $static_count;
+					// Use DB count if available, otherwise 0 (requested by user: ignore static map count)
+					$total_available = $total_stat ? (int)$total_stat->total_available : 0;
 
 					$accuracy = $attempted > 0 ? round( ( $correct / $attempted ) * 100 ) : 0;
 

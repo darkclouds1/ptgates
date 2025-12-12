@@ -522,6 +522,9 @@
 
       // Adjust height based on content, focus textarea
       PTGStudyToolbar.autoResizeTextarea($textarea, true);
+
+      // Initialize state tracking
+      $textarea.data("last-saved", initialContent || "");
       $textarea.focus();
 
       // Close button handler
@@ -571,6 +574,13 @@
       // Auto-save on blur
       $textarea.on("blur", function () {
         var content = $(this).val();
+        var lastSaved = $(this).data("last-saved");
+
+        // 입력값이 없거나(빈 문자열), 변경사항이 없으면 저장하지 않음
+        if (content.trim() === "" || content === lastSaved) {
+          return;
+        }
+
         var qId = $(this).data("question-id");
 
         $status.text("저장 중...").css("color", "#666");
@@ -593,6 +603,9 @@
           },
           success: function () {
             $status.text("✓ 저장되었습니다").css("color", "#10b981");
+
+            // Update last saved state
+            $textarea.data("last-saved", content);
 
             // Update toolbar icon status
             var $item = $(

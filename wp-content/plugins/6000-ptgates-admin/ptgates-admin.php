@@ -311,15 +311,7 @@ final class PTG_Admin_Plugin {
 			[ $this, 'render_members_page' ]
 		);
 
-		// 다섯 번째 서브메뉴: 도구 (Tools)
-		add_submenu_page(
-			'ptgates-admin',
-			'관리 도구',
-			'관리 도구',
-			'manage_options',
-			'ptgates-admin-tools',
-			[ $this, 'render_tools_page' ]
-		);
+
 
 		// 기본 상위 메뉴(첫 번째 하위) 중복 제거
 		remove_submenu_page( 'ptgates-admin', 'ptgates-admin' );
@@ -477,8 +469,8 @@ final class PTG_Admin_Plugin {
 			<!-- We will use JS render function or template string in JS for simplicity, 
 			     but here is a basic structure for styling if needed -->
 			<style>
-				.ptg-course-container { display: flex; gap: 20px; margin-top: 20px; }
-				.ptg-course-column { flex: 1; background: #fff; padding: 20px; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04); }
+				.ptg-course-container { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+				.ptg-course-column { flex: 1 1 calc(50% - 10px); background: #fff; padding: 20px; border: 1px solid #ccd0d4; box-shadow: 0 1px 1px rgba(0,0,0,.04); min-width: 320px; box-sizing: border-box; }
 				.ptg-course-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #f0f0f1; padding-bottom: 10px; }
 				.ptg-subject-list { list-style: none; padding: 0; margin: 0; }
 				.ptg-subject-item { background: #f9f9f9; border: 1px solid #e5e5e5; margin-bottom: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; cursor: move; }
@@ -539,10 +531,29 @@ final class PTG_Admin_Plugin {
                         <h2 class="nav-tab-wrapper" style="margin-bottom: 20px;">
                             <a href="#" :class="['nav-tab', currentTab === 'manage' ? 'nav-tab-active' : '']" @click.prevent="currentTab = 'manage'">과목 관리</a>
                             <a href="#" :class="['nav-tab', currentTab === 'mapping' ? 'nav-tab-active' : '']" @click.prevent="currentTab = 'mapping'">과목 매핑</a>
+                            <a href="#" :class="['nav-tab', currentTab === 'tools' ? 'nav-tab-active' : '']" @click.prevent="currentTab = 'tools'">코드 맵핑</a>
                         </h2>
 
                         <div v-if="loading" class="ptg-loading">
                             <span class="spinner is-active" style="float:none; margin:0 5px 0 0;"></span> 데이터 로딩 중...
+                        </div>
+
+                        <div v-else-if="currentTab === 'tools'">
+                            <div class="card" style="max-width: 600px; margin-top: 20px;">
+                                <h2>코드 맵핑 업데이트 (Backfill)</h2>
+                                <p><code>ptgates_categories</code> 테이블의 레코드 중 코드(<code>subject_category_code</code>, <code>subject_code</code>)가 없는 항목을 업데이트합니다.</p>
+                                <p><code>ptgates_subject_config</code> 설정 테이블의 코드 값을 참조하여 자동으로 매핑합니다.</p>
+                                
+                                <div style="margin-top: 15px;">
+                                    <button class="button button-primary" @click="runBackfill" :disabled="backfill.loading">
+                                        {{ backfill.loading ? '처리 중...' : '업데이트 실행' }}
+                                    </button>
+                                </div>
+                                
+                                <div v-if="backfill.result" :style="{ marginTop: '15px', padding: '10px', background: backfill.result.success ? '#f0f0f1' : '#fbeaea', border: '1px solid #ccd0d4' }">
+                                    <p><strong>결과:</strong> {{ backfill.result.message }}</p>
+                                </div>
+                            </div>
                         </div>
 
                         <div v-else-if="currentTab === 'manage'">
@@ -613,7 +624,7 @@ final class PTG_Admin_Plugin {
                                         <tr v-for="raw in rawSubjects" :key="raw.subject">
                                             <td>
                                                 <strong>{{ raw.subject }}</strong> 
-                                                <span class="count">({{ raw.count }}문제)</span>
+                                                <span class="count" style="cursor: pointer; color: #2271b1; text-decoration: underline;" @click="openQuestionIdsModal(raw)">({{ raw.count }}문제)</span>
                                             </td>
                                             <td>
                                                 <select v-model="raw.selectedConfigId" style="width: 100%; max-width: 300px;">
@@ -677,6 +688,28 @@ final class PTG_Admin_Plugin {
 							</div>
 						</div>
 					</div>
+
+                    <!-- Question IDs Modal -->
+                    <div v-if="questionIdsModal.visible" class="ptg-modal-overlay" @click.self="closeQuestionIdsModal">
+                        <div class="ptg-modal" style="width: 600px;">
+                            <div class="ptg-modal-header">
+                                <h3>{{ questionIdsModal.title }} - 문제 ID 목록</h3>
+                                <button type="button" class="button-link" @click="closeQuestionIdsModal">×</button>
+                            </div>
+                            <div class="ptg-modal-body" style="max-height: 400px; overflow-y: auto;">
+                                <div v-if="questionIdsModal.ids.length > 0" style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                    <span v-for="id in questionIdsModal.ids" :key="id" 
+                                          style="background: #f0f0f1; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 13px; border: 1px solid #c3c4c7;">
+                                        {{ id }}
+                                    </span>
+                                </div>
+                                <p v-else>문제 ID 정보가 없습니다.</p>
+                            </div>
+                            <div class="ptg-modal-footer">
+                                <button class="button" @click="closeQuestionIdsModal">닫기</button>
+                            </div>
+                        </div>
+                    </div>
 				</div>
 			</script>
 		</div>
@@ -953,86 +986,7 @@ final class PTG_Admin_Plugin {
 		}
 	}
 
-	/**
-	 * 관리 도구 페이지 렌더링
-	 */
-	public function render_tools_page() {
-		// ptGates 관리자 권한 확인
-		if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
-			wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
-		}
 
-		?>
-		<div class="wrap">
-			<h1>🛠️ 관리 도구</h1>
-			
-			<div class="card" style="max-width: 600px; margin-top: 20px;">
-				<h2>과목 카테고리 일괄 업데이트 (Backfill)</h2>
-				<p>기존 문제 데이터 중 <code>subject_category</code> (대분류) 필드가 비어있는 항목을 찾아 자동으로 채워넣습니다.</p>
-				<p>이 작업은 <code>0000-ptgates-platform/includes/class-subjects.php</code>의 매핑 정보를 사용합니다.</p>
-				
-				<div style="margin-top: 15px;">
-					<button id="ptg-backfill-btn" class="button button-primary">업데이트 실행</button>
-					<span id="ptg-backfill-status" style="margin-left: 10px;"></span>
-				</div>
-				
-				<div id="ptg-backfill-result" style="margin-top: 15px; display: none; padding: 10px; background: #f0f0f1; border: 1px solid #ccd0d4;"></div>
-			</div>
-			
-			<script>
-			jQuery(document).ready(function($) {
-				$('#ptg-backfill-btn').on('click', function() {
-					if (!confirm('업데이트를 실행하시겠습니까?')) return;
-					
-					const $btn = $(this);
-					const $status = $('#ptg-backfill-status');
-					const $result = $('#ptg-backfill-result');
-					
-					$btn.prop('disabled', true);
-					$status.text('처리 중...');
-					$result.hide();
-					
-					$.ajax({
-						url: '<?php echo rest_url('ptg-admin/v1/backfill-categories'); ?>',
-						method: 'POST',
-						beforeSend: function(xhr) {
-							xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
-						},
-						success: function(response) {
-							$btn.prop('disabled', false);
-							$status.text('완료');
-							
-							let msg = '';
-							if (response.message) {
-								msg = response.message;
-							} else if (response.data && response.data.message) {
-								msg = response.data.message;
-							} else {
-								msg = JSON.stringify(response);
-							}
-							
-							$result.html('<p><strong>결과:</strong> ' + msg + '</p>').show();
-						},
-						error: function(xhr, status, error) {
-							$btn.prop('disabled', false);
-							$status.text('오류 발생');
-							
-							let errorMsg = '알 수 없는 오류';
-							if (xhr.responseJSON && xhr.responseJSON.message) {
-								errorMsg = xhr.responseJSON.message;
-							} else {
-								errorMsg = error;
-							}
-							
-							$result.html('<p style="color: red;"><strong>오류:</strong> ' + errorMsg + '</p>').show();
-						}
-					});
-				});
-			});
-			</script>
-		</div>
-		<?php
-	}
 	private function init_cli() {
 		$import_file = plugin_dir_path( __FILE__ ) . 'includes/class-import.php';
 		if ( file_exists( $import_file ) ) {

@@ -964,7 +964,28 @@ class API {
                 'subject_category' => $subject_category,
                 'exam_year' => $exam_year,
                 'exam_session' => $exam_session,
-                'exam_course' => '1교시' // 기본값, 필요시 입력받아야 함
+                'exam_year' => $exam_year,
+                'exam_session' => $exam_session,
+                'exam_course' => (function() use ($wpdb, $final_subject) {
+                    // ptgates_subject_config 테이블에서 교시 정보 조회
+                    $table_config = 'ptgates_subject_config';
+                    $course = $wpdb->get_var($wpdb->prepare(
+                        "SELECT exam_course FROM {$table_config} WHERE subject = %s LIMIT 1",
+                        $final_subject
+                    ));
+                    
+                    if ($course) {
+                        // DB에 '3' 또는 '3교시' 형태로 저장되어 있을 수 있음
+                        // 숫자인 경우 '교시' 접미사 추가
+                        if (is_numeric($course)) {
+                            return $course . '교시';
+                        }
+                        return $course;
+                    }
+                    
+                    // 매핑 정보가 없으면 기본값
+                    return '1교시';
+                })()
             ),
             array( '%d', '%s', '%s', '%d', '%d', '%s' )
         );
@@ -1163,6 +1184,45 @@ class API {
             // 2. 과목 설정 조회
             $subjects = $wpdb->get_results("SELECT * FROM ptgates_subject_config ORDER BY sort_order ASC", ARRAY_A);
             
+            // [Fix] 누락된 교시 자동 등록 (ptgates_subject_config에는 있는데 ptgates_exam_course_config에 없는 경우)
+            if (!empty($subjects)) {
+                $existing_courses = !empty($courses) ? array_column($courses, 'exam_course') : array();
+                $subject_courses = array_unique(array_column($subjects, 'exam_course'));
+                $missing_courses = array_diff($subject_courses, $existing_courses);
+
+                if (!empty($missing_courses)) {
+                    foreach ($missing_courses as $missing_course) {
+                        // 해당 교시의 총 문항 수 계산
+                        $total = 0;
+                        foreach ($subjects as $subj) {
+                            if ($subj['exam_course'] === $missing_course) {
+                                $total += (int)$subj['question_count'];
+                            }
+                        }
+
+                        // DB에 등록
+                        $wpdb->insert('ptgates_exam_course_config', array(
+                            'exam_course' => $missing_course,
+                            'total_questions' => $total,
+                            'is_active' => 1
+                        ));
+                        
+                        // 현재 응답 리스트에 추가 (새로고침 없이 즉시 반영)
+                        $courses[] = array(
+                            'id' => $wpdb->insert_id,
+                            'exam_course' => $missing_course,
+                            'total_questions' => $total,
+                            'is_active' => 1
+                        );
+                    }
+                    
+                    // 순서 정렬 (문자열 기준)
+                    usort($courses, function($a, $b) {
+                        return strcmp($a['exam_course'], $b['exam_course']);
+                    });
+                }
+            }
+            
             // 3. 카테고리(대분류) 목록 추출 (중복 제거)
             $categories = $wpdb->get_results("SELECT DISTINCT subject_category, exam_course FROM ptgates_subject_config ORDER BY sort_order ASC", ARRAY_A);
 
@@ -1239,43 +1299,68 @@ class API {
     }
 
     /**
-     * 과목 카테고리 일괄 업데이트 (Backfill)
+     * 과목/카테고리 코드 업데이트 (Code Mapping Backfill)
+     * ptgates_categories의 누락된 코드를 ptgates_subject_config 참조하여 업데이트
      */
     public static function backfill_subject_categories($request) {
         global $wpdb;
         
-        if (!class_exists('\PTG\Quiz\Subjects')) {
-            return Rest::error('dependency_missing', 'Subjects 클래스를 찾을 수 없습니다.', 500);
-        }
-        
         $categories_table = 'ptgates_categories';
+        $config_table = 'ptgates_subject_config';
         
-        // subject_category가 비어있는 항목 조회
-        $rows = $wpdb->get_results("SELECT category_id, subject FROM {$categories_table} WHERE subject_category IS NULL OR subject_category = ''");
+        // 1. 코드가 누락된 항목 조회 (subject_category_code 또는 subject_code가 NULL/Empty)
+        $rows = $wpdb->get_results("
+            SELECT category_id, subject_category, subject 
+            FROM {$categories_table} 
+            WHERE (subject_category_code IS NULL OR subject_category_code = '')
+               OR (subject_code IS NULL OR subject_code = '')
+        ");
         
         if (!$rows) {
-            return Rest::success(array('message' => '업데이트할 항목이 없습니다.', 'count' => 0));
+            return Rest::success(array('message' => '업데이트할 코드가 누락된 항목이 없습니다.', 'count' => 0));
         }
         
         $updated_count = 0;
         $failed_count = 0;
         
         foreach ($rows as $row) {
-            $subject_category = \PTG\Quiz\Subjects::get_subject_from_subsubject($row->subject);
+            // 2. Config 테이블에서 매칭되는 코드 조회
+            // subject와 subject_category 모두 일치하는 것을 우선 찾음
+            $config = $wpdb->get_row($wpdb->prepare(
+                "SELECT subject_category_code, subject_code 
+                 FROM {$config_table} 
+                 WHERE subject = %s AND subject_category = %s
+                 LIMIT 1",
+                $row->subject,
+                $row->subject_category
+            ));
             
-            if ($subject_category) {
-                $result = $wpdb->update(
-                    $categories_table,
-                    array('subject_category' => $subject_category),
-                    array('category_id' => $row->category_id),
-                    array('%s'),
-                    array('%d')
-                );
+            if ($config) {
+                // 3. 코드 업데이트
+                $update_data = array();
+                if (!empty($config->subject_category_code)) {
+                    $update_data['subject_category_code'] = $config->subject_category_code;
+                }
+                if (!empty($config->subject_code)) {
+                    $update_data['subject_code'] = $config->subject_code;
+                }
                 
-                if ($result !== false) {
-                    $updated_count++;
+                if (!empty($update_data)) {
+                    $result = $wpdb->update(
+                        $categories_table,
+                        $update_data,
+                        array('category_id' => $row->category_id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                    
+                    if ($result !== false) {
+                        $updated_count++;
+                    } else {
+                        $failed_count++;
+                    }
                 } else {
-                    $failed_count++;
+                     $failed_count++; // Config는 찾았으나 코드가 비어있음
                 }
             } else {
                 // 매핑을 찾지 못한 경우
@@ -1284,7 +1369,7 @@ class API {
         }
         
         return Rest::success(array(
-            'message' => "{$updated_count}개의 항목이 업데이트되었습니다. (실패/미매칭: {$failed_count})",
+            'message' => "{$updated_count}개의 항목의 코드가 업데이트되었습니다. (실패/미매칭: {$failed_count})",
             'count' => $updated_count,
             'failed' => $failed_count
         ));
@@ -1584,7 +1669,7 @@ class API {
         global $wpdb;
         
         $results = $wpdb->get_results("
-            SELECT subject, COUNT(*) as count
+            SELECT subject, COUNT(*) as count, GROUP_CONCAT(question_id) as question_ids
             FROM ptgates_categories
             WHERE exam_session >= 1000
             AND (
