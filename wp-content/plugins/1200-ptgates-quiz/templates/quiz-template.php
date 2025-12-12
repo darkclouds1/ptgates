@@ -486,16 +486,11 @@ $is_admin = current_user_can('manage_options');
     </div>
     
     <!-- 문제 카드 영역 (드로잉 오버레이 포함) -->
-    <div class="ptg-quiz-card-wrapper">
+    <div class="ptg-quiz-card-wrapper" style="display: none;">
         <div class="ptg-quiz-card" id="ptg-quiz-card">
             <!-- 문제 콘텐츠가 여기에 동적으로 로드됨 -->
-            <div class="ptg-quiz-loading">
-                <div class="ptg-loading-logo">
-                    <div class="ptg-logo-text">ptGates</div>
-                </div>
-                <div class="ptg-spinner"></div>
-                <p>문제를 불러오는 중...</p>
-            </div>
+            <!-- 문제 콘텐츠가 여기에 동적으로 로드됨 -->
+
             
             <!-- 선택지 영역 (카드 안에 포함) -->
             <div class="ptg-quiz-choices" id="ptg-quiz-choices">
@@ -553,14 +548,11 @@ $is_admin = current_user_can('manage_options');
                 <span class="ptg-quiz-stat-label">틀린 문제:</span>
                 <span id="ptg-quiz-result-incorrect" class="ptg-quiz-stat-value">0개</span>
             </div>
-            <div class="ptg-quiz-stat-item">
-                <span class="ptg-quiz-stat-label">소요 시간:</span>
-                <span id="ptg-quiz-result-time" class="ptg-quiz-stat-value">00:00</span>
-            </div>
+
         </div>
         <div class="ptg-quiz-result-actions">
             <button id="ptg-quiz-restart-btn" class="ptg-btn ptg-btn-secondary">다시 시작</button>
-            <button id="ptg-quiz-dashboard-btn" class="ptg-btn ptg-btn-secondary" data-dashboard-url="<?php echo esc_url($dashboard_url); ?>">[학습현황]으로 바로가기</button>
+            <button id="ptg-quiz-dashboard-btn" class="ptg-btn ptg-btn-secondary" data-dashboard-url="<?php echo esc_url($dashboard_url); ?>">학습 현황</button>
         </div>
     </div>
     

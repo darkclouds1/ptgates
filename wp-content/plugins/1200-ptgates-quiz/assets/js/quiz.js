@@ -1103,7 +1103,8 @@ function PTG_quiz_alert(message) {
           // 진행 상태 섹션 표시
           showProgressSection();
           // 퀴즈 UI 표시
-          showQuizUI();
+          // 퀴즈 UI 표시 (loadQuestion 완료 후 표시됨)
+          // showQuizUI();
 
           // 타이머 표시 즉시 업데이트 (문제 수 × 50초)
           updateTimerDisplay();
@@ -1694,7 +1695,11 @@ function PTG_quiz_alert(message) {
     let fullSession = false;
     let unsolvedOnly = false;
 
-    if (limitVal === "full") {
+    // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
+    // (문제수 드롭다운 조건보다 우선)
+    if (reviewOnly || wrongOnly) {
+      limit = 0;
+    } else if (limitVal === "full") {
       if (!session) {
         PTG_quiz_alert("실전 모의고사는 교시를 선택해야 합니다.");
         return;
@@ -1705,12 +1710,7 @@ function PTG_quiz_alert(message) {
       unsolvedOnly = true;
       limit = 10; // 안푼 문제 10개 (사용자 요청)
     } else {
-      // [수정] 복습 퀴즈나 오답 퀴즈는 무제한이므로 limit을 0으로 설정
-      if (reviewOnly || wrongOnly) {
-        limit = 0;
-      } else {
-        limit = parseInt(limitVal) || 5;
-      }
+      limit = parseInt(limitVal) || 5;
     }
 
     const startBtn = document.getElementById("ptg-quiz-start-btn");
@@ -1802,7 +1802,8 @@ function PTG_quiz_alert(message) {
       // 필터 섹션 숨기기
       hideFilterSection();
       // 퀴즈 UI 표시
-      showQuizUI();
+      // 퀴즈 UI 표시 (loadQuestion 완료 후 표시됨)
+      // showQuizUI();
 
       // 활성 필터 표시 업데이트 (조회 후에도 필터 표시 유지)
       if (QuizState.persistentFilters) {
@@ -2786,7 +2787,11 @@ function PTG_quiz_alert(message) {
       : question.question_text || question.content || "";
 
     // 문제 번호 앞의 빈 스페이스 제거 (앞쪽 공백만 제거, 뒤쪽은 유지)
+    // 문제 번호 앞의 빈 스페이스 제거 (앞쪽 공백만 제거, 뒤쪽은 유지)
     questionText = questionText.replace(/^\s+/, "");
+
+    // choicesContainer 변수 선언 (Assignment to constant variable 오류 방지)
+    let choicesContainer = null;
 
     const options = question.options || [];
 
@@ -2892,7 +2897,7 @@ function PTG_quiz_alert(message) {
         const questionContent = questionCardEl.querySelector(
           ".ptg-question-content"
         );
-        const choicesContainer = document.getElementById("ptg-quiz-choices");
+        choicesContainer = document.getElementById("ptg-quiz-choices");
 
         // 문제 텍스트 업데이트
         // 문제 번호 앞 공백 완전 제거를 위해 텍스트 정리
@@ -5034,7 +5039,8 @@ function PTG_quiz_alert(message) {
     updateTimerDisplay();
 
     // 퀴즈 UI 표시
-    showQuizUI();
+    // 퀴즈 UI 표시 (loadQuestion 완료 후 표시됨)
+    // showQuizUI();
 
     // 포기하기 버튼 활성화
     const btnGiveup = document.getElementById("ptgates-giveup-btn");

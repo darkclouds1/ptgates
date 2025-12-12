@@ -837,50 +837,7 @@ button.ptg-btn-icon:focus-visible,
   animation: logoFadeIn 0.6s ease-in;
 }
 
-@keyframes logoFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-.ptg-spinner {
-  width: 32px;
-  height: 32px;
-  border: 2.5px solid #e2e8f0;
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto;
-  margin-top: 0;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.ptg-quiz-loading p {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 400;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
 
 /* 드로잉 활성화 시 전체 페이지 스크롤 차단 */
 body.drawing-active,
@@ -2648,10 +2605,4 @@ html.drawing-active {
     color: #4a5568 !important;
 }
 
-/* Add backdrop if strictly needed */
-.ptg-loading-backdrop {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(255,255,255,0.7);
-    z-index: 99998;
-}
+
