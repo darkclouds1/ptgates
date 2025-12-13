@@ -95,6 +95,17 @@ class API {
                     'type' => 'boolean',
                     'default' => false,
                 ),
+                'has_drawing' => array(
+                    'required' => false,
+                    'type' => 'boolean',
+                    'default' => false,
+                ),
+                'device_type' => array(
+                    'required' => false,
+                    'type' => 'string',
+                    'default' => 'pc',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
             ),
         ));
         
@@ -575,15 +586,16 @@ class API {
         $needs_review = $request->get_param('needs_review') === true || $request->get_param('needs_review') === 'true';
         $wrong_only = $request->get_param('wrong_only') === true || $request->get_param('wrong_only') === 'true';
         $review_only = $request->get_param('review_only') === true || $request->get_param('review_only') === '1' || $request->get_param('review_only') === 'true';
+        $has_drawing = $request->get_param('has_drawing') === true || $request->get_param('has_drawing') === '1' || $request->get_param('has_drawing') === 'true';
         
         // [수정] 복습 퀴즈나 오답 퀴즈는 제한 없이 모든 문제를 가져옴 (사용자 요청)
-        if ($review_only || $wrong_only || $needs_review) {
+        if ($review_only || $wrong_only || $needs_review || $has_drawing) {
             $limit = 0; // 0은 쿼리 빌더에서 LIMIT 절을 생략(무제한)하게 함
         }
         $unsolved_only = $request->get_param('unsolved_only') === true || $request->get_param('unsolved_only') === 'true';
 
         // 모듈 결정 (퀴즈 vs 복습)
-        $module = ($needs_review || $wrong_only || $review_only) ? 'reviewer' : 'quiz';
+        $module = ($needs_review || $wrong_only || $review_only || $has_drawing) ? 'reviewer' : 'quiz';
 
         // 1. 권한/한도 체크
         $current_user_id = get_current_user_id();
@@ -602,7 +614,7 @@ class API {
         
         // 캐시 키 생성 (북마크/복습 필터는 사용자별로 다르므로 user_id 포함)
         $user_id = 0;
-        if ($bookmarked || $needs_review || $wrong_only || $unsolved_only || $review_only) {
+        if ($bookmarked || $needs_review || $wrong_only || $unsolved_only || $review_only || $has_drawing) {
             $user_id = get_current_user_id();
             if (!$user_id) {
                 // 로그인하지 않은 경우 빈 배열 반환
@@ -636,15 +648,25 @@ class API {
             'bookmarked' => $bookmarked,
             'needs_review' => $needs_review,
             'wrong_only' => $wrong_only,
+            'wrong_only' => $wrong_only,
             'review_only' => $review_only,
+            'review_only' => $review_only,
+            'has_drawing' => $has_drawing,
             'unsolved_only' => $unsolved_only,
             'user_id' => $user_id,
         );
+        
+        // device_type도 캐시에 영향을 줌 (드로잉 필터 시)
+        $device_type = $request->get_param('device_type');
+        if ($has_drawing && !empty($device_type)) {
+            $cache_params['device_type'] = $device_type;
+        }
+        
         $cache_key = 'ptg_quiz_questions_' . md5(serialize($cache_params));
         
         // 랜덤 정렬 여부 확인 (복습이 아니고, 전체 교시 풀이가 아닌 경우)
         // 디버깅을 위해 복습 필터가 있는 경우 캐시 무력화
-        $is_random = (!$needs_review && !$review_only && !(!empty($session) && $full_session)) || ($review_only || $needs_review);
+        $is_random = (!$needs_review && !$review_only && !$has_drawing && !(!empty($session) && $full_session)) || ($review_only || $needs_review || $has_drawing);
 
         // 캐시 확인 (30분 유효 - 문제 목록은 자주 변경될 수 있음)
         // 랜덤 정렬인 경우 캐시 사용 안 함 (매번 새로운 문제)
@@ -671,7 +693,7 @@ class API {
         $where = array("q.is_active = 1");
         // 기출문제 제외: exam_session >= 1000 (기출문제는 exam_session < 1000)
         // 단, 검색(ID)이나 복습/오답/북마크 필터가 있는 경우 모든 문제 포함 (사용자가 푼 문제는 다 나와야 함)
-        if (empty($search_id) && !$review_only && !$wrong_only && !$needs_review && !$bookmarked) {
+        if (empty($search_id) && !$review_only && !$wrong_only && !$needs_review && !$bookmarked && !$has_drawing) {
             $where[] = "c.exam_session >= 1000";
         }
 
@@ -684,7 +706,7 @@ class API {
         if (empty($search_id)) {
             // 북마크 또는 복습 필터가 있으면 JOIN 추가
             $join_clause = '';
-            if ($bookmarked || $needs_review || $wrong_only || $review_only) {
+            if ($bookmarked || $needs_review || $wrong_only || $review_only || $has_drawing) {
                 // OR 조건을 유연하게 처리하기 위해 LEFT JOIN 사용
                 $join_clause .= $wpdb->prepare(
                     " LEFT JOIN `{$states_table}` s ON q.question_id = s.question_id AND s.user_id = %d",
@@ -720,6 +742,32 @@ class API {
                 
                 if (!empty($review_group)) {
                     $and_conditions[] = "(" . implode(" OR ", $review_group) . ")";
+                }
+                
+                // 드로잉 필터 (AND 조건) - 복습/오답과는 별개로 동작 (교집합)
+                if ($has_drawing) {
+                    // ptgates_user_drawings 테이블에 해당 문제의 드로잉이 있는지 확인 (서브쿼리 사용)
+                    // drawings 테이블: user_id, question_id, device_type
+                    // 기기 타입이 지정된 경우 해당 기기의 드로잉만 확인
+                    
+                    if (!empty($device_type)) {
+                        $and_conditions[] = $wpdb->prepare(
+                            "EXISTS (SELECT 1 FROM ptgates_user_drawings ud WHERE ud.question_id = q.question_id AND ud.user_id = %d AND ud.device_type = %s)",
+                            $user_id,
+                            $device_type
+                        );
+                    } else {
+                        // 기기 타입이 없으면(기본값 등) 기존대로 체크하되, 보통 프론트에서 보내줌.
+                        // 만약 API 직접 호출 등이라 안보내면 전체 기기 다 찾음? 
+                        // 기획상 현재 기기에 맞는 것만 보여주는게 맞으므로, default 'pc'가 적용됨.
+                        // 하지만 명시적으로 보내지 않았을 때 모든 기기를 보여줄지, default 'pc'를 따를지는 결정 필요.
+                        // 여기서는 register_routes default가 'pc'이므로 $device_type은 항상 값이 있음.
+                         $and_conditions[] = $wpdb->prepare(
+                            "EXISTS (SELECT 1 FROM ptgates_user_drawings ud WHERE ud.question_id = q.question_id AND ud.user_id = %d AND ud.device_type = %s)",
+                            $user_id,
+                            $device_type
+                        );
+                    }
                 }
                 
                 if (!empty($and_conditions)) {

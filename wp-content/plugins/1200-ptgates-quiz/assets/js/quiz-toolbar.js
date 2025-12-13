@@ -11,7 +11,8 @@
    * 헤더 위치로 스크롤
    */
   function scrollToHeader() {
-    const header = document.getElementById("ptgates-header");
+    // ptg-quiz-header 클래스를 가진 요소를 찾음 (템플릿에서 사용중)
+    const header = document.querySelector(".ptg-quiz-header");
     if (header) {
       // 헤더 위치 계산
       const headerRect = header.getBoundingClientRect();
@@ -23,9 +24,9 @@
       const adminBar = document.getElementById("wpadminbar");
       const adminBarHeight = adminBar ? adminBar.offsetHeight : 0;
 
-      // 헤더가 화면 최상단에 오도록 스크롤 (관리 바 아래)
+      // 헤더가 화면 상단에 오도록 스크롤 (조금 더 여유있게 -10px)
       window.scrollTo({
-        top: headerTop - adminBarHeight,
+        top: headerTop - adminBarHeight - 10,
         behavior: "smooth",
       });
     }

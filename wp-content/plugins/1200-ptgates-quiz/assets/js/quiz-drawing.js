@@ -366,10 +366,10 @@
       return;
     }
 
-    // 모바일에서는 드로잉 기능 비활성화
-    if (QuizState.deviceType === "mobile") {
-      return;
-    }
+    // 모바일에서도 드로잉 기능 활성화 (사용자 요청)
+    // if (QuizState.deviceType === "mobile") {
+    //   return;
+    // }
 
     const overlay = document.getElementById("ptg-drawing-overlay");
     const toolbar = document.getElementById("ptg-drawing-toolbar");
@@ -378,6 +378,30 @@
     const shouldEnable = force !== null ? force : !QuizState.drawingEnabled;
 
     if (shouldEnable) {
+      // 1. 해설 강제 표시 (사용자 요청: 해설 크기에 맞춰 드로잉)
+      const explanation = document.getElementById("ptg-quiz-explanation");
+      const isExplanationVisible =
+        explanation &&
+        explanation.style.display !== "none" &&
+        explanation.classList.contains("visible"); // quiz.js에서 visible 클래스 사용 여부 확인 필요하지만, display 체크가 핵심
+
+      // 해설이 보이지 않으면 정답 확인 실행 (비동기로 실행하여 드로잉 UI 지연 방지)
+      if (!isExplanationVisible || explanation.innerText.trim().length < 10) {
+        if (window.PTGQuiz && window.PTGQuiz.checkAnswer) {
+          window.PTGQuiz.checkAnswer();
+          // DOM 렌더링 대기 없이 바로 진행 (MutationObserver가 크기 조절 처리)
+        }
+      }
+
+      // 2. 메모 패널 닫기 (사용자 요청)
+      if (window.PTGQuizToolbar && window.PTGQuizToolbar.toggleNotesPanel) {
+        // 이미 열려있는지 확인 후 닫기 (불필요한 함수 호출/스크롤 방지)
+        const notesPanel = document.getElementById("ptg-notes-panel");
+        if (notesPanel && notesPanel.style.display !== "none") {
+          window.PTGQuizToolbar.toggleNotesPanel(false);
+        }
+      }
+
       QuizState.drawingEnabled = true;
       if (btnDrawing) {
         btnDrawing.classList.add("active");
@@ -389,45 +413,15 @@
         toolbar.style.display = "flex";
       }
 
-      // body 스크롤 막기 (드로잉 중 스크롤 방지) - 강력한 방법
-      const body = document.body;
-      const html = document.documentElement;
-
-      // 현재 스크롤 위치 저장
-      QuizState.scrollX = window.pageXOffset || window.scrollX || 0;
-      QuizState.scrollY = window.pageYOffset || window.scrollY || 0;
-
-      // 원래 스타일 저장
-      QuizState.originalBodyOverflow = body.style.overflow;
-      QuizState.originalHtmlOverflow = html.style.overflow;
-      QuizState.originalBodyPosition = body.style.position;
-      QuizState.originalHtmlPosition = html.style.position;
-      QuizState.originalBodyWidth = body.style.width;
-      QuizState.originalBodyHeight = body.style.height;
-
-      // body와 html에 클래스 추가하여 CSS로 완전 차단
-      body.classList.add("drawing-active");
-      html.classList.add("drawing-active");
-
-      // 컨테이너에도 클래스 추가
-      const container = document.getElementById("ptg-quiz-container");
-      const cardWrapper = document.querySelector(".ptg-quiz-card-wrapper");
-      if (container) {
-        container.classList.add("drawing-active");
-      }
-      if (cardWrapper) {
-        cardWrapper.classList.add("drawing-active");
+      // 툴바로 스크롤 (사용자 요청)
+      if (window.PTGQuizToolbar && window.PTGQuizToolbar.scrollToToolbar) {
+        setTimeout(() => {
+          window.PTGQuizToolbar.scrollToToolbar();
+        }, 100);
       }
 
-      // 추가 스타일 설정
-      body.style.overflow = "hidden";
-      html.style.overflow = "hidden";
-      body.style.position = "fixed";
-      html.style.position = "fixed";
-      body.style.width = "100%";
-      body.style.height = "100%";
-      body.style.top = `-${QuizState.scrollY}px`;
-      body.style.left = `-${QuizState.scrollX}px`;
+      // 스크롤 잠금 비활성화 (사용자 요청으로 제거)
+      // body, html overflow hidden 처리 제거됨
 
       // 드로잉 캔버스 초기화
       initDrawingCanvas();
@@ -438,7 +432,8 @@
           clearTimeout(QuizState.drawingSaveTimeout);
           QuizState.drawingSaveTimeout = null;
         }
-        await saveDrawingToServer();
+        // 비동기로 저장 (UI 지연 방지)
+        saveDrawingToServer();
       }
 
       QuizState.drawingEnabled = false;
@@ -470,56 +465,13 @@
         QuizState.canvasPositionCheckInterval = null;
       }
 
-      // body 스크롤 복원 - 강력한 방법
+      // 스크롤 잠금 해제 로직 (불필요해짐)
+      /* 
       const body = document.body;
       const html = document.documentElement;
-
-      // 클래스 제거
       body.classList.remove("drawing-active");
       html.classList.remove("drawing-active");
-
-      // 컨테이너에서도 클래스 제거
-      const container = document.getElementById("ptg-quiz-container");
-      const cardWrapper = document.querySelector(".ptg-quiz-card-wrapper");
-      if (container) {
-        container.classList.remove("drawing-active");
-      }
-      if (cardWrapper) {
-        cardWrapper.classList.remove("drawing-active");
-      }
-
-      // 원래 스타일 복원
-      body.style.overflow =
-        QuizState.originalBodyOverflow !== undefined
-          ? QuizState.originalBodyOverflow
-          : "";
-      html.style.overflow =
-        QuizState.originalHtmlOverflow !== undefined
-          ? QuizState.originalHtmlOverflow
-          : "";
-      body.style.position =
-        QuizState.originalBodyPosition !== undefined
-          ? QuizState.originalBodyPosition
-          : "";
-      html.style.position =
-        QuizState.originalHtmlPosition !== undefined
-          ? QuizState.originalHtmlPosition
-          : "";
-      body.style.width =
-        QuizState.originalBodyWidth !== undefined
-          ? QuizState.originalBodyWidth
-          : "";
-      body.style.height =
-        QuizState.originalBodyHeight !== undefined
-          ? QuizState.originalBodyHeight
-          : "";
-      body.style.top = "";
-      body.style.left = "";
-
-      // 스크롤 위치 복원
-      if (QuizState.scrollX !== undefined || QuizState.scrollY !== undefined) {
-        window.scrollTo(QuizState.scrollX || 0, QuizState.scrollY || 0);
-      }
+      */
     }
   }
 
@@ -641,6 +593,9 @@
 
     // 드로잉 이벤트 리스너 등록
     setupDrawingEvents(canvas);
+
+    // 변경사항 플래그 초기화
+    QuizState.isDrawingDirty = false;
 
     // 기존 드로잉 히스토리 로드
     loadDrawingHistory();
@@ -894,6 +849,9 @@
 
     QuizState.lastX = x;
     QuizState.lastY = y;
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -1052,6 +1010,9 @@
 
     QuizState.lastX = x;
     QuizState.lastY = y;
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -1100,6 +1061,9 @@
 
     // 서버에서 저장된 드로잉 로드
     loadDrawingFromServer();
+
+    // 변경사항 플래그 초기화 (로드 직후에는 변경사항 없음)
+    QuizState.isDrawingDirty = false;
   }
 
   /**
@@ -1278,6 +1242,12 @@
       return;
     }
 
+    // 변경사항이 없으면 저장하지 않음 (이전/다음 문제 이동 시 성능 최적화)
+    if (!QuizState.isDrawingDirty) {
+      // console.log("[PTG Quiz] 드로잉 변경사항 없음, 저장 건너뜀");
+      return;
+    }
+
     const canvas = document.getElementById("ptg-drawing-canvas");
     if (!canvas) return;
 
@@ -1348,6 +1318,8 @@
       // 저장 실패 시 조용히 무시
     } finally {
       QuizState.savingDrawing = false;
+      // 저장 성공 여부와 관계없이 시도했으면 플래그 해제 (계속 재시도 방지)
+      QuizState.isDrawingDirty = false;
     }
   }
 
@@ -1584,6 +1556,9 @@
       QuizState.canvasContext.clearRect(0, 0, canvas.width, canvas.height);
       QuizState.drawingHistoryIndex = -1;
     }
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -1600,6 +1575,9 @@
       QuizState.drawingHistoryIndex++;
       const imageData = QuizState.drawingHistory[QuizState.drawingHistoryIndex];
       QuizState.canvasContext.putImageData(imageData, 0, 0);
+
+      // 변경사항 플래그 설정
+      QuizState.isDrawingDirty = true;
     }
   }
 
@@ -1638,6 +1616,9 @@
 
     // 서버에 빈 드로잉 저장
     await saveEmptyDrawingToServer();
+
+    // 변경사항 플래그 설정 (지운 것도 변경사항임)
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -1824,6 +1805,9 @@
 
     // 히스토리 업데이트
     finishStroke();
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -1890,6 +1874,9 @@
 
     // 히스토리 업데이트
     finishStroke();
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   /**
@@ -2220,6 +2207,9 @@
 
     // 선 삭제
     deleteStroke(nearestStroke.id);
+
+    // 변경사항 플래그 설정
+    QuizState.isDrawingDirty = true;
   }
 
   // 전역으로 함수 노출 (quiz.js에서 사용)

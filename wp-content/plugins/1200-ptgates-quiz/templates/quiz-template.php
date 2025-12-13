@@ -69,6 +69,10 @@ $is_admin = current_user_can('manage_options');
                 <span>틀린문제만</span>
                 <input type="checkbox" id="ptg-quiz-filter-wrong" value="1">
             </label>
+            <label class="ptg-checkbox-label">
+                <span>드로잉</span>
+                <input type="checkbox" id="ptg-quiz-filter-drawing" value="1">
+            </label>
         </div>
         
         <div class="ptg-quiz-header-right">

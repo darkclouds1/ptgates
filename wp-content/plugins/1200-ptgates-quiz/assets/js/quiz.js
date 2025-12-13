@@ -756,6 +756,11 @@ function PTG_quiz_alert(message) {
       return;
     }
     QuizState.initializing = true;
+
+    // 기기 타입 감지 및 저장 (필터링에 사용)
+    QuizState.deviceType = detectDeviceType();
+    console.log("[PTG Quiz] Device Type:", QuizState.deviceType);
+
     // 저장된 펜 설정 불러오기
     if (window.PTGQuizDrawing && window.PTGQuizDrawing.loadPenSettings) {
       window.PTGQuizDrawing.loadPenSettings();
@@ -865,7 +870,8 @@ function PTG_quiz_alert(message) {
       notesPanel.style.display = "none";
     }
 
-    // 모바일에서 드로잉 기능 비활성화
+    // 모바일에서 드로잉 기능 활성화 (사용자 요청)
+    /*
     if (QuizState.deviceType === "mobile") {
       const btnDrawing = document.querySelector(".ptg-btn-drawing");
       const drawingToolbar = document.getElementById("ptg-drawing-toolbar");
@@ -876,6 +882,7 @@ function PTG_quiz_alert(message) {
         drawingToolbar.style.display = "none";
       }
     }
+    */
 
     // 이벤트 리스너 등록
     setupEventListeners();
@@ -1665,8 +1672,15 @@ function PTG_quiz_alert(message) {
     // 복습문제만 Checkbox 값 읽기
     const reviewCheckbox = document.getElementById("ptg-quiz-filter-review");
     const wrongCheckbox = document.getElementById("ptg-quiz-filter-wrong");
+    const drawingCheckbox = document.getElementById("ptg-quiz-filter-drawing");
+
     if (reviewCheckbox && reviewCheckbox.checked) {
       reviewOnly = true;
+    }
+
+    let hasDrawing = false;
+    if (drawingCheckbox && drawingCheckbox.checked) {
+      hasDrawing = true;
     }
 
     // URL 파라미터 체크 (Dashboard 연동)
@@ -1697,7 +1711,7 @@ function PTG_quiz_alert(message) {
 
     // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
     // (문제수 드롭다운 조건보다 우선)
-    if (reviewOnly || wrongOnly) {
+    if (reviewOnly || wrongOnly || hasDrawing) {
       limit = 0;
     } else if (limitVal === "full") {
       if (!session) {
@@ -1722,7 +1736,7 @@ function PTG_quiz_alert(message) {
       // 세부과목이 선택된 경우에만 전달 (빈 값은 전체와 동일)
       if (subsubject) filters.subsubject = subsubject;
       // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
-      if (reviewOnly || wrongOnly) {
+      if (reviewOnly || wrongOnly || hasDrawing) {
         filters.limit = 0;
       } else {
         filters.limit = limit;
@@ -1742,6 +1756,9 @@ function PTG_quiz_alert(message) {
       }
       if (reviewOnly) {
         filters.review_only = true;
+      }
+      if (hasDrawing) {
+        filters.has_drawing = true;
       }
 
       // 검색 필터 추가
@@ -3909,12 +3926,23 @@ function PTG_quiz_alert(message) {
     // 해설 표시 (선택 여부와 관계없이)
     await showExplanation();
 
-    // 헤더 위치로 스크롤
-    setTimeout(() => {
-      if (window.PTGQuizToolbar && window.PTGQuizToolbar.scrollToHeader) {
-        window.PTGQuizToolbar.scrollToHeader();
-      }
-    }, 200);
+    // 퀴즈 카드로 스크롤 (헤더 대신)
+    const card = document.getElementById("ptg-quiz-card");
+    if (card) {
+      setTimeout(() => {
+        const cardRect = card.getBoundingClientRect();
+        const scrollTop =
+          window.pageYOffset || document.documentElement.scrollTop;
+        const cardTop = cardRect.top + scrollTop;
+        const adminBar = document.getElementById("wpadminbar");
+        const adminBarHeight = adminBar ? adminBar.offsetHeight : 0;
+
+        window.scrollTo({
+          top: cardTop - adminBarHeight - 20, // 20px 여유
+          behavior: "smooth",
+        });
+      }, 200);
+    }
 
     // 버튼 상태 변경: "[정답 확인]"은 항상 표시, "[이전 문제]", "[다음 문제]"도 표시
     const btnCheck = document.getElementById("ptg-btn-check-answer");
@@ -4294,6 +4322,13 @@ function PTG_quiz_alert(message) {
       if (filters.id) params.append("id", filters.id);
       if (filters.keyword) params.append("keyword", filters.keyword);
       if (filters.review_only) params.append("review_only", "true");
+      if (filters.has_drawing) {
+        params.append("has_drawing", "true");
+        // 드로잉 필터 시 현재 기기 타입도 함께 전송 (기기별 드로잉 구분)
+        if (QuizState.deviceType) {
+          params.append("device_type", QuizState.deviceType);
+        }
+      }
 
       const endpoint = `ptg-quiz/v1/questions?${params.toString()}`;
       const response = await PTGPlatform.get(endpoint);
@@ -4366,7 +4401,7 @@ function PTG_quiz_alert(message) {
     if (QuizState.terminated) {
       return;
     }
-    // 드로잉 모드가 활성화되어 있으면 다음 문제로 넘어가지 않음
+    // 드로잉 모드가 활성화되어 있으면 자동으로 닫기 (사용자 요청)
     const overlay = document.getElementById("ptg-drawing-overlay");
     const isOverlayVisible =
       overlay &&
@@ -4374,11 +4409,11 @@ function PTG_quiz_alert(message) {
       overlay.style.display !== "none";
 
     if (QuizState.drawingEnabled || isOverlayVisible) {
-      // 종료 상태에서는 알림 표시하지 않음
-      if (!QuizState.terminated) {
-        PTG_quiz_alert("드로잉 모드를 해제하세요");
+      if (window.PTGQuizDrawing && window.PTGQuizDrawing.toggleDrawing) {
+        window.PTGQuizDrawing.toggleDrawing(false);
+        // toggleDrawing이 실행되면 isDirty가 true일 경우 비동기로 저장이 시작됨
+        // 아래의 중복 저장 로직은 savingDrawing 플래그에 의해 관리됨
       }
-      return;
     }
 
     if (QuizState.questions.length === 0) {
@@ -4386,14 +4421,17 @@ function PTG_quiz_alert(message) {
       return;
     }
 
-    // 드로잉 저장 (다음 문제 클릭 시)
+    // 드로잉 저장 (다음 문제 클릭 시) - 비동기 처리 (기다리지 않음)
     if (QuizState.canvasContext) {
       if (QuizState.drawingSaveTimeout) {
         clearTimeout(QuizState.drawingSaveTimeout);
         QuizState.drawingSaveTimeout = null;
       }
       if (window.PTGQuizDrawing && window.PTGQuizDrawing.saveDrawingToServer) {
-        await window.PTGQuizDrawing.saveDrawingToServer();
+        // 백그라운드에서 저장 실행
+        window.PTGQuizDrawing.saveDrawingToServer().catch((e) => {
+          console.warn("[PTG Quiz] 드로잉 백그라운드 저장 실패:", e);
+        });
       }
     }
 
@@ -4440,96 +4478,97 @@ function PTG_quiz_alert(message) {
     const hasAnswer = finalAnswerObj !== null && finalAnswerObj !== undefined;
 
     if (hasAnswer) {
-      // 선택지 선택 시: DB 저장 및 통계 추가
+      // 선택지 선택 시: DB 저장 및 통계 추가 - 백그라운드 처리
+      // sessionStorage에서 이미 로그된 question_id 목록 가져오기
+      const QUIZ_STORAGE_KEY = "ptg_quiz_logged_questions";
+      let loggedQuestions = [];
       try {
-        // sessionStorage에서 이미 로그된 question_id 목록 가져오기
-        const QUIZ_STORAGE_KEY = "ptg_quiz_logged_questions";
-        let loggedQuestions = [];
-        try {
-          const stored = sessionStorage.getItem(QUIZ_STORAGE_KEY);
-          if (stored) {
-            loggedQuestions = JSON.parse(stored);
-          }
-        } catch (e) {
-          console.warn("PTG Quiz: Failed to read sessionStorage", e);
+        const stored = sessionStorage.getItem(QUIZ_STORAGE_KEY);
+        if (stored) {
+          loggedQuestions = JSON.parse(stored);
         }
-
-        // 이미 이 세션에서 로그된 question_id인지 확인
-        const alreadyLogged = loggedQuestions.includes(QuizState.questionId);
-
-        // attempt API 호출 (DB 저장)
-        const response = await PTGPlatform.post(
-          `ptg-quiz/v1/questions/${QuizState.questionId}/attempt`,
-          {
-            answer: finalAnswerObj.normalizedAnswer,
-            elapsed: QuizState.timerSeconds,
-            skip_count_update: alreadyLogged ? true : false,
-          }
-        );
-
-        // 성공 시 sessionStorage에 추가 (아직 로그되지 않은 경우만)
-        if (response && response.data && !alreadyLogged) {
-          loggedQuestions.push(QuizState.questionId);
-          try {
-            sessionStorage.setItem(
-              QUIZ_STORAGE_KEY,
-              JSON.stringify(loggedQuestions)
-            );
-          } catch (e) {
-            console.warn("PTG Quiz: Failed to write sessionStorage", e);
-          }
-        }
-
-        // 통계에 추가 (완료 화면용)
-        // API 응답에서 정확한 정답 여부와 정답 내용을 가져옴
-        const isCorrectApi =
-          response && response.data
-            ? response.data.is_correct
-            : finalAnswerObj.isCorrect;
-        const correctAnswerApi =
-          response && response.data
-            ? response.data.correct_answer
-            : finalAnswerObj.correctAnswer;
-
-        QuizState.answers.push({
-          questionId: QuizState.questionId,
-          isCorrect: isCorrectApi,
-          userAnswer: finalAnswerObj.userAnswer,
-          correctAnswer: correctAnswerApi,
-        });
-      } catch (error) {
-        console.error("답안 저장 오류:", error);
+      } catch (e) {
+        console.warn("PTG Quiz: Failed to read sessionStorage", e);
       }
+
+      // 이미 이 세션에서 로그된 question_id인지 확인
+      const currentQId = QuizState.questionId;
+      const alreadyLogged = loggedQuestions.includes(currentQId);
+      const elapsed = QuizState.timerSeconds;
+
+      // attempt API 호출 (DB 저장) - 비동기 실행 (기다리지 않음)
+      PTGPlatform.post(`ptg-quiz/v1/questions/${currentQId}/attempt`, {
+        answer: finalAnswerObj.normalizedAnswer,
+        elapsed: elapsed,
+        skip_count_update: alreadyLogged ? true : false,
+      })
+        .then((response) => {
+          // 성공 시 sessionStorage에 추가 (아직 로그되지 않은 경우만)
+          if (response && response.data && !alreadyLogged) {
+            // 다시 읽어서 안전하게 업데이트
+            try {
+              const currentStored = sessionStorage.getItem(QUIZ_STORAGE_KEY);
+              let currentLogged = currentStored
+                ? JSON.parse(currentStored)
+                : [];
+              if (!currentLogged.includes(currentQId)) {
+                currentLogged.push(currentQId);
+                sessionStorage.setItem(
+                  QUIZ_STORAGE_KEY,
+                  JSON.stringify(currentLogged)
+                );
+              }
+            } catch (e) {}
+          }
+
+          // 통계에 추가 (완료 화면용)
+          // API 응답에서 정확한 정답 여부와 정답 내용을 가져옴
+          const isCorrectApi =
+            response && response.data
+              ? response.data.is_correct
+              : finalAnswerObj.isCorrect;
+          const correctAnswerApi =
+            response && response.data
+              ? response.data.correct_answer
+              : finalAnswerObj.correctAnswer;
+
+          QuizState.answers.push({
+            questionId: currentQId,
+            isCorrect: isCorrectApi,
+            userAnswer: finalAnswerObj.userAnswer,
+            correctAnswer: correctAnswerApi,
+          });
+        })
+        .catch((error) => {
+          console.error("답안 저장 오류 (백그라운드):", error);
+        });
     } else {
       // 선택지 미선택 시: 통계에 오답으로 추가 (DB 저장 없음)
-      try {
-        // 정답 정보 가져오기 (통계용)
-        const response = await PTGPlatform.get(
-          `ptg-quiz/v1/questions/${QuizState.questionId}`
-        );
-
-        if (response && response.data) {
-          // API는 'answer' 필드로 정답을 반환함
-          const correctAnswer =
-            response.data.answer || response.data.correct_answer;
-          // 통계에 오답으로 추가
+      // 정답 정보 가져오기 (통계용) - 백그라운드 처리
+      const currentQId = QuizState.questionId;
+      PTGPlatform.get(`ptg-quiz/v1/questions/${currentQId}`)
+        .then((response) => {
+          if (response && response.data) {
+            const correctAnswer =
+              response.data.answer || response.data.correct_answer;
+            QuizState.answers.push({
+              questionId: currentQId,
+              isCorrect: false,
+              userAnswer: "",
+              correctAnswer: correctAnswer,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error("정답 정보 가져오기 오류:", error);
+          // 오류 발생 시에도 통계에 추가
           QuizState.answers.push({
-            questionId: QuizState.questionId,
+            questionId: currentQId,
             isCorrect: false,
             userAnswer: "",
-            correctAnswer: correctAnswer,
+            correctAnswer: "",
           });
-        }
-      } catch (error) {
-        console.error("정답 정보 가져오기 오류:", error);
-        // 오류 발생 시에도 통계에 추가 (오답 처리)
-        QuizState.answers.push({
-          questionId: QuizState.questionId,
-          isCorrect: false,
-          userAnswer: "",
-          correctAnswer: "",
         });
-      }
     }
 
     // 임시 답안 초기화
@@ -4625,14 +4664,17 @@ function PTG_quiz_alert(message) {
       return;
     }
 
-    // 드로잉 저장 (이전 문제 클릭 시)
+    // 드로잉 저장 (이전 문제 클릭 시) - 비동기 처리
     if (QuizState.canvasContext) {
       if (QuizState.drawingSaveTimeout) {
         clearTimeout(QuizState.drawingSaveTimeout);
         QuizState.drawingSaveTimeout = null;
       }
       if (window.PTGQuizDrawing && window.PTGQuizDrawing.saveDrawingToServer) {
-        await window.PTGQuizDrawing.saveDrawingToServer();
+        // 백그라운드에서 저장 실행
+        window.PTGQuizDrawing.saveDrawingToServer().catch((e) => {
+          console.warn("[PTG Quiz] 드로잉 백그라운드 저장 실패:", e);
+        });
       }
     }
 
