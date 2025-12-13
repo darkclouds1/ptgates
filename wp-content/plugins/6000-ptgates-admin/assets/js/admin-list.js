@@ -54,6 +54,8 @@ var PTGates_Admin_List = {
       subject: "",
       subsubject: "",
     },
+    isLoading: false,
+    isEnd: false,
   },
 
   init: function () {
@@ -289,6 +291,31 @@ var PTGates_Admin_List = {
         self.updateEditSubsubjects($wrapper, subject);
       }
     );
+
+    // 13. 엑셀 다운로드 버튼
+    jQuery(document).on(
+      "click.ptAdminList",
+      "#ptg-export-excel-btn",
+      function (e) {
+        e.preventDefault();
+        self.exportExcel();
+      }
+    );
+
+    // 14. 무한 스크롤 (Infinite Scroll)
+    jQuery(window).on("scroll.ptAdminList", function () {
+      // 문서 전체 높이 - (현재 스크롤 위치 + 창 높이) < 100px 일 때 로딩
+      if (
+        jQuery(document).height() -
+          (jQuery(window).scrollTop() + jQuery(window).height()) <
+        100
+      ) {
+        if (!self.state.isLoading && !self.state.isEnd) {
+          self.state.currentPage++;
+          self.loadQuestions(null, true); // true = append mode
+        }
+      }
+    });
   },
 
   loadInitialData: function () {
@@ -506,11 +533,25 @@ var PTGates_Admin_List = {
     });
   },
 
-  loadQuestions: function (callback) {
+  loadQuestions: function (callback, isAppend) {
     var self = this;
+    if (self.state.isLoading) return;
+
+    self.state.isLoading = true;
+
+    // 첫 페이지 로드인 경우 (검색/필터 변경 시) 상태 초기화는 호출하는 쪽에서 담당하거나 여기서 확인
+    if (!isAppend) {
+      self.state.currentPage = 1;
+      self.state.isEnd = false;
+      jQuery(self.config.selectors.listContainer).html(
+        '<p class="ptg-loading">로딩 중...</p>'
+      );
+      jQuery(self.config.selectors.paginationContainer).html(""); // 페이지네이션 제거
+    }
+
     var params = {
       page: self.state.currentPage,
-      per_page: 20,
+      per_page: 5, // 무한 스크롤: 5개씩
     };
 
     // Add filters
@@ -535,9 +576,13 @@ var PTGates_Admin_List = {
       params.question_id = self.state.currentSearchId;
 
     console.log("[PTG Admin] loadQuestions params:", params);
-    jQuery(self.config.selectors.listContainer).html(
-      '<p class="ptg-loading">로딩 중...</p>'
-    );
+
+    // Append 모드일 때 로딩 인디케이터 추가
+    if (isAppend) {
+      jQuery(self.config.selectors.listContainer).append(
+        '<div class="ptg-append-loading" style="text-align:center; padding:10px;">로딩 중...</div>'
+      );
+    }
 
     jQuery.ajax({
       url: self.config.apiUrl + "questions",
@@ -547,9 +592,25 @@ var PTGates_Admin_List = {
         xhr.setRequestHeader("X-WP-Nonce", self.config.nonce);
       },
       success: function (response) {
+        self.state.isLoading = false;
+        if (isAppend) {
+          jQuery(".ptg-append-loading").remove();
+        }
+
         if (response.success && response.data) {
-          self.renderQuestions(response.data.questions);
-          self.renderPagination(response.data);
+          var questions = response.data.questions;
+
+          // 더 이상 로드할 데이터가 없으면 isEnd 설정
+          if (questions.length < params.per_page) {
+            self.state.isEnd = true;
+          }
+
+          if (isAppend) {
+            self.renderQuestionsAppend(questions);
+          } else {
+            self.renderQuestions(questions);
+          }
+
           self.updateResultCount(response.data.total, params);
 
           // 콜백이 있으면 실행
@@ -557,9 +618,11 @@ var PTGates_Admin_List = {
             callback();
           }
         } else {
-          jQuery(self.config.selectors.listContainer).html(
-            "<p>문제를 불러올 수 없습니다.</p>"
-          );
+          if (!isAppend) {
+            jQuery(self.config.selectors.listContainer).html(
+              "<p>문제를 불러올 수 없습니다.</p>"
+            );
+          }
           jQuery(self.config.selectors.resultCount).hide();
 
           // 콜백이 있으면 실행
@@ -569,9 +632,14 @@ var PTGates_Admin_List = {
         }
       },
       error: function () {
-        jQuery(self.config.selectors.listContainer).html(
-          "<p>문제를 불러오는 중 오류가 발생했습니다.</p>"
-        );
+        self.state.isLoading = false;
+        if (isAppend) {
+          jQuery(".ptg-append-loading").remove();
+        } else {
+          jQuery(self.config.selectors.listContainer).html(
+            "<p>문제를 불러오는 중 오류가 발생했습니다.</p>"
+          );
+        }
 
         // 콜백이 있으면 실행
         if (typeof callback === "function") {
@@ -580,6 +648,8 @@ var PTGates_Admin_List = {
       },
     });
   },
+
+  // --- Rendering Methods ---
 
   // --- Rendering Methods ---
 
@@ -595,89 +665,121 @@ var PTGates_Admin_List = {
     var self = this;
 
     questions.forEach(function (q) {
-      var content = q.content || ""; // DB 내용 그대로 표시
-      var explanation = q.explanation || ""; // DB 내용 그대로 표시
+      html += self.generateQuestionItemHtml(q);
+    });
 
-      var year = q.exam_years ? q.exam_years.split(",")[0] : "";
-      var session = q.exam_sessions ? q.exam_sessions.split(",")[0] : "";
-      var course = q.exam_courses ? q.exam_courses.split(",")[0] : "";
-      var mainSubject = q.main_subjects ? q.main_subjects.split(",")[0] : "";
-      var subsubject = q.subsubjects
-        ? q.subsubjects.split(",")[0]
-        : q.subjects
-        ? q.subjects.split(",")[0]
-        : "";
+    html += "</div>";
+    jQuery(this.config.selectors.listContainer).html(html);
+  },
 
-      var metaParts = [];
-      if (year) metaParts.push(year + "년");
-      if (session) metaParts.push(session + "회");
-      if (course) metaParts.push(course);
-      if (mainSubject) metaParts.push(mainSubject);
-      var metaInfo = metaParts.length > 0 ? metaParts.join(" ") : "-";
+  renderQuestionsAppend: function (questions) {
+    if (questions.length === 0) return;
 
-      // 이미지 아이콘 표시
-      var imageIcon = q.question_image
-        ? '<span class="ptg-image-indicator" title="이미지 있음">🖼️</span>'
-        : "";
+    var html = "";
+    var self = this;
 
-      // 이미지 URL 생성 (이미지가 있는 경우)
-      var imageHtml = "";
-      if (q.question_image && year && session) {
-        // WordPress upload URL 생성
-        var uploadBaseUrl =
-          typeof ptgAdmin !== "undefined" && ptgAdmin.uploadUrl
-            ? ptgAdmin.uploadUrl
-            : "/wp-content/uploads";
-        var imageUrl =
-          uploadBaseUrl +
-          "/ptgates-questions/" +
-          year +
-          "/" +
-          session +
-          "/" +
-          q.question_image;
+    questions.forEach(function (q) {
+      html += self.generateQuestionItemHtml(q);
+    });
 
-        imageHtml = `
+    // .ptg-questions-grid가 이미 존재하는지 확인
+    var $grid = jQuery(this.config.selectors.listContainer).find(
+      ".ptg-questions-grid"
+    );
+    if ($grid.length > 0) {
+      $grid.append(html);
+    } else {
+      // 없으면 새로 생성 (기존 버그 방지)
+      jQuery(this.config.selectors.listContainer).html(
+        '<div class="ptg-questions-grid">' + html + "</div>"
+      );
+    }
+  },
+
+  generateQuestionItemHtml: function (q) {
+    var self = this;
+    var content = q.content || ""; // DB 내용 그대로 표시
+    var explanation = q.explanation || ""; // DB 내용 그대로 표시
+
+    var year = q.exam_years ? q.exam_years.split(",")[0] : "";
+    var session = q.exam_sessions ? q.exam_sessions.split(",")[0] : "";
+    var course = q.exam_courses ? q.exam_courses.split(",")[0] : "";
+    var mainSubject = q.main_subjects ? q.main_subjects.split(",")[0] : "";
+    var subsubject = q.subsubjects
+      ? q.subsubjects.split(",")[0]
+      : q.subjects
+      ? q.subjects.split(",")[0]
+      : "";
+
+    var metaParts = [];
+    if (year) metaParts.push(year + "년");
+    if (session) metaParts.push(session + "회");
+    if (course) metaParts.push(course);
+    if (mainSubject) metaParts.push(mainSubject);
+    var metaInfo = metaParts.length > 0 ? metaParts.join(" ") : "-";
+
+    // 이미지 아이콘 표시
+    var imageIcon = q.question_image
+      ? '<span class="ptg-image-indicator" title="이미지 있음">🖼️</span>'
+      : "";
+
+    // 이미지 URL 생성 (이미지가 있는 경우)
+    var imageHtml = "";
+    if (q.question_image && year && session) {
+      // WordPress upload URL 생성
+      var uploadBaseUrl =
+        typeof ptgAdmin !== "undefined" && ptgAdmin.uploadUrl
+          ? ptgAdmin.uploadUrl
+          : "/wp-content/uploads";
+      var imageUrl =
+        uploadBaseUrl +
+        "/ptgates-questions/" +
+        year +
+        "/" +
+        session +
+        "/" +
+        q.question_image;
+
+      imageHtml = `
                     <div class="ptg-question-field ptg-question-image-field" style="max-width: 500px; max-height: 500px; margin: 10px 0;">
                         <div style="max-width: 500px; max-height: 500px; border: 1px solid #ddd; border-radius: 4px; padding: 5px; background: #f9f9f9; display: flex; align-items: center; justify-content: center;">
                             <img src="${imageUrl}" alt="문제 이미지" style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;" onerror="this.onerror=null; this.src=this.src.replace(/\\.jpg$/, '.png');" />
                         </div>
                     </div>
                 `;
-      }
+    }
 
-      // 지문과 선택지 분리 (간단한 파싱)
-      // ①, (1), 1. 등으로 시작하는 패턴 찾기
-      var contentHtml = "";
-      var optionsHtml = "";
-      var contentText = self.escapeHtml(content);
+    // 지문과 선택지 분리 (간단한 파싱)
+    // ①, (1), 1. 등으로 시작하는 패턴 찾기
+    var contentHtml = "";
+    var optionsHtml = "";
+    var contentText = self.escapeHtml(content);
 
-      // 정규식으로 선택지 시작 위치 찾기
-      // 보기: ①, ②, ③... 또는 (1), (2)... 또는 1., 2....
-      // 주의: 텍스트에 중복된 보기가 있을 수 있으므로 첫 번째 매칭을 찾아서 분리함
-      var optionRegex = /(?:^|\s|>)(\(?\d+\)|[①-⑳]|\d+\.)\s/;
-      var match = contentText.match(optionRegex);
+    // 정규식으로 선택지 시작 위치 찾기
+    // 보기: ①, ②, ③... 또는 (1), (2)... 또는 1., 2....
+    // 주의: 텍스트에 중복된 보기가 있을 수 있으므로 첫 번째 매칭을 찾아서 분리함
+    var optionRegex = /(?:^|\s|>)(\(?\d+\)|[①-⑳]|\d+\.)\s/;
+    var match = contentText.match(optionRegex);
 
-      if (match && match.index > 0) {
-        var splitIndex = match.index;
-        // 선택지 앞부분 (지문)
-        contentHtml =
-          '<div class="ptg-question-text">' +
-          contentText.substring(0, splitIndex) +
-          "</div>";
-        // 선택지 뒷부분 (옵션) - 줄바꿈을 유지하며 표시
-        var optionsText = contentText.substring(splitIndex);
-        // 줄바꿈을 <br>로 변환하여 가독성 높임
-        optionsHtml =
-          '<div class="ptg-question-options" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
-          optionsText.replace(/\n/g, "<br>") +
-          "</div>";
-      } else {
-        contentHtml =
-          '<div class="ptg-question-text">' + contentText + "</div>";
-      }
+    if (match && match.index > 0) {
+      var splitIndex = match.index;
+      // 선택지 앞부분 (지문)
+      contentHtml =
+        '<div class="ptg-question-text">' +
+        contentText.substring(0, splitIndex) +
+        "</div>";
+      // 선택지 뒷부분 (옵션) - 줄바꿈을 유지하며 표시
+      var optionsText = contentText.substring(splitIndex);
+      // 줄바꿈을 <br>로 변환하여 가독성 높임
+      optionsHtml =
+        '<div class="ptg-question-options" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #eee;">' +
+        optionsText.replace(/\n/g, "<br>") +
+        "</div>";
+    } else {
+      contentHtml = '<div class="ptg-question-text">' + contentText + "</div>";
+    }
 
-      html += `
+    return `
                 <div class="ptg-question-card">
                     <div class="ptg-question-header">
                         <div class="ptg-question-id-info">
@@ -727,32 +829,50 @@ var PTGates_Admin_List = {
                     </div>
                 </div>
             `;
-    });
+  },
 
-    html += "</div>";
-    jQuery(this.config.selectors.listContainer).html(html);
+  exportExcel: function () {
+    var self = this;
+    var params = [];
+
+    // Add filters
+    if (self.state.filters.subsubject)
+      params.push(
+        "subsubject=" + encodeURIComponent(self.state.filters.subsubject)
+      );
+    else if (self.state.filters.subject)
+      params.push("subject=" + encodeURIComponent(self.state.filters.subject));
+
+    if (self.state.filters.year)
+      params.push("exam_year=" + self.state.filters.year);
+    if (self.state.filters.examSession)
+      params.push("exam_session=" + self.state.filters.examSession);
+
+    var sessionValue = jQuery(self.config.selectors.sessionFilter).val();
+    if (sessionValue) {
+      var val = sessionValue.endsWith("교시")
+        ? sessionValue
+        : sessionValue + "교시";
+      params.push("exam_course=" + encodeURIComponent(val));
+    }
+
+    if (self.state.currentSearch)
+      params.push("search=" + encodeURIComponent(self.state.currentSearch));
+    if (self.state.currentSearchId)
+      params.push("question_id=" + self.state.currentSearchId);
+
+    // AJAX Action
+    params.push("action=pt_admin_export_questions_csv");
+
+    var exportUrl = self.config.ajaxUrl + "?" + params.join("&");
+
+    // 새 탭/창에서 다운로드 트리거
+    window.location.href = exportUrl;
   },
 
   renderPagination: function (data) {
-    if (data.total_pages <= 1) {
-      jQuery(this.config.selectors.paginationContainer).html("");
-      return;
-    }
-
-    var html = '<div class="ptg-pagination-controls">';
-    if (data.page > 1) {
-      html += `<button class="ptg-pagination-btn" data-page="${
-        data.page - 1
-      }">이전</button>`;
-    }
-    html += `<span>페이지 ${data.page} / ${data.total_pages} (총 ${data.total}개)</span>`;
-    if (data.page < data.total_pages) {
-      html += `<button class="ptg-pagination-btn" data-page="${
-        data.page + 1
-      }">다음</button>`;
-    }
-    html += "</div>";
-    jQuery(this.config.selectors.paginationContainer).html(html);
+    // Pagination removed in favor of Infinite Scroll
+    jQuery(this.config.selectors.paginationContainer).html("");
   },
 
   updateResultCount: function (total, params) {

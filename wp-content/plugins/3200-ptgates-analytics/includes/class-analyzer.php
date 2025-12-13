@@ -254,13 +254,16 @@ class Analyzer {
 			return null;
 		}
 
-		// 2. Get stats for that specific date
+		// 2. Get stats for that specific date (Optimized: Range Query)
+		$start_date = $last_date . ' 00:00:00';
+		$end_date = $last_date . ' 23:59:59';
+		
 		$sql_stats = "SELECT COUNT(*) as total, 
 					  SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct 
 					  FROM $table_r 
-					  WHERE user_id = %d AND DATE(attempted_at) = %s";
+					  WHERE user_id = %d AND attempted_at >= %s AND attempted_at <= %s";
 		
-		$stats = $wpdb->get_row( $wpdb->prepare( $sql_stats, $user_id, $last_date ) );
+		$stats = $wpdb->get_row( $wpdb->prepare( $sql_stats, $user_id, $start_date, $end_date ) );
 
 		return [
 			'date' => $last_date,

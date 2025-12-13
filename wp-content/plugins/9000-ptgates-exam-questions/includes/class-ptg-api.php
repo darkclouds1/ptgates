@@ -178,13 +178,29 @@ class PTG_API {
      * @return WP_REST_Response
      */
     public static function get_years($request) {
+        $start_time = microtime(true);
         try {
-            $years = PTG_DB::get_available_years();
+            $nocache = $request->get_param('nocache');
             
+            // 캐시 키
+            $cache_key = 'ptg_available_years';
+            $years = get_transient($cache_key);
+            $is_hit = false;
             
+            if (false === $years || $nocache) {
+                $years = PTG_DB::get_available_years();
+                // 1시간 캐싱 (연도가 자주 바뀌지 않음)
+                set_transient($cache_key, $years, HOUR_IN_SECONDS);
+            } else {
+                $is_hit = true;
+            }
+            
+            $total_dur = (microtime(true) - $start_time) * 1000;
             $response = rest_ensure_response($years);
+            $response->header('X-PTG-Cache', $is_hit ? 'HIT' : 'MISS');
+            $response->header('Server-Timing', 'total;desc="API Total";dur=' . $total_dur);
             
-            // REST API 응답에 캐시 방지 헤더 추가
+            // REST API 응답에 캐시 방지 헤더 추가 (브라우저 캐시 방지, 서버 캐시 사용)
             $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
             $response->header('Pragma', 'no-cache');
             $response->header('Expires', '0');
@@ -294,6 +310,9 @@ class PTG_API {
         if (is_wp_error($result)) {
             return $result;
         }
+        
+        // 캐시 무효화: 대시보드 요약 정보 갱신을 위해 캐시 삭제
+        delete_transient('ptg_dashboard_new_summary_' . $user_id);
         
         return rest_ensure_response(array(
             'success' => true,

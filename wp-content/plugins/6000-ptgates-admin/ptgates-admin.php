@@ -47,6 +47,9 @@ final class PTG_Admin_Plugin {
 		add_action( 'wp_ajax_pt_get_question_edit_form', [ $this, 'ajax_get_question_edit_form' ] );
 		add_action( 'wp_ajax_pt_update_question_inline', [ $this, 'ajax_update_question_inline' ] );
 
+        // Excel Export
+        add_action( 'wp_ajax_pt_admin_export_questions_csv', [ $this, 'ajax_export_questions_csv' ] );
+
 		// CLI 지원 (기존 기능 유지)
 		if ( php_sapi_name() === 'cli' ) {
 			$this->init_cli();
@@ -828,6 +831,7 @@ final class PTG_Admin_Plugin {
 					<input type="text" id="ptg-search-input" placeholder="지문 또는 해설 검색..." />
 					<button id="ptg-search-btn">🔍 검색</button>
 					<button id="ptg-clear-search">초기화</button>
+                    <button id="ptg-export-excel-btn" class="button button-primary" style="margin-left: 10px;">📥 엑셀 다운로드</button>
 				</div>
 				
 				<!-- 필터 -->
@@ -1537,6 +1541,192 @@ final class PTG_Admin_Plugin {
 			'new_image' => isset( $new_filename ) ? $new_filename : null
 		) );
 	}
+
+    /**
+     * AJAX: Excel Export (CSV)
+     */
+    public function ajax_export_questions_csv() {
+        if (!current_user_can('manage_options')) {
+            wp_die('권한이 없습니다.');
+        }
+
+        global $wpdb;
+        $questions_table = 'ptgates_questions';
+        $categories_table = 'ptgates_categories';
+
+        // Filters
+        $where = array("q.is_active = 1");
+        $where_values = array();
+
+        $subject = isset($_GET['subject']) ? sanitize_text_field($_GET['subject']) : '';
+        $subsubject = isset($_GET['subsubject']) ? sanitize_text_field($_GET['subsubject']) : '';
+        $exam_year = isset($_GET['exam_year']) ? intval($_GET['exam_year']) : 0;
+        $exam_session = isset($_GET['exam_session']) ? intval($_GET['exam_session']) : 0;
+        $exam_course = isset($_GET['exam_course']) ? sanitize_text_field($_GET['exam_course']) : '';
+        $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+        $question_id = isset($_GET['question_id']) ? intval($_GET['question_id']) : 0;
+
+        // --- WHERE Clause Construction (Mirroring API logic) ---
+
+        // 과목 필터
+        if (!empty($subsubject)) {
+            $where[] = "c.subject = %s";
+            $where_values[] = $subsubject;
+        } elseif (!empty($subject)) {
+            if (class_exists('\PTG\Quiz\Subjects')) {
+                $subsubjects_to_include = array();
+                $sessions = \PTG\Quiz\Subjects::get_sessions();
+                foreach ($sessions as $sess) {
+                    $subsubjects = \PTG\Quiz\Subjects::get_subsubjects($sess, $subject);
+                    if (!empty($subsubjects)) {
+                        $subsubjects_to_include = array_merge($subsubjects_to_include, $subsubjects);
+                    }
+                }
+                $subsubjects_to_include = array_values(array_unique($subsubjects_to_include));
+                
+                if (!empty($subsubjects_to_include)) {
+                    $or_parts = array();
+                    $or_params = array();
+                    foreach ($subsubjects_to_include as $sub_name) {
+                        $or_parts[] = "c.subject = %s";
+                        $or_params[] = $sub_name;
+                    }
+                    $where[] = "(" . implode(" OR ", $or_parts) . ")";
+                    $where_values = array_merge($where_values, $or_params);
+                } else {
+                    $where[] = "c.subject LIKE %s";
+                    $where_values[] = $subject . '%';
+                }
+            } else {
+                $where[] = "c.subject LIKE %s";
+                $where_values[] = $subject . '%';
+            }
+        }
+
+        if (!empty($exam_year)) {
+            $where[] = "c.exam_year = %d";
+            $where_values[] = $exam_year;
+        }
+
+        if (!empty($exam_session)) {
+            $where[] = "c.exam_session = %d";
+            $where_values[] = $exam_session;
+        }
+
+        if (!empty($exam_course)) {
+            if (is_numeric($exam_course)) {
+                $exam_course_val = $exam_course . '교시';
+            } else {
+                $exam_course_val = $exam_course;
+            }
+            $where[] = "REPLACE(TRIM(c.exam_course), ' ', '') = %s";
+            $where_values[] = str_replace(' ', '', $exam_course_val);
+        }
+
+        if (!empty($question_id)) {
+            $where[] = "q.question_id = %d";
+            $where_values[] = $question_id;
+        }
+        
+        // 검색 필터
+        if (!empty($search)) {
+            $search = trim($search);
+            $terms = preg_split('/\s+/', $search);
+            $term_conditions = array();
+
+            foreach ($terms as $term) {
+                $term = trim($term);
+                if ($term === '') continue;
+                $search_like = '%' . $wpdb->esc_like($term) . '%';
+                $term_conditions[] = "(q.content LIKE %s OR q.explanation LIKE %s)";
+                $where_values[] = $search_like;
+                $where_values[] = $search_like;
+            }
+
+            if (!empty($term_conditions)) {
+                $where[] = '(' . implode(' AND ', $term_conditions) . ')';
+            }
+        }
+        
+        $where_clause = implode(' AND ', $where);
+
+        // Query
+        $sql = "SELECT DISTINCT q.question_id, q.content, q.answer, q.explanation, q.type, q.difficulty, q.is_active,
+                GROUP_CONCAT(DISTINCT c.subject ORDER BY c.subject SEPARATOR ', ') as subsubjects,
+                GROUP_CONCAT(DISTINCT c.exam_year ORDER BY c.exam_year SEPARATOR ', ') as exam_years,
+                GROUP_CONCAT(DISTINCT c.exam_session ORDER BY c.exam_session SEPARATOR ', ') as exam_sessions,
+                GROUP_CONCAT(DISTINCT c.exam_course ORDER BY c.exam_course SEPARATOR ', ') as exam_courses
+                FROM {$questions_table} q
+                INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+                WHERE {$where_clause}
+                GROUP BY q.question_id
+                ORDER BY q.question_id DESC";
+
+        if (!empty($where_values)) {
+            $query = $wpdb->prepare($sql, $where_values);
+        } else {
+            $query = $sql;
+        }
+
+        $results = $wpdb->get_results($query, ARRAY_A);
+
+        // Header
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=questions_export_' . date('Ymd_His') . '.csv');
+        $output = fopen('php://output', 'w');
+
+        // BOM for Excel
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+
+        // CSV Header
+        fputcsv($output, array('ID', '년도', '회차', '교시', '세부과목', '대분류(추정)', '지문', '정답', '해설', '난이도', '활성여부'));
+
+         // Subjects Main Category Logic
+         $sessions_obj = class_exists('\PTG\Quiz\Subjects') ? \PTG\Quiz\Subjects::get_sessions() : array();
+
+        foreach ($results as $row) {
+            // Main Subject Logic
+            $main_subjects = array();
+            if (class_exists('\PTG\Quiz\Subjects') && !empty($row['subsubjects'])) {
+                $sub_list = explode(', ', $row['subsubjects']);
+                foreach ($sub_list as $sub_name) {
+                    $found_main = false;
+                    foreach ($sessions_obj as $sess) {
+                        $main_cats = \PTG\Quiz\Subjects::get_subjects_for_session($sess);
+                        foreach ($main_cats as $main_cat) {
+                            $subs = \PTG\Quiz\Subjects::get_subsubjects($sess, $main_cat);
+                            if (in_array($sub_name, $subs)) {
+                                if (!in_array($main_cat, $main_subjects)) {
+                                    $main_subjects[] = $main_cat;
+                                }
+                                $found_main = true;
+                                break;
+                            }
+                        }
+                        if ($found_main) break;
+                    }
+                }
+            }
+            $main_subject_str = implode(', ', $main_subjects);
+
+            fputcsv($output, array(
+                $row['question_id'],
+                $row['exam_years'],
+                $row['exam_sessions'],
+                $row['exam_courses'],
+                $row['subsubjects'],
+                $main_subject_str,
+                $row['content'],
+                $row['answer'],
+                $row['explanation'],
+                $row['difficulty'],
+                $row['is_active'] ? 'Y' : 'N'
+            ));
+        }
+
+        fclose($output);
+        exit;
+    }
 }
 
 // 플러그인 인스턴스 생성

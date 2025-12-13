@@ -303,7 +303,7 @@ class API {
 									if ( $sub_limit <= 0 ) continue;
 
 									$sub_sql = $wpdb->prepare(
-										"SELECT q.*, c.subject as category_subject 
+										"SELECT q.*, c.subject as category_subject, c.exam_year, c.exam_session 
 										  FROM $q_table q 
 										  JOIN $c_table c ON q.question_id = c.question_id 
 										  WHERE q.is_active = 1 AND c.exam_session >= 1000 AND c.subject = %s 
@@ -326,7 +326,7 @@ class API {
 			// Case B: Simple Fetching (Specific sub-subject selected or fallback)
 			else {
 				$sql = "
-					SELECT q.*, c.subject as category_subject
+					SELECT q.*, c.subject as category_subject, c.exam_year, c.exam_session
 					FROM $q_table q
 					JOIN $c_table c ON q.question_id = c.question_id
 					WHERE q.is_active = 1 AND c.exam_session >= 1000
@@ -471,8 +471,28 @@ class API {
 		$count = 0;
 		
 		if ( $random || in_array( $mode, ['bookmark', 'review', 'wrong'] ) ) {
+			$upload_dir = wp_upload_dir();
+			$base_url = $upload_dir['baseurl'] . '/ptgates-questions';
+
 			foreach ( $questions as $q ) {
 				$front = $q['content'] ?? '';
+				$year = $q['exam_year'] ?? '';
+				$session = $q['exam_session'] ?? '';
+
+				// LegacyRepo returns keys 'exam_year', 'exam_session'
+				if ( $year && $session ) {
+					$full_img_url = "$base_url/$year/$session/" . $q['question_image'];
+					
+					$img_html = '<div class="ptg-card-image"><img src="' . esc_url( $full_img_url ) . '" alt="Question Image" /></div>';
+					// Check for choices (①, (1), 1.)
+					if ( preg_match( '/(①|\(1\)|1\.)/', $front, $matches, PREG_OFFSET_CAPTURE ) ) {
+						$offset = $matches[0][1];
+						$front = substr( $front, 0, $offset ) . $img_html . substr( $front, $offset );
+					} else {
+						$front .= $img_html;
+					}
+				}
+
 				$answer = $q['answer'] ?? '';
 				$explanation = $q['explanation'] ?? '';
 				
@@ -484,8 +504,7 @@ class API {
 					'source_type'  => 'question',
 					'source_id'    => $q['question_id'],
 					'front_custom' => $front,
-					'back_custom'  => "<strong>정답: " . $answer . "</strong><br><br>" . $explanation,
-					'next_due_date'=> current_time( 'Y-m-d' ),
+					'back_custom'  => "<strong>정답: " . $answer . "</strong><br>" . $explanation,
 				] );
 				$count++;
 			}
@@ -677,20 +696,55 @@ class API {
 			// 5. Add new cards
 			if ( ! empty( $to_add ) ) {
 				// Fetch question details for new cards
+				$categories_table = 'ptgates_categories';
 				$placeholders = implode( ',', array_fill( 0, count( $to_add ), '%d' ) );
+				
 				$questions = $wpdb->get_results( $wpdb->prepare(
-					"SELECT question_id, content, answer, explanation FROM $questions_table WHERE question_id IN ($placeholders)",
+					"SELECT q.question_id, q.content, q.answer, q.explanation, q.question_image, c.exam_year, c.exam_session 
+                     FROM $questions_table q
+                     LEFT JOIN $categories_table c ON q.question_id = c.question_id
+                     WHERE q.question_id IN ($placeholders)",
 					$to_add
 				), ARRAY_A );
 
 				foreach ( $questions as $q ) {
+					$front_content = $q['content'];
+                    if ( ! empty( $q['question_image'] ) ) {
+                        try {
+                            // Construct full image URL: /wp-content/uploads/ptgates-questions/{year}/{session}/{filename}
+                            $upload_dir = wp_upload_dir();
+                            $base_url = $upload_dir['baseurl'] . '/ptgates-questions';
+                            
+                            $year = $q['exam_year'] ?? ''; // Should be available from JOIN
+                            $session = $q['exam_session'] ?? ''; 
+                            
+                            if ( $year && $session ) {
+                                $full_img_url = "$base_url/$year/$session/" . $q['question_image'];
+                                
+                                $img_html = '<div class="ptg-card-image"><img src="' . esc_url( $full_img_url ) . '" alt="Question Image" /></div>';
+                                // Check for choices (①, (1), 1.)
+                                if ( preg_match( '/(①|\(1\)|1\.)/', $front_content, $matches, PREG_OFFSET_CAPTURE ) ) {
+                                    $offset = $matches[0][1];
+                                    $front_content = substr( $front_content, 0, $offset ) . $img_html . substr( $front_content, $offset );
+                                } else {
+                                    $front_content .= $img_html;
+                                }
+                            }
+                        } catch ( \Exception $e ) {
+                             error_log( 'PTG Flashcard Image Injection Error: ' . $e->getMessage() );
+                        } catch ( \Throwable $t ) {
+                             error_log( 'PTG Flashcard Image Injection Fatal: ' . $t->getMessage() );
+                        }
+                    }
+
 					$wpdb->insert( $cards_table, [
 						'user_id'      => $user_id,
 						'set_id'       => $set_id,
 						'source_type'  => 'question',
 						'source_id'    => $q['question_id'],
-						'front_custom' => $q['content'],
-						'back_custom'  => "<strong>정답: " . $q['answer'] . "</strong><br><br>" . $q['explanation'],
+						'source_id'    => $q['question_id'],
+						'front_custom' => $front_content,
+						'back_custom'  => "<strong>정답: " . $q['answer'] . "</strong><br>" . $q['explanation'],
 						'next_due_date'=> current_time( 'Y-m-d' ),
 					] );
 				}

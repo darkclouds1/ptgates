@@ -82,4 +82,3 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Sets up WordPress vars and included files. */
 require_once ABSPATH . 'wp-settings.php';
 
-// 불필요한 하단 코드는 제거했습니다. (이미 wp-settings.php가 로드된 후라 효력 없음)

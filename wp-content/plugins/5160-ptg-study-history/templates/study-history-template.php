@@ -323,7 +323,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// Check if document is already loaded (for AJAX) or wait for DOMContentLoaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStudyHistory);
+} else {
+    initStudyHistory();
+}
+
+function initStudyHistory() {
     const container = document.getElementById('ptg-study-history-app');
 
     // Fetch Data
@@ -520,5 +527,5 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-});
+}
 </script>

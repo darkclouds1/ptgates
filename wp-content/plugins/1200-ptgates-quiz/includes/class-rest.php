@@ -27,31 +27,31 @@ class REST_Controller {
      * Register all routes.
      */
     public function register_routes() {
-		\t// 추가: 교시/과목/세부과목 조회 라우트 (현재 서버에서 class-api.php가 로드되지 않는 경우 대비)
-		\tregister_rest_route( $this->namespace, '/sessions', [
-		\t\t'methods'             => WP_REST_Server::READABLE,
-		\t\t'callback'            => [ $this, 'get_sessions' ],
-		\t\t'permission_callback' => '__return_true',
-		\t] );
+		// 추가: 교시/과목/세부과목 조회 라우트 (현재 서버에서 class-api.php가 로드되지 않는 경우 대비)
+		register_rest_route( $this->namespace, '/sessions', [
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => [ $this, 'get_sessions' ],
+			'permission_callback' => '__return_true',
+		] );
 
-		\tregister_rest_route( $this->namespace, '/subjects', [
-		\t\t'methods'             => WP_REST_Server::READABLE,
-		\t\t'callback'            => [ $this, 'get_subjects' ],
-		\t\t'permission_callback' => '__return_true',
-		\t\t'args'                => [
-		\t\t\t'session' => [ 'type' => 'integer', 'required' => false, 'sanitize_callback' => 'absint' ],
-		\t\t],
-		\t] );
+		register_rest_route( $this->namespace, '/subjects', [
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => [ $this, 'get_subjects' ],
+			'permission_callback' => '__return_true',
+			'args'                => [
+				'session' => [ 'type' => 'integer', 'required' => false, 'sanitize_callback' => 'absint' ],
+			],
+		] );
 
-		\tregister_rest_route( $this->namespace, '/subsubjects', [
-		\t\t'methods'             => WP_REST_Server::READABLE,
-		\t\t'callback'            => [ $this, 'get_subsubjects' ],
-		\t\t'permission_callback' => '__return_true',
-		\t\t'args'                => [
-		\t\t\t'session' => [ 'type' => 'integer', 'required' => true, 'sanitize_callback' => 'absint' ],
-		\t\t\t'subject' => [ 'type' => 'string',  'required' => true, 'sanitize_callback' => 'sanitize_text_field' ],
-		\t\t],
-		\t] );
+		register_rest_route( $this->namespace, '/subsubjects', [
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => [ $this, 'get_subsubjects' ],
+			'permission_callback' => '__return_true',
+			'args'                => [
+				'session' => [ 'type' => 'integer', 'required' => true, 'sanitize_callback' => 'absint' ],
+				'subject' => [ 'type' => 'string',  'required' => true, 'sanitize_callback' => 'sanitize_text_field' ],
+			],
+		] );
 
         register_rest_route( $this->namespace, '/questions/(?P<id>\d+)', [
 			'methods'             => WP_REST_Server::READABLE,
@@ -260,6 +260,9 @@ class REST_Controller {
             return new WP_Error('rest_update_failed', 'Failed to update question state.', ['status' => 500]);
         }
 
+        // 캐시 무효화: 대시보드 요약 정보 갱신
+        delete_transient('ptg_dashboard_new_summary_' . $user_id);
+
         return new WP_REST_Response(['success' => true, 'updated' => $valid_params], 200);
     }
 
@@ -281,6 +284,9 @@ class REST_Controller {
         $is_correct = Repo::check_answer( $question_id, $user_answer );
         
         Repo::save_user_result( $user_id, $question_id, $user_answer, $is_correct, $elapsed_time );
+
+        // 캐시 무효화: 대시보드 요약 정보 갱신 (진행률, 학습기록 등)
+        delete_transient('ptg_dashboard_new_summary_' . $user_id);
 
         return new WP_REST_Response( [
             'question_id' => $question_id,
