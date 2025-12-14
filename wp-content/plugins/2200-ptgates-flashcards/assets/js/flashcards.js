@@ -39,6 +39,7 @@ jQuery(document).ready(function ($) {
       this.cacheDOM();
       this.bindEvents();
       this.setupFilterUI();
+      this.populateSessions();
       this.populateSubjects("");
       this.populateSubSubjects("", "");
       this.loadSets();
@@ -61,13 +62,6 @@ jQuery(document).ready(function ($) {
       // Set Click (Delegate)
       $("#ptg-sets-grid").on("click", ".ptg-set-card", function () {
         const setId = $(this).data("id");
-        self.startStudy(setId);
-      });
-
-      // Study Button Click (Prevent double fire)
-      $("#ptg-sets-grid").on("click", ".ptg-btn-study", function (e) {
-        e.stopPropagation();
-        const setId = $(this).closest(".ptg-set-card").data("id");
         self.startStudy(setId);
       });
 
@@ -197,6 +191,25 @@ jQuery(document).ready(function ($) {
       // SubSubject Change
       subSubjectSelect.on("change", function () {
         self.updateRecommendedLimit();
+      });
+    },
+
+    populateSessions: function () {
+      const sessionSelect = $("#ptg-flash-filter-session");
+      sessionSelect.html('<option value="">교시</option>');
+
+      if (!this.SESSION_STRUCTURE) return;
+
+      const sessions = Object.keys(this.SESSION_STRUCTURE);
+      // Sort sessions numerically if possible
+      sessions.sort((a, b) => parseInt(a) - parseInt(b));
+
+      sessions.forEach((sess) => {
+        sessionSelect.append(
+          $("<option>")
+            .val(sess)
+            .text(sess + "교시")
+        );
       });
     },
 
@@ -377,10 +390,16 @@ jQuery(document).ready(function ($) {
           if (xhr.status == 409) {
             self.showToast("이미 생성된 암기카드 세트입니다.");
           } else {
-            const msg =
+            let msg =
               xhr.responseJSON && xhr.responseJSON.message
                 ? xhr.responseJSON.message
                 : xhr.statusText || "오류가 발생했습니다.";
+
+            // Translate common errors
+            if (xhr.status === 500 || msg === "Internal Server Error") {
+              msg = "서버 오류가 발생했습니다. (잠시 후 다시 시도해주세요)";
+            }
+
             self.showToast(msg);
           }
         },
@@ -546,8 +565,6 @@ jQuery(document).ready(function ($) {
                                 <span class="ptg-stat-label">총 카드</span>
                             </div>
                         </div>
-                        <div class="ptg-flash-set-actions" style="margin-top: 15px; text-align: center;">
-                            <button class="ptg-btn-study" style="width: 100%;">학습하기</button>
                         </div>
                     </div>
                 `;

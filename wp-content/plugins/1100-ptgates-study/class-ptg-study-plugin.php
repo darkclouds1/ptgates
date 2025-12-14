@@ -160,8 +160,8 @@ class PTG_Study_Plugin {
                         <input type="checkbox" id="ptg-global-wrong-only">
                         <span>틀린문제만</span>
                     </label>
-                    <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link" aria-label="학습현황으로 돌아가기">학습현황</a>
-                    <button type="button" class="ptg-study-tip-trigger" data-ptg-tip-open>
+                    <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-study-dashboard-link ptg-header-btn" aria-label="학습현황으로 돌아가기">학습현황</a>
+                    <button type="button" class="ptg-study-tip-trigger ptg-header-btn" data-ptg-tip-open>
                         [학습Tip]
                     </button>
                 </div>

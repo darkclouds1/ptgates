@@ -344,8 +344,10 @@ class Study_API {
             }
 
             // [과목 선택 모드] Subjects::MAP에서 해당 과목의 총 문항 수(total)를 찾아 Limit 적용
-            $max_items = 0;
+            // [변경] 학습하기 모드(1100)에서는 모의고사 규격(Quota) 제한을 해제하고 전체 문제를 조회하도록 수정
+            $max_items = 0; 
             
+            /*
             if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
                 $map = \PTG\Quiz\Subjects::get_map();
                 // 1. subject_category가 있으면 직접 조회 (가장 정확)
@@ -386,6 +388,7 @@ class Study_API {
                     }
                 }
             }
+            */
 
             // 무한 스크롤(DB 전체 조회) 요청 시 Map의 제한을 무시
             if ($infinite_scroll) {
@@ -522,7 +525,10 @@ class Study_API {
         // $wrong_only extracted above
 
         // [세부과목 선택 모드] Subjects::MAP에서 해당 세부과목의 문항 수를 찾아 Limit 적용
+        // [변경] 학습하기 모드(1100)에서는 모의고사 규격(Quota) 제한을 해제
         $max_items = 0;
+        
+        /*
         $matched_subject = $subject; // 기본값은 요청된 과목명
 
         // 0. DB에 정확히 일치하는 과목명이 있는지 먼저 확인 (Fuzzy Match로 인한 오작동 방지)
@@ -572,6 +578,7 @@ class Study_API {
                 }
             }
         }
+        */
 
         // 무한 스크롤(DB 전체 조회) 요청 시 Map의 제한을 무시
         if ($infinite_scroll) {

@@ -119,6 +119,28 @@ $dashboard_url = ptg_get_dashboard_url();
         flex-shrink: 0 !important;
     }
 
+    .ptg-header-btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 9px 18px;
+        background: #f5f6f8;
+        color: #1f2937;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 999px;
+        text-decoration: none !important;
+        border: 1px solid #e5e7eb;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+        white-space: nowrap;
+    }
+
+    .ptg-header-btn:hover {
+        background: #e9ecf1;
+        color: #111827;
+    }
+
     .ptg-dashboard-link {
         display: inline-block;
         background: #edf2f7; /* Base background from flashcards */
@@ -151,32 +173,6 @@ $dashboard_url = ptg_get_dashboard_url();
         white-space: nowrap !important;
     }
 
-    .ptg-bookmarks-info {
-        padding: 12px 16px;
-        background: #f9fafb;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        margin-bottom: 24px;
-        font-size: 0.875rem;
-        color: #6b7280;
-    }
-
-    .ptg-map-link {
-        color: #3b82f6;
-        text-decoration: underline;
-        cursor: pointer;
-        font-weight: 500;
-        transition: color 0.2s ease;
-    }
-
-    .ptg-map-link:hover {
-        color: #2563eb;
-    }
-
-    .ptg-map-modal-close:hover {
-        background: #f3f4f6 !important;
-        color: #1f2937 !important;
-    }
 
     .ptg-bookmarks-list {
         display: flex;
@@ -194,11 +190,20 @@ $dashboard_url = ptg_get_dashboard_url();
 
     .ptg-bookmark-card-header {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
         margin-bottom: 12px;
         padding-bottom: 12px;
         border-bottom: 1px solid #f3f4f6;
+    }
+    
+    /* 선택지 보기 버튼 숨기기 - 헤더 내 모든 버튼 제거 */
+    .ptg-bookmark-card-header button,
+    .ptg-bookmark-card-header .ptg-bookmark-toggle,
+    .ptg-bookmark-card-header button[class*="toggle-options"],
+    .ptg-bookmark-card-header button[class*="options-toggle"] {
+        display: none !important;
+        visibility: hidden !important;
     }
 
     .ptg-bookmark-meta {
@@ -271,7 +276,7 @@ $dashboard_url = ptg_get_dashboard_url();
         margin-bottom: 0 !important;
         margin-top: 0 !important;
         width: 100% !important;
-        display: none !important;
+        display: block !important;
         flex-direction: column !important;
         flex-wrap: nowrap !important;
         border: 2px solid #e9ecef;
@@ -279,10 +284,8 @@ $dashboard_url = ptg_get_dashboard_url();
         padding: 10px 12px;
         background: white;
         box-sizing: border-box;
-    }
-
-    .ptg-bookmark-options.is-visible {
-        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
     .ptg-bookmark-options > * {

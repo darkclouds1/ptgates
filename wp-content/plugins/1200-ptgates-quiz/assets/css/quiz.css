@@ -112,44 +112,50 @@
   transform: scale(1.1) !important;
 }
 
-.ptg-quiz-dashboard-link {
-  display: inline-block !important;
-  background: #edf2f7 !important; /* Added background */
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  color: #4a5568 !important;
+.ptg-header-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  background: #f5f6f8;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
   text-decoration: none !important;
-  padding: 6px 12px !important;
-  border-radius: 6px !important;
-  transition: all 0.2s ease !important;
-  white-space: nowrap !important;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
 }
 
-.ptg-quiz-dashboard-link:hover {
-  background: #f1f5f9 !important;
-  color: #2d3748 !important;
-  text-decoration: underline !important;
+.ptg-header-btn:hover {
+  background: #e9ecf1;
+  color: #111827;
 }
 
+.ptg-quiz-dashboard-link,
 .ptg-quiz-tip-link {
-  font-size: 13px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 9px 18px !important;
+  background: #f5f6f8 !important;
+  color: #1f2937 !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
-  color: #4a5568 !important;
+  border-radius: 999px !important;
   text-decoration: none !important;
-  padding: 6px 12px !important;
-  border-radius: 6px !important;
+  border: 1px solid #e5e7eb !important;
+  cursor: pointer !important;
   transition: all 0.2s ease !important;
+  font-family: inherit !important;
   white-space: nowrap !important;
 }
 
+.ptg-quiz-dashboard-link:hover,
 .ptg-quiz-tip-link:hover {
-  background: #f1f5f9 !important;
-  color: #2d3748 !important;
-  text-decoration: underline !important;
-}
-
-.ptg-quiz-tip-link:active {
-  opacity: 0.8;
+  background: #e9ecf1 !important;
+  color: #111827 !important;
 }
 
 /* 도구바 */
@@ -667,6 +673,7 @@ button.ptg-btn-icon:focus-visible,
   background: #f8f9fa;
   border-radius: 6px;
   border-left: 4px solid #4a90e2;
+  font-size: 14px;
 }
 
 .ptgates-tip-summary h4 {
@@ -1311,7 +1318,7 @@ html.drawing-active {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 10px;
   margin-top: 20px;
   margin-bottom: 20px;
   position: relative;
@@ -1324,12 +1331,29 @@ html.drawing-active {
 }
 
 .ptg-quiz-actions .ptg-btn {
-  min-width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 94px;
   margin: 0;
   white-space: nowrap;
   flex-shrink: 0;
-  padding: 6px 10px !important; /* 플랫폼 기본 패딩 오버라이드 */
-  font-size: 13px !important;
+  padding: 9px 18px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  background: #f5f6f8 !important;
+  color: #1f2937 !important;
+  border-radius: 999px !important;
+  text-decoration: none !important;
+  border: 1px solid #e5e7eb !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-family: inherit !important;
+}
+
+.ptg-quiz-actions .ptg-btn:hover {
+  background: #e9ecf1 !important;
+  color: #111827 !important;
 }
 
 .ptg-btn-primary {
@@ -2490,7 +2514,7 @@ html.drawing-active {
     display: flex !important;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: 14px !important;
     color: #4a5568 !important;
     cursor: pointer;
     user-select: none;
@@ -2499,8 +2523,8 @@ html.drawing-active {
 }
 
 .ptg-checkbox-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     margin: 0;
     cursor: pointer;
     accent-color: #4a90e2;

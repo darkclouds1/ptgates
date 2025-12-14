@@ -8,11 +8,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     <div id="ptg-flash-dashboard" class="ptg-view active">
         <!-- Header (Quiz Style) -->
         <div class="ptg-flash-header ptg-quiz-header-style">
-            <h1>암기카드 학습현황</h1>
+            <h1>암기카드</h1>
             <div class="ptg-flash-header-right">
-                <button id="ptg-toggle-create" class="ptg-dash-link" style="margin-right: 5px; border:none; background:none; cursor:pointer;">만들기</button>
-                <a href="/dashboard/" class="ptg-dash-link">학습현황</a>
-                <a href="#" id="ptg-tip-toggle" class="ptg-tip-link">[암기Tip]</a>
+                <button id="ptg-toggle-create" class="ptg-header-btn">만들기</button>
+                <a href="/dashboard/" class="ptg-header-btn">학습현황</a>
+                <a href="#" id="ptg-tip-toggle" class="ptg-header-btn">[암기Tip]</a>
             </div>
         </div>
 
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                 <div class="ptg-tip-body">
                     <div class="ptgates-tip-summary">
                         <h5>만들기 (세트 생성)</h5>
-                        <p style="margin-bottom: 10px; font-weight: normal;">조건을 선택하고 '만들기'를 누르면 새로운 세트가 생성됩니다.</p>
+                        <p style="margin-top: 0; margin-bottom: 10px; font-weight: normal;">조건을 선택하고 '만들기'를 누르면 새로운 세트가 생성됩니다.</p>
                         <ul>
                             <li><strong>🎲 랜덤(모의):</strong> 전체 문제은행에서 새로운 문제를 무작위로 가져와 모의고사처럼 학습합니다.</li>
                             <li><strong>🎴 암기카드만:</strong> '암기카드'에 저장해둔 문제들 중에서 선택하여 학습합니다.</li>
@@ -76,8 +76,6 @@ if ( ! defined( 'ABSPATH' ) ) {
             <div class="ptgates-filter-row">
                 <select id="ptg-flash-filter-session" class="ptgates-filter-input">
                     <option value="">교시</option>
-                    <option value="1">1교시</option>
-                    <option value="2">2교시</option>
                 </select>
             </div>
             

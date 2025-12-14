@@ -56,10 +56,11 @@ final class PTG_Flashcards_Plugin {
 
 	public function enqueue_assets() {
 		global $post;
-		if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_flash' ) ) {
+		// Relaxed check to ensure CSS loads reliably (fixes first-load issue)
+		// if ( is_a( $post, 'WP_Post' ) && has_shortcode( $post->post_content, 'ptg_flash' ) ) {
 			// CSS
-			wp_enqueue_style( 'ptg-flash-css', plugin_dir_url( __FILE__ ) . 'assets/css/flashcards.css', [], '1.0.0' );
-		}
+			wp_enqueue_style( 'ptg-flash-css', plugin_dir_url( __FILE__ ) . 'assets/css/flashcards.css', [], '1.0.1' );
+		// }
 	}
 
 	public function render_shortcode( $atts ) {

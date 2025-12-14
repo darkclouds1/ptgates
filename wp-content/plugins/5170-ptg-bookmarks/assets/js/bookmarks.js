@@ -22,20 +22,6 @@
     bindEvents: function () {
       const self = this;
 
-      // 선택지 보기 토글
-      this.$container.on("click", ".ptg-toggle-options", function (e) {
-        e.preventDefault();
-        const $card = $(this).closest(".ptg-bookmark-card");
-        const $options = $card.find(".ptg-bookmark-options");
-        const $btn = $(this);
-
-        $options.toggleClass("is-visible");
-        $btn.toggleClass("is-active");
-        $btn.text(
-          $options.hasClass("is-visible") ? "선택지 숨기기" : "선택지 보기"
-        );
-      });
-
       // 문제풀이 보기 토글
       this.$container.on("click", ".ptg-toggle-explanation", function (e) {
         e.preventDefault();
@@ -50,6 +36,18 @@
             ? "문제풀이 숨기기"
             : "문제풀이 보기"
         );
+
+        // 버튼으로 스크롤
+        if ($explanation.hasClass("is-visible")) {
+          setTimeout(function() {
+            const btnOffset = $btn.offset();
+            if (btnOffset) {
+              $("html, body").animate({
+                scrollTop: btnOffset.top - 20
+              }, 300);
+            }
+          }, 100);
+        }
       });
 
       // 북마크 문제풀기 버튼
@@ -67,12 +65,6 @@
         } else if (self.page >= self.totalPages) {
           alert("마지막 북마크 입니다.");
         }
-      });
-
-      // MAP 링크 클릭 이벤트
-      this.$container.on("click", ".ptg-map-link", function (e) {
-        e.preventDefault();
-        self.showMapPopup();
       });
 
       // 무한 스크롤 (선택적)
@@ -203,16 +195,13 @@
         "/";
       const html = `
                 <div class="ptg-bookmarks-header">
-                    <h1>북마크 문제 모아보기</h1>
+                    <h1>북마크</h1>
                     <div class="ptg-header-actions">
                         <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
                         <a href="${this.escapeHtml(
                           dashboardUrl
-                        )}" class="ptg-dashboard-link">학습현황</a>
+                        )}" class="ptg-dashboard-link ptg-header-btn">학습현황</a>
                     </div>
-                </div>
-                <div class="ptg-bookmarks-info">
-                    모든 북마크 문제가 공통 <span class="ptg-map-link">MAP</span> 순서에 따라 과목별로 랜덤하게 섞여서 표시됩니다.
                 </div>
                 <div class="ptg-bookmarks-list">
                     ${this.renderBookmarks(data.items)}
@@ -245,24 +234,12 @@
         item.explanation
       );
 
-      // 과목/세부과목 표시
+      // 세부과목만 표시
       let subjectInfo = "";
-      if (item.subject || item.subsubject) {
-        const subject = item.subject || "";
-        const subsubject = item.subsubject || "";
-        if (subject && subsubject) {
-          subjectInfo = `<span class="ptg-bookmark-subject">${this.escapeHtml(
-            subject
-          )} / ${this.escapeHtml(subsubject)}</span>`;
-        } else if (subject) {
-          subjectInfo = `<span class="ptg-bookmark-subject">${this.escapeHtml(
-            subject
-          )}</span>`;
-        } else if (subsubject) {
-          subjectInfo = `<span class="ptg-bookmark-subject">${this.escapeHtml(
-            subsubject
-          )}</span>`;
-        }
+      if (item.subsubject) {
+        subjectInfo = `<span class="ptg-bookmark-subject">${this.escapeHtml(
+          item.subsubject
+        )}</span>`;
       }
 
       return `
@@ -277,7 +254,6 @@
                               item.question_id_display
                             )}</span>
                         </div>
-                        <button class="ptg-bookmark-toggle ptg-toggle-options">선택지 보기</button>
                     </div>
                     <div class="ptg-bookmark-question-text"><span class="ptg-bookmark-number">${
                       this.cardCounter
@@ -348,12 +324,12 @@
         "/";
       const html = `
                 <div class="ptg-bookmarks-header">
-                    <h1>북마크 문제 모아보기</h1>
+                    <h1>북마크</h1>
                     <div class="ptg-header-actions">
                         <button class="ptg-btn-quiz-start">북마크 문제풀기</button>
                         <a href="${this.escapeHtml(
                           dashboardUrl
-                        )}" class="ptg-dashboard-link">학습현황</a>
+                        )}" class="ptg-dashboard-link ptg-header-btn">학습현황</a>
                     </div>
                 </div>
                 <div class="ptg-bookmarks-empty">
@@ -364,27 +340,26 @@
     },
 
     startQuiz: function () {
-      // 북마크 문제풀기 로직
-      // 1200- 퀴즈 플러그인으로 이동하되, bookmarked=1 조건으로 필터링
+      // 북마크 문제풀기 → 실전 Quiz로 이동
+      // 요청: 모든 북마크 문제를 바로 시작 (limit=0, auto_start=1)
       const quizUrl =
         (window.ptg_bookmarks_vars && window.ptg_bookmarks_vars.quiz_url) ||
         "/ptg_quiz/";
 
-      // URL 생성 (기존 쿼리 파라미터 유지)
-      let url = quizUrl;
-      if (url.indexOf("?") === -1) {
-        url += "?bookmarked=1";
-      } else {
-        url += "&bookmarked=1";
-      }
-
-      // 안전한 페이지 이동 (에러 방지)
       try {
-        // replace를 사용하여 히스토리에 남기지 않음 (뒤로가기 시 북마크 페이지로 돌아가지 않도록)
-        window.location.replace(url);
+        const targetUrl = new URL(quizUrl, window.location.origin);
+        targetUrl.searchParams.set("bookmarked", "1");
+        targetUrl.searchParams.set("limit", "0"); // 북마크 전체
+        targetUrl.searchParams.set("auto_start", "1"); // 바로 시작
+
+        // replace로 이동해 뒤로가기 시 북마크 페이지로 돌아오지 않도록 처리
+        window.location.replace(targetUrl.toString());
       } catch (e) {
-        // 에러 발생 시 대체 방법
+        // new URL이 실패할 경우의 안전한 폴백
         console.warn("[PTG Bookmarks] 페이지 이동 중 에러:", e);
+        let url = quizUrl;
+        const hasQuery = url.indexOf("?") !== -1;
+        url += (hasQuery ? "&" : "?") + "bookmarked=1&limit=0&auto_start=1";
         window.location.href = url;
       }
     },
@@ -410,39 +385,6 @@
       const div = document.createElement("div");
       div.textContent = text;
       return div.innerHTML;
-    },
-
-    showMapPopup: function () {
-      // 공통 팝업 유틸리티 사용 (내용은 중앙 저장소에서 자동 가져옴)
-      if (
-        typeof window.PTGTips === "undefined" ||
-        typeof window.PTGTips.show !== "function"
-      ) {
-        console.warn(
-          "[PTG Bookmarks] 공통 팝업 유틸리티가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요."
-        );
-        // 잠시 후 다시 시도 (최대 3초)
-        let retryCount = 0;
-        const maxRetries = 30;
-        const self = this;
-        const checkInterval = setInterval(function () {
-          retryCount++;
-          if (
-            typeof window.PTGTips !== "undefined" &&
-            typeof window.PTGTips.show === "function"
-          ) {
-            clearInterval(checkInterval);
-            self.showMapPopup(); // 재시도
-          } else if (retryCount >= maxRetries) {
-            clearInterval(checkInterval);
-            alert("팝업을 표시할 수 없습니다. 페이지를 새로고침해주세요.");
-          }
-        }, 100);
-        return;
-      }
-
-      // 중앙 저장소에서 팝업 내용을 자동으로 가져와서 표시 (옵션 없이 호출)
-      window.PTGTips.show("map-tip");
     },
   };
 

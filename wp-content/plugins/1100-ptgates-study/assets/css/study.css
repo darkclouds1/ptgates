@@ -12,6 +12,27 @@
   transform: translateX(-50%);
 }
 
+.ptg-header-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  background: #f5f6f8;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
+  text-decoration: none !important;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.ptg-header-btn:hover {
+  background: #e9ecf1;
+  color: #111827;
+}
+
 .ptg-course-categories {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -1457,7 +1457,7 @@
 
                 <!-- 4. Review | Quiz -->
                 <a href="/ptg_quiz/?review_only=1&auto_start=1" class="ptg-dash-card">
-                    <div class="ptg-card-icon"><img draggable="false" role="img" class="emoji" alt="🔁" src="https://s.w.org/images/core/emoji/17.0.2/svg/1f501.svg"></div>
+                    <div class="ptg-card-icon">🧠</div>
                     <div class="ptg-card-title">복습|Quiz</div>
                     <div class="ptg-card-stat">
                         <strong>${(

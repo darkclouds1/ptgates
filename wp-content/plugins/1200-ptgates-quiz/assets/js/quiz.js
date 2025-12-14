@@ -780,9 +780,11 @@ function PTG_quiz_alert(message) {
       ? parseInt(urlParams.get("year"))
       : null;
     const subjectFromUrl = urlParams.get("subject") || "";
-    const limitFromUrl = urlParams.get("limit")
-      ? parseInt(urlParams.get("limit"))
-      : null;
+    const limitFromUrlRaw = urlParams.get("limit");
+    const limitFromUrl =
+      limitFromUrlRaw !== null && limitFromUrlRaw !== ""
+        ? parseInt(limitFromUrlRaw)
+        : null;
     const sessionFromUrl = urlParams.get("session")
       ? parseInt(urlParams.get("session"))
       : null;
@@ -810,9 +812,13 @@ function PTG_quiz_alert(message) {
       ? parseInt(container.dataset.year)
       : null;
     const subjectFromData = container.dataset.subject || "";
-    const limitFromData = container.dataset.limit
-      ? parseInt(container.dataset.limit)
-      : null;
+    const limitFromDataRaw = container.dataset.limit;
+    const limitFromData =
+      typeof limitFromDataRaw !== "undefined" &&
+      limitFromDataRaw !== null &&
+      limitFromDataRaw !== ""
+        ? parseInt(limitFromDataRaw)
+        : null;
     const sessionFromData = container.dataset.session
       ? parseInt(container.dataset.session)
       : null;
@@ -824,7 +830,12 @@ function PTG_quiz_alert(message) {
     // 최종 필터 값 (URL 파라미터 우선)
     const year = yearFromUrl || yearFromData;
     const subject = subjectFromUrl || subjectFromData;
-    const limit = limitFromUrl || limitFromData;
+    const limit =
+      limitFromUrl !== null && !Number.isNaN(limitFromUrl)
+        ? limitFromUrl
+        : limitFromData !== null && !Number.isNaN(limitFromData)
+        ? limitFromData
+        : null;
     const session = sessionFromUrl || sessionFromData;
     const fullSession = fullSessionFromUrl || fullSessionFromData;
     const bookmarked = bookmarkedFromUrl || bookmarkedFromData;
@@ -940,7 +951,8 @@ function PTG_quiz_alert(message) {
           // [수정] 복습 퀴즈나 오답 퀴즈는 무조건 무제한(limit=0)이어야 함
           if (reviewOnly || wrongOnly) {
             filters.limit = 0;
-          } else if (limit) {
+          } else if (limit !== null && !Number.isNaN(limit)) {
+            // limit=0 은 무제한(북마크 전체 등)을 의미
             filters.limit = limit;
           } else if (useDefaultFilters) {
             filters.limit = 5;
@@ -4313,7 +4325,10 @@ function PTG_quiz_alert(message) {
       if (filters.year) params.append("year", filters.year);
       if (filters.subject) params.append("subject", filters.subject);
       if (filters.subsubject) params.append("subsubject", filters.subsubject);
-      if (filters.limit) params.append("limit", filters.limit);
+      // limit=0 도 무제한 의미이므로 반드시 전송
+      if (filters.limit !== undefined && filters.limit !== null) {
+        params.append("limit", filters.limit);
+      }
       if (filters.session) params.append("session", filters.session);
       if (filters.full_session) params.append("full_session", "true");
       if (filters.bookmarked) params.append("bookmarked", "true");

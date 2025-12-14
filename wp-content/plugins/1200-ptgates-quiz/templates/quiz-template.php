@@ -76,8 +76,8 @@ $is_admin = current_user_can('manage_options');
         </div>
         
         <div class="ptg-quiz-header-right">
-            <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link" aria-label="학습현황으로 돌아가기">학습현황</a>
-            <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link" aria-label="실전모의 학습Tip">[학습Tip]</a>
+            <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link ptg-header-btn" aria-label="학습현황으로 돌아가기">학습현황</a>
+            <a href="#" id="ptg-quiz-tip-btn" class="ptg-quiz-tip-link ptg-header-btn" aria-label="실전모의 학습Tip">[학습Tip]</a>
         </div>
         <!-- 활성 필터 표시 영역 (모바일에서 두 번째 줄로 표시) -->
         <div id="ptg-quiz-active-filters" class="ptg-quiz-active-filters"></div>

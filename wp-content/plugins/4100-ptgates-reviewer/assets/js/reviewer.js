@@ -44,7 +44,7 @@
                     <div class="ptg-reviewer-header-right">
                         <a href="${self.escapeHtml(
                           self.dashboardUrl
-                        )}" class="ptg-reviewer-dashboard-link">학습현황</a>
+                        )}" class="ptg-reviewer-dashboard-link ptg-header-btn">학습현황</a>
                     </div>
                 </div>
             `;

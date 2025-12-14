@@ -225,8 +225,14 @@ class API {
 		
 		// Resolve Session Name from Map if available
 		if ( $session && class_exists( '\PTG\Quiz\Subjects' ) ) {
-			$map = \PTG\Quiz\Subjects::MAP;
-			if ( isset( $map[$session]['name'] ) ) {
+			$map = [];
+			if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
+				$map = \PTG\Quiz\Subjects::MAP;
+			} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+				$map = \PTG\Quiz\Subjects::get_map();
+			}
+			
+			if ( ! empty($map) && isset( $map[$session]['name'] ) ) {
 				$session_name = $map[$session]['name'];
 			}
 		}
@@ -286,9 +292,15 @@ class API {
 
 		if ( $random ) {
 			// --- RANDOM MODE LOGIC ---
-			// Case A: Quota-based Fetching (No specific sub-subject selected)
-			if ( empty( $subsubject ) && class_exists( '\PTG\Quiz\Subjects' ) ) {
-				$map = \PTG\Quiz\Subjects::MAP;
+			// Case A: Quota-based Fetching (Only used when 'Full' is selected)
+			// DISABLED for Flashcards: Users prefer 'All Available' (e.g. 70 questions) rather than 'Mock Exam Quota' (e.g. 20 questions)
+			if ( false && $limit === 1000 && empty( $subsubject ) && class_exists( '\PTG\Quiz\Subjects' ) ) {
+				$map = [];
+				if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
+					$map = \PTG\Quiz\Subjects::MAP;
+				} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+					$map = \PTG\Quiz\Subjects::get_map();
+				}
 				
 				foreach ( $map as $sess_key => $sess_data ) {
 					if ( $session && $session != $sess_key ) continue;
@@ -408,7 +420,12 @@ class API {
 				} elseif ( $subject ) {
 					// Parent Subject Filter
 					if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
-						$map = \PTG\Quiz\Subjects::MAP;
+						$map = [];
+						if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
+							$map = \PTG\Quiz\Subjects::MAP;
+						} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+							$map = \PTG\Quiz\Subjects::get_map();
+						}
 						$target_subs = [];
 						foreach ( $map as $sess_data ) {
 							if ( isset( $sess_data['subjects'][$subject]['subs'] ) ) {
@@ -479,16 +496,30 @@ class API {
 				$year = $q['exam_year'] ?? '';
 				$session = $q['exam_session'] ?? '';
 
-				// LegacyRepo returns keys 'exam_year', 'exam_session'
-				if ( $year && $session ) {
-					$full_img_url = "$base_url/$year/$session/" . $q['question_image'];
+				// Check for choices (①, (1), 1.) to insert Image OR Spacer
+				if ( preg_match( '/(①|\(1\)|1\.)/', $front, $matches, PREG_OFFSET_CAPTURE ) ) {
+					$offset = $matches[0][1];
+					$before = substr( $front, 0, $offset );
+					$after = substr( $front, $offset );
 					
-					$img_html = '<div class="ptg-card-image"><img src="' . esc_url( $full_img_url ) . '" alt="Question Image" /></div>';
-					// Check for choices (①, (1), 1.)
-					if ( preg_match( '/(①|\(1\)|1\.)/', $front, $matches, PREG_OFFSET_CAPTURE ) ) {
-						$offset = $matches[0][1];
-						$front = substr( $front, 0, $offset ) . $img_html . substr( $front, $offset );
+					// Insert Spacer (1.3x gap request)
+					$spacer = '<div class="ptg-q-spacer"></div>';
+					
+					// Insert Image if matches
+					if ( $year && $session && ! empty( $q['question_image'] ) ) {
+						$full_img_url = "$base_url/$year/$session/" . $q['question_image'];
+						$img_html = '<div class="ptg-card-image"><img src="' . esc_url( $full_img_url ) . '" alt="Question Image" /></div>';
+						
+						$front = $before . $img_html . $spacer . $after;
 					} else {
+						// No image, just spacer
+						$front = $before . $spacer . $after;
+					}
+				} else {
+					// No choices found? Just append image if exists
+					if ( $year && $session && ! empty( $q['question_image'] ) ) {
+						$full_img_url = "$base_url/$year/$session/" . $q['question_image'];
+						$img_html = '<div class="ptg-card-image"><img src="' . esc_url( $full_img_url ) . '" alt="Question Image" /></div>';
 						$front .= $img_html;
 					}
 				}
