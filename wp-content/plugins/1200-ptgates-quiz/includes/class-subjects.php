@@ -1,240 +1,182 @@
 <?php
 /**
- * PTGates Quiz - 교시 / 과목 / 세부과목 정적 정의
+ * PTGates Quiz - 교시 / 과목 / 세부과목 정의 (DB 기반)
  *
- * - 데이터 출처: 사용자 정의 교과 구조
- * - 용도: 교시/과목/세부과목 셀렉트 옵션, 문항 수 비율 계산 등에서 공통 사용
- *
- * 주의:
- * - 이 클래스는 "정적 설정" 역할만 합니다. DB 스키마(ptGates_subject)와
- *   동기화가 필요하면 이 파일을 기준으로 마이그레이션을 작성하세요.
+ * - 데이터 출처: ptgates_subject, ptgates_categories
+ * - 플랫폼(0000-ptgates-platform) 제공 클래스를 우선 사용하며,
+ *   미로딩 시 동일한 로직을 여기서 로드하여 하드코딩 MAP 의존을 제거.
  */
 
 namespace PTG\Quiz;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly.
+    exit; // Exit if accessed directly.
 }
 
-// 중복 로드 방지: 플랫폼 코어(0000-ptgates-platform)에서 이미 로드되었으면 중단
-// 주의: 기존 호환성을 위해 이 파일은 유지하지만, 최초 로드는 플랫폼 코어에서 수행됨
-if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
-	return;
+// 이미 로드되었으면 중단
+if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+    return;
 }
 
+// 플랫폼 코어에 있는 공통 Subjects 클래스를 우선 로드
+$platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
+if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
+    require_once $platform_subjects_file;
+    if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
+        return;
+    }
+}
+
+/**
+ * Fallback: 플랫폼 파일을 찾지 못했을 때를 대비한 DB 기반 구현
+ */
 class Subjects {
-	/**
-	 * 교시 / 과목 / 세부과목별 문항수 정의
-	 *
-	 * 구조:
-	 * [
-	 *   교시번호(int) => [
-	 *     'total'    => 교시 전체 문항 수(int),
-	 *     'subjects' => [
-	 *       과목명(string) => [
-	 *         'total' => 해당 과목 총 문항 수(int),
-	 *         'subs'  => [
-	 *           세부과목명(string) => 문항 수(int),
-	 *           ...
-	 *         ]
-	 *       ],
-	 *       ...
-	 *     ]
-	 *   ],
-	 *   ...
-	 * ]
-	 *
-	 * 예시:
-	 * - self::MAP[1]['subjects']['물리치료 기초']['subs']['해부생리학'] === 22
-	 */
-	public const MAP = [
-		// 1교시 (총 105문항)
-		1 => [
-			'total'    => 105,
-			'subjects' => [
-				// 물리치료 기초 60문항
-				'물리치료 기초' => [
-					'total' => 60,
-					'subs'  => [
-						'해부생리학'      => 22,
-						'운동학'         => 12,
-						'물리적 인자치료' => 16,
-						'공중보건학'     => 10,
-					],
-				],
-				// 물리치료 진단평가 45문항
-				'물리치료 진단평가' => [
-					'total' => 45,
-					'subs'  => [
-						'근골격계 물리치료 진단평가' => 10,
-						'신경계 물리치료 진단평가'   => 16,
-						'진단평가 원리'              => 6,
-						'심폐혈관계 검사 및 평가'    => 4,
-						'기타 계통 검사'             => 2,
-						'임상의사결정'              => 7,
-					],
-				],
-			],
-		],
+    private static $map = null;
 
-		// 2교시 (총 85문항)
-		2 => [
-			'total'    => 85,
-			'subjects' => [
-				// 물리치료 중재 65문항
-				'물리치료 중재' => [
-					'total' => 65,
-					'subs'  => [
-						'근골격계 중재'     => 28,
-						'신경계 중재'       => 25,
-						'심폐혈관계 중재'   => 5,
-						'림프, 피부계 중재' => 2,
-						'물리치료 문제해결' => 5,
-					],
-				],
-				// 의료관계법규 20문항
-				'의료관계법규' => [
-					'total' => 20,
-					'subs'  => [
-						'의료법'         => 5,
-						'의료기사법'     => 5,
-						'노인복지법'     => 4,
-						'장애인복지법'   => 3,
-						'국민건강보험법' => 3,
-					],
-				],
-			],
-		],
-	];
+    public static function init() {
+        if ( self::$map === null ) {
+            self::load_map();
+        }
+    }
 
-	/**
-	 * 사용 예시 (How to use this MAP)
-	 *
-	 * 1) 교시 목록 가져오기
-	 *    $sessions = \PTG\Quiz\Subjects::get_sessions(); // [1, 2]
-	 *
-	 * 2) 특정 교시의 상위 과목 목록
-	 *    $subjects = \PTG\Quiz\Subjects::get_subjects_for_session(1);
-	 *    // 예: ['물리치료 기초', '물리치료 진단평가']
-	 *
-	 * 3) 특정 교시+과목의 세부과목 목록
-	 *    $subs = \PTG\Quiz\Subjects::get_subsubjects(1, '물리치료 기초');
-	 *    // 예: ['해부생리학', '운동학', '물리적 인자치료', '공중보건학']
-	 *
-	 * 4) 특정 교시+과목+세부과목의 문항 수
-	 *    $count = \PTG\Quiz\Subjects::get_count(1, '물리치료 기초', '해부생리학'); // 22
-	 *
-	 * 5) 총 문항 수 대비 비율 계산(예: 세부과목 비중)
-	 *    $totalOfSession = self::MAP[1]['total']; // 105
-	 *    $value = \PTG\Quiz\Subjects::get_count(1, '물리치료 기초', '해부생리학'); // 22
-	 *    $ratio = $value !== null && $totalOfSession > 0 ? ($value / $totalOfSession) : 0.0;
-	 *
-	 * 6) 과목 총 문항 수 접근(정적 맵 직접 접근)
-	 *    $subjectTotal = self::MAP[1]['subjects']['물리치료 기초']['total']; // 60
-	 */
+    private static function load_map() {
+        global $wpdb;
 
-	/**
-	 * 교시 목록 반환 (예: [1, 2])
-	 *
-	 * @return int[]
-	 */
-	public static function get_sessions(): array {
-		return array_keys( self::MAP );
-	}
+        $rows = $wpdb->get_results( "SELECT * FROM ptgates_subject ORDER BY course_no ASC, id ASC", ARRAY_A );
+        $map  = [];
 
-	/**
-	 * 특정 교시의 상위 과목 목록 반환
-	 *
-	 * @param int $session
-	 * @return string[]
-	 */
-	public static function get_subjects_for_session( int $session ): array {
-		if ( ! isset( self::MAP[ $session ]['subjects'] ) ) {
-			return [];
-		}
-		return array_keys( self::MAP[ $session ]['subjects'] );
-	}
+        if ( $rows ) {
+            foreach ( $rows as $row ) {
+                $course_num  = (int) $row['course_no'];
+                $category    = $row['category'];
+                $subcategory = $row['subcategory'];
+                $questions   = (int) $row['questions'];
 
-	/**
-	 * 특정 교시+과목의 세부과목 목록 반환
-	 *
-	 * @param int    $session
-	 * @param string $subject
-	 * @return string[]
-	 */
-	public static function get_subsubjects( int $session, string $subject ): array {
-		if ( ! isset( self::MAP[ $session ]['subjects'][ $subject ]['subs'] ) ) {
-			return [];
-		}
-		return array_keys( self::MAP[ $session ]['subjects'][ $subject ]['subs'] );
-	}
+                if ( ! isset( $map[ $course_num ] ) ) {
+                    $map[ $course_num ] = [
+                        'total'    => 0,
+                        'subjects' => [],
+                    ];
+                }
 
-	/**
-	 * 특정 교시+과목+세부과목의 문항 수 반환
-	 *
-	 * 없으면 null 반환.
-	 */
-	public static function get_count( int $session, string $subject, string $subsubject ): ?int {
-		if ( ! isset( self::MAP[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ] ) ) {
-			return null;
-		}
-		return (int) self::MAP[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ];
-	}
+                if ( ! isset( $map[ $course_num ]['subjects'][ $category ] ) ) {
+                    $map[ $course_num ]['subjects'][ $category ] = [
+                        'total' => 0,
+                        'subs'  => [],
+                        'codes' => [],
+                    ];
+                }
 
-	/**
-	 * 세부과목명으로 상위 과목명을 찾아 반환합니다.
-	 *
-	 * @param string $subsubject 세부과목명
-	 * @return string|null 상위 과목명 또는 찾지 못한 경우 null
-	 */
-	public static function get_subject_from_subsubject( string $subsubject ): ?string {
-		$needle = trim( (string) $subsubject );
-		if ( $needle === '' ) {
-			return null;
-		}
+                if ( is_null( $subcategory ) || $subcategory === '' ) {
+                    // 합계행은 무시 (총계는 세부과목 합으로 계산)
+                } else {
+                    $map[ $course_num ]['subjects'][ $category ]['subs'][ $subcategory ]  = $questions;
+                    $map[ $course_num ]['subjects'][ $category ]['codes'][ $subcategory ] = $subcategory;
+                    $map[ $course_num ]['subjects'][ $category ]['total']                += $questions;
+                }
+            }
 
-		foreach ( self::MAP as $session_data ) {
-			if ( empty( $session_data['subjects'] ) || ! is_array( $session_data['subjects'] ) ) {
-				continue;
-			}
+            foreach ( $map as $c_num => &$c_data ) {
+                $session_total = 0;
+                foreach ( $c_data['subjects'] as $cat_name => &$cat_data ) {
+                    if ( $cat_data['total'] === 0 && ! empty( $cat_data['subs'] ) ) {
+                        $cat_data['total'] = array_sum( $cat_data['subs'] );
+                    }
+                    $session_total += $cat_data['total'];
+                }
+                $c_data['total'] = $session_total;
+            }
+        }
 
-			foreach ( $session_data['subjects'] as $subject_name => $subject_meta ) {
-				if ( empty( $subject_meta['subs'] ) || ! is_array( $subject_meta['subs'] ) ) {
-					continue;
-				}
+        self::$map = $map;
+    }
 
-				foreach ( $subject_meta['subs'] as $sub_name => $count ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable
-					if ( self::is_subsubject_match( $needle, $sub_name ) ) {
-						return $subject_name;
-					}
-				}
-			}
-		}
+    public static function get_sessions(): array {
+        self::init();
+        return array_keys( self::$map );
+    }
 
-		return null;
-	}
+    public static function get_subjects_for_session( int $session ): array {
+        self::init();
+        if ( ! isset( self::$map[ $session ]['subjects'] ) ) {
+            return [];
+        }
+        return array_keys( self::$map[ $session ]['subjects'] );
+    }
 
-	/**
-	 * 세부과목명이 동일하거나 유사한지 비교합니다.
-	 */
-	private static function is_subsubject_match( string $needle, string $candidate ): bool {
-		if ( $needle === $candidate ) {
-			return true;
-		}
+    public static function get_subsubjects( int $session, string $subject ): array {
+        self::init();
+        if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['subs'] ) ) {
+            return [];
+        }
+        return array_keys( self::$map[ $session ]['subjects'][ $subject ]['subs'] );
+    }
 
-		$normalized_needle    = preg_replace( '/\s+|·/u', '', $needle );
-		$normalized_candidate = preg_replace( '/\s+|·/u', '', $candidate );
+    public static function get_count( int $session, string $subject, string $subsubject ): ?int {
+        self::init();
+        if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ] ) ) {
+            return null;
+        }
+        return (int) self::$map[ $session ]['subjects'][ $subject ]['subs'][ $subsubject ];
+    }
 
-		if ( $normalized_needle === $normalized_candidate ) {
-			return true;
-		}
+    public static function get_code( int $session, string $subject, string $subsubject ): ?string {
+        self::init();
+        if ( ! isset( self::$map[ $session ]['subjects'][ $subject ]['codes'][ $subsubject ] ) ) {
+            return null;
+        }
+        return self::$map[ $session ]['subjects'][ $subject ]['codes'][ $subsubject ];
+    }
 
-		if ( stripos( $needle, $candidate ) !== false || stripos( $candidate, $needle ) !== false ) {
-			return true;
-		}
+    public static function get_subject_from_subsubject( string $subsubject ): ?string {
+        global $wpdb;
 
-		return false;
-	}
+        $needle = trim( (string) $subsubject );
+        if ( $needle === '' ) {
+            return null;
+        }
+
+        $table_name = 'ptgates_categories';
+        $query      = $wpdb->prepare(
+            "SELECT subject_category FROM {$table_name} WHERE subject = %s AND subject_category IS NOT NULL AND subject_category != '' LIMIT 1",
+            $needle
+        );
+
+        return $wpdb->get_var( $query );
+    }
+
+    public static function get_distribution_ratio( string $subject_code ): float {
+        self::init();
+
+        $total_questions_all = 0;
+        $target_count        = 0;
+
+        foreach ( self::$map as $session_data ) {
+            foreach ( $session_data['subjects'] as $main_sub ) {
+                foreach ( $main_sub['subs'] as $sub_name => $count ) {
+                    $total_questions_all += $count;
+                    $code = $main_sub['codes'][ $sub_name ] ?? '';
+                    if ( $code === $subject_code ) {
+                        $target_count = $count;
+                    }
+                }
+            }
+        }
+
+        if ( $total_questions_all === 0 ) {
+            return 0.0;
+        }
+
+        return $target_count / $total_questions_all;
+    }
+
+    public static function get_questions_for_exam( int $n, string $subject_code ): int {
+        $ratio = self::get_distribution_ratio( $subject_code );
+        return (int) round( $ratio * $n );
+    }
+
+    public static function get_map() {
+        self::init();
+        return self::$map;
+    }
 }
-
-

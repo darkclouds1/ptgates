@@ -143,8 +143,6 @@ $is_admin = current_user_can('manage_options');
     $subjects_map = [];
     if ( class_exists( '\\PTG\\Quiz\\Subjects' ) && method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
         $subjects_map = \PTG\Quiz\Subjects::get_map();
-    } elseif ( class_exists( '\\PTG\\Quiz\\Subjects' ) && defined( '\\PTG\\Quiz\\Subjects::MAP' ) ) {
-        $subjects_map = \PTG\Quiz\Subjects::MAP;
     }
 
     $category_meta = [

@@ -520,6 +520,9 @@ class Study_API {
         }
 
 		$subject = urldecode($course_id);
+        // [버그] 매칭 로직 블록이 주석 처리되며 $matched_subject가 undefined가 되어
+        //       과목 필터가 적용되지 않는 문제가 발생. 기본값을 명시적으로 설정.
+        $matched_subject = $subject;
         $user_id = get_current_user_id();
         $is_smart_random = $random && $user_id;
         // $wrong_only extracted above
@@ -617,8 +620,9 @@ class Study_API {
 
 		$questions = LegacyRepo::get_questions_with_categories($args);
 		$total_count = LegacyRepo::count_questions_with_categories([
-			'subject'          => $matched_subject,
-			'exam_session_min' => 1000,
+			'subject'             => $matched_subject,
+			'exam_session_min'    => 1000,
+            'wrong_only_user_id'  => $wrong_only ? $user_id : null,
 		]);
         
         // Fallback: If Map lookup failed, use DB count as max_items

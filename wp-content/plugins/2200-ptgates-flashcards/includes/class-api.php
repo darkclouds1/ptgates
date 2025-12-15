@@ -224,16 +224,10 @@ class API {
 		$session_name = $session . '교시'; // Default to "1교시" format
 		
 		// Resolve Session Name from Map if available
-		if ( $session && class_exists( '\PTG\Quiz\Subjects' ) ) {
-			$map = [];
-			if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
-				$map = \PTG\Quiz\Subjects::MAP;
-			} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
-				$map = \PTG\Quiz\Subjects::get_map();
-			}
-			
-			if ( ! empty($map) && isset( $map[$session]['name'] ) ) {
-				$session_name = $map[$session]['name'];
+		if ( $session && class_exists( '\PTG\Quiz\Subjects' ) && method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+			$map = \PTG\Quiz\Subjects::get_map();
+			if ( ! empty( $map ) && isset( $map[ $session ]['name'] ) ) {
+				$session_name = $map[ $session ]['name'];
 			}
 		}
 
@@ -294,14 +288,9 @@ class API {
 			// --- RANDOM MODE LOGIC ---
 			// Case A: Quota-based Fetching (Only used when 'Full' is selected)
 			// DISABLED for Flashcards: Users prefer 'All Available' (e.g. 70 questions) rather than 'Mock Exam Quota' (e.g. 20 questions)
-			if ( false && $limit === 1000 && empty( $subsubject ) && class_exists( '\PTG\Quiz\Subjects' ) ) {
-				$map = [];
-				if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
-					$map = \PTG\Quiz\Subjects::MAP;
-				} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
-					$map = \PTG\Quiz\Subjects::get_map();
-				}
-				
+			if ( false && $limit === 1000 && empty( $subsubject ) && class_exists( '\PTG\Quiz\Subjects' ) && method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+				$map = \PTG\Quiz\Subjects::get_map();
+
 				foreach ( $map as $sess_key => $sess_data ) {
 					if ( $session && $session != $sess_key ) continue;
 
@@ -421,9 +410,7 @@ class API {
 					// Parent Subject Filter
 					if ( class_exists( '\PTG\Quiz\Subjects' ) ) {
 						$map = [];
-						if ( defined( '\PTG\Quiz\Subjects::MAP' ) ) {
-							$map = \PTG\Quiz\Subjects::MAP;
-						} elseif ( method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
+						if ( class_exists( '\PTG\Quiz\Subjects' ) && method_exists( '\PTG\Quiz\Subjects', 'get_map' ) ) {
 							$map = \PTG\Quiz\Subjects::get_map();
 						}
 						$target_subs = [];

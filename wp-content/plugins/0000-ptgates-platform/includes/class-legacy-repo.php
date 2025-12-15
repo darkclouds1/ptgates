@@ -217,12 +217,23 @@ class LegacyRepo {
             $where_values[] = absint($args['exam_session_min']);
         }
 
+        // Wrong Only Filter (count에도 동일 적용)
+        $join_clause = "INNER JOIN {$categories_table} c ON q.question_id = c.question_id";
+        if (!empty($args['wrong_only_user_id'])) {
+            $user_id = absint($args['wrong_only_user_id']);
+            $join_clause .= $wpdb->prepare(
+                " LEFT JOIN ptgates_user_states us ON q.question_id = us.question_id AND us.user_id = %d",
+                $user_id
+            );
+            $where[] = "us.last_result = 'wrong'";
+        }
+
         $where_clause = implode(' AND ', $where);
 
         $sql = "
             SELECT COUNT(DISTINCT q.question_id) 
             FROM {$questions_table} q
-            INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+            {$join_clause}
             WHERE {$where_clause}
         ";
 

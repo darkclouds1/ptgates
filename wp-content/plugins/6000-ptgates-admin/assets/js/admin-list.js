@@ -1352,7 +1352,8 @@ var PTGates_Admin_List = {
 
     $subSelect.html('<option value="">세부과목 선택</option>');
 
-    if (!session || !subjectName) {
+    if (!subjectName) {
+      self.resetSelectOptions($subSelect, "세부과목");
       return;
     }
 

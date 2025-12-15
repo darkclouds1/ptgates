@@ -93,11 +93,11 @@ class PTG_Study_Plugin {
 		$platform_quizui_url   = WP_PLUGIN_URL . $platform_quizui_rel;
 		$platform_quizui_ver   = file_exists($platform_quizui_path) ? filemtime($platform_quizui_path) : '1.0.0';
 
-        // 교시/과목/세부과목 정의를 quiz 모듈의 Subjects 클래스에서 가져옴
+        // 교시/과목/세부과목 정의를 공통 Subjects 클래스(DB 기반)에서 가져옴
         // 주의: 최초 로드는 0000-ptgates-platform에서 수행됨
         $subjects_map = [];
         
-        // 1. 플랫폼 코어 로드 시도
+        // 플랫폼 코어 로드 시도 (없어도 DB 기반 클래스를 로드하도록 함)
         if ( ! class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
             $platform_subjects_file = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-subjects.php';
             if ( file_exists( $platform_subjects_file ) && is_readable( $platform_subjects_file ) ) {
@@ -105,24 +105,9 @@ class PTG_Study_Plugin {
             }
         }
 
-        // 2. Subjects 클래스가 존재하면 get_map() 호출
+        // Subjects 클래스가 존재하면 DB 기반 맵 호출
         if ( class_exists( '\\PTG\\Quiz\\Subjects' ) && method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
             $subjects_map = \PTG\Quiz\Subjects::get_map();
-        } 
-        // 3. 호환성: 기존 1200-ptgates-quiz 플러그인의 Subjects 클래스 확인 (구버전)
-        elseif ( empty( $subjects_map ) ) {
-             $subjects_class_file = WP_PLUGIN_DIR . '/1200-ptgates-quiz/includes/class-subjects.php';
-             if ( file_exists( $subjects_class_file ) && is_readable( $subjects_class_file ) ) {
-                 require_once $subjects_class_file;
-                 if ( class_exists( '\\PTG\\Quiz\\Subjects' ) ) {
-                     // 구버전은 상수가 있을 수 있음
-                     if ( defined( '\\PTG\\Quiz\\Subjects::MAP' ) ) {
-                         $subjects_map = \PTG\Quiz\Subjects::MAP;
-                     } elseif ( method_exists( '\\PTG\\Quiz\\Subjects', 'get_map' ) ) {
-                         $subjects_map = \PTG\Quiz\Subjects::get_map();
-                     }
-                 }
-             }
         }
 
         // 과목 카드 ID 및 설명 매핑 (키: 세부 과목 그룹명)

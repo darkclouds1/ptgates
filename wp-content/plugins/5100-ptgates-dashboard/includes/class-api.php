@@ -394,29 +394,15 @@ class API {
                 $user_id
             ));
             
-            // 2. 복습 카운트 (UNION: 기존 needs_review + 스케줄된 복습)
-            /*
-             * "Review Only and Wrong Answers Only... OR condition"
-             * Dashboard 표시용으로는 "복습해야 할 문제 수"를 보여줘야 함.
-             * -> needs_review=1 OR (scheduled AND due_date <= TODAY)
-             * 중복 제거를 위해 UNION 사용
-             */
-            $today = current_time('Y-m-d');
-            
-            $query_union = "
-                SELECT question_id FROM $table_states WHERE user_id = %d AND needs_review = 1
-            ";
-            $args = [$user_id];
-            
+            // 2. 복습 카운트: 리뷰 스케줄 status='shown' 기준
             if (self::table_exists($table_schedule)) {
-                $query_union .= " UNION SELECT question_id FROM $table_schedule WHERE user_id = %d AND status = 'scheduled' AND due_date <= %s";
-                $args[] = $user_id;
-                $args[] = $today;
+                $review_count = (int)$wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $table_schedule WHERE user_id = %d AND status = 'shown'",
+                    $user_id
+                ));
+            } else {
+                $review_count = 0;
             }
-            
-            $final_query = "SELECT COUNT(*) FROM ($query_union) as combined";
-            
-            $review_count = (int)$wpdb->get_var($wpdb->prepare($final_query, ...$args));
             
             $wpdb->suppress_errors(false);
         }

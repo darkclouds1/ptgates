@@ -2082,44 +2082,18 @@ class API {
      * @return WP_REST_Response
      */
     public static function get_subjects($request) {
-        global $wpdb;
         $session = (int) $request->get_param('session');
 
         $subjects = [];
 
-        // DB에서 과목 목록 조회
-        // 1) 특정 교시
+        // DB 설정을 사용하지 않고 정적 정의(Subjects Class - ptgates_subject 기반) 사용
         if ($session > 0) {
-            $course_name = $session . '교시';
-            $db_subjects = $wpdb->get_col($wpdb->prepare(
-                "SELECT DISTINCT subject_category 
-                 FROM ptgates_subject_config 
-                 WHERE exam_course = %s AND is_active = 1 
-                 ORDER BY sort_order ASC",
-                $course_name
-            ));
+            $subjects = Subjects::get_subjects_for_session($session);
         } else {
-            // 2) 전체 교시
-            $db_subjects = $wpdb->get_col(
-                "SELECT DISTINCT subject_category 
-                 FROM ptgates_subject_config 
-                 WHERE is_active = 1 
-                 ORDER BY sort_order ASC"
-            );
-        }
-
-        if (!empty($db_subjects)) {
-            $subjects = $db_subjects;
-        } else {
-            // Fallback: 정적 설정 사용
-            if ($session > 0) {
-                $subjects = Subjects::get_subjects_for_session($session);
-            } else {
-                foreach (Subjects::get_sessions() as $sess) {
-                    $subjects = array_merge($subjects, Subjects::get_subjects_for_session($sess));
-                }
-                $subjects = array_values(array_unique($subjects));
+            foreach (Subjects::get_sessions() as $sess) {
+                $subjects = array_merge($subjects, Subjects::get_subjects_for_session($sess));
             }
+            $subjects = array_values(array_unique($subjects));
         }
 
         return Rest::success($subjects);
@@ -2129,33 +2103,10 @@ class API {
      * 교시 목록 반환 (ptGates_subject의 course_no DISTINCT)
      */
     public static function get_sessions($request) {
-        global $wpdb;
+        // ptgates_subject 테이블 기반의 교시 목록 반환
+        $sessions = Subjects::get_sessions();
+        sort($sessions);
         
-        // DB에서 교시 목록 조회 (예: "1교시", "2교시" -> DISTINCT exam_course)
-        $courses = $wpdb->get_col(
-            "SELECT DISTINCT exam_course 
-             FROM ptgates_subject_config 
-             WHERE is_active = 1 
-             ORDER BY exam_course ASC"
-        );
-
-        $sessions = [];
-        if (!empty($courses)) {
-            foreach ($courses as $c) {
-                // "1교시", "2교시" 등에서 숫자만 추출
-                if (preg_match('/(\d+)/', $c, $matches)) {
-                    $sessions[] = (int) $matches[1];
-                }
-            }
-            $sessions = array_values(array_unique($sessions));
-            sort($sessions);
-        }
-
-        // Fallback: DB 내용 없으면 정적 설정 반환
-        if (empty($sessions)) {
-            $sessions = Subjects::get_sessions();
-        }
-
         return Rest::success($sessions);
     }
     
@@ -2164,75 +2115,44 @@ class API {
      * sort_order 순서로 정렬하여 반환
      */
     public static function get_subsubjects($request) {
-        global $wpdb;
+
         $session = absint($request->get_param('session'));
         $subject = sanitize_text_field($request->get_param('subject'));
         
 
         
-        // DB에서 직접 sort_order 순서로 조회
-        $sql = "SELECT subject, sort_order 
-                FROM ptgates_subject_config 
-                WHERE is_active = 1 ";
-        $params = array();
-
-        if ($session > 0) {
-            $sql .= "AND exam_course = %s ";
-            $params[] = $session . '교시';
+        // 1) 특정 교시 + 특정 과목
+        if ($session > 0 && !empty($subject)) {
+            $subs = Subjects::get_subsubjects($session, $subject);
+            return Rest::success($subs);
         }
-
-        if (!empty($subject)) {
-            $sql .= "AND subject_category = %s ";
-            $params[] = $subject;
-        }
-
-        $sql .= "ORDER BY sort_order ASC";
-
-        if (!empty($params)) {
-             $query = $wpdb->prepare($sql, ...$params);
-        } else {
-             $query = $sql;
-        }
-
-        $results = $wpdb->get_results($query, ARRAY_A);
-
-        if (empty($results)) {
-            
-
-            // DB에 없으면 Subjects 클래스에서 가져오기 (fallback)
-            
-            // 1) 특정 교시 + 특정 과목
-            if ($session > 0 && !empty($subject)) {
-                $subs = Subjects::get_subsubjects($session, $subject);
-                return Rest::success($subs);
-            }
-            
-            // 2) 전체 교시 + 특정 과목
-            if ($session === 0 && !empty($subject)) {
-                
-                $subs = [];
-                foreach (Subjects::get_sessions() as $sess) {
-                    $s_subs = Subjects::get_subsubjects((int)$sess, $subject);
-                    if (!empty($s_subs)) {
-                        $subs = array_merge($subs, $s_subs);
-                    }
+        
+        // 2) 전체 교시 + 특정 과목
+        if ($session === 0 && !empty($subject)) {
+            $subs = [];
+            foreach (Subjects::get_sessions() as $sess) {
+                $s_subs = Subjects::get_subsubjects((int)$sess, $subject);
+                if (!empty($s_subs)) {
+                    $subs = array_merge($subs, $s_subs);
                 }
-                $subs = array_values(array_unique($subs));
-                
-                return Rest::success($subs);
             }
+            $subs = array_values(array_unique($subs));
             
-            // 3) 기타/전체 -> 지원하지 않거나 빈 배열
-            return Rest::success(array());
+            return Rest::success($subs);
         }
+        
+        // 3) 기타/전체 -> 빈 배열
+        return Rest::success(array());
+        
 
-        // sort_order 순서대로 세부과목 이름만 추출
-        $subsubjects = array();
-        foreach ($results as $row) {
-            $subsubjects[] = $row['subject'];
-        }
 
-        return Rest::success($subsubjects);
+
+
+            
+
+
+
+
     }
     /**
      * 통합 사용자 상태 조회 (북마크, 복습, 메모, 암기카드)

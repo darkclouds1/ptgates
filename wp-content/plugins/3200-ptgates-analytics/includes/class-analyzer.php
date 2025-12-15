@@ -40,7 +40,6 @@ class Analyzer {
 		}
 
 		// 2. Get Total Available Questions per Subject from DB (Dynamic)
-		// Note: We could use Subjects::MAP for static totals, but DB is more accurate for actual available content
 		$sql_total = "SELECT subject, COUNT(*) as total_available 
 					  FROM $table_c 
 					  GROUP BY subject";
@@ -50,7 +49,7 @@ class Analyzer {
 			$total_results = [];
 		}
 
-		// 3. Build Master List from Subjects::MAP to ensure order and completeness
+		// 3. Build Master List from Subjects::get_map() to ensure order and completeness
 		$data = [];
 		
 		// Ensure Subjects class is loaded
