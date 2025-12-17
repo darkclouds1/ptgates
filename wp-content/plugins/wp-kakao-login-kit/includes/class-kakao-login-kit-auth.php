@@ -289,6 +289,12 @@ class Auth {
            wp_safe_redirect( add_query_arg( 'error', 'password_mismatch', wp_get_referer() ) );
            exit; 
         }
+
+        // Complexity Check: 8+ chars, Letter + Number
+        if ( strlen( $new_pw ) < 8 || ! preg_match( '/[a-zA-Z]/', $new_pw ) || ! preg_match( '/[0-9]/', $new_pw ) ) {
+            wp_safe_redirect( add_query_arg( 'error', 'complexity_error', wp_get_referer() ) );
+            exit;
+        }
         
         wp_set_password( $new_pw, $user->ID );
         
@@ -313,6 +319,16 @@ class Auth {
         
         require_once( ABSPATH . 'wp-admin/includes/user.php' );
         $user_id = get_current_user_id();
+
+        // Prevent Admin Deletion
+        if ( user_can( $user_id, 'manage_options' ) ) {
+            $this->redirect_with_error( 'account', 'admin_delete_forbidden' ); // Reuse helper or manual redirect
+            // Since redirect_with_error expects context, let's look at it.
+            // Helper: wp_safe_redirect( add_query_arg( array( 'error' => $error_code ), wp_get_referer() ) );
+            // So:
+            wp_safe_redirect( add_query_arg( 'error', 'admin_delete_forbidden', wp_get_referer() ) );
+            exit;
+        }
         
         wp_delete_user( $user_id );
         

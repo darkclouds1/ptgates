@@ -10,9 +10,14 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
     <div class="ptg-member-card">
         <h2>계정 관리</h2>
 
+<?php
+$is_kakao = get_user_meta( $user->ID, 'wpklk_kakao_id', true );
+?>
         <div style="display:flex; justify-content:center; gap:20px; margin-bottom:30px; border-bottom:1px solid #eee; padding-bottom:15px;">
             <a href="?tab=profile" style="text-decoration:none; font-weight:600; color:<?php echo $active_tab === 'profile' ? '#111' : '#999'; ?>">프로필 수정</a>
-            <a href="?tab=security" style="text-decoration:none; font-weight:600; color:<?php echo $active_tab === 'security' ? '#111' : '#999'; ?>">보안 설정</a>
+            <?php if ( ! $is_kakao ) : ?>
+                <a href="?tab=security" style="text-decoration:none; font-weight:600; color:<?php echo $active_tab === 'security' ? '#111' : '#999'; ?>">보안 설정</a>
+            <?php endif; ?>
         </div>
 
         <?php if ( isset( $_GET['success'] ) ) : ?>
@@ -30,6 +35,8 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
                    if ( 'email_exists' === $_GET['error'] ) echo '이미 사용 중인 이메일입니다.';
                    if ( 'current_password_mismatch' === $_GET['error'] ) echo '현재 비밀번호가 일치하지 않습니다.';
                    if ( 'password_mismatch' === $_GET['error'] ) echo '새 비밀번호가 일치하지 않습니다.';
+                   if ( 'complexity_error' === $_GET['error'] ) echo '비밀번호는 영문과 숫자를 포함하여 8자 이상이어야 합니다.';
+                   if ( 'admin_delete_forbidden' === $_GET['error'] ) echo '관리자 계정은 탈퇴할 수 없습니다.';
                 ?>
             </div>
         <?php endif; ?>
@@ -55,7 +62,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
                 </div>
             </form>
 
-        <?php elseif ( $active_tab === 'security' ) : ?>
+        <?php elseif ( $active_tab === 'security' && ! $is_kakao ) : ?>
             <form method="post" class="ptg-form">
                 <?php wp_nonce_field( 'wpklk_pw_action', 'wpklk_pw_nonce' ); ?>
                 
@@ -78,6 +85,20 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
 
             <div class="ptg-links" style="margin-top:40px; border-top:1px solid #eee; padding-top:20px; flex-direction:column; gap:10px;">
                 <div style="display:flex; justify-content:center; align-items:center; gap:10px;">
+                    <form method="post" class="ptg-form-delete" onsubmit="return confirm('정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.');" style="display:inline;">
+                        <?php wp_nonce_field( 'wpklk_delete_action', 'wpklk_delete_nonce' ); ?>
+                        <button type="submit" style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:14px;">회원 탈퇴</button>
+                    </form>
+                    <span style="color:#ccc;">|</span>
+                    <a href="<?php echo home_url( '/?wpklk_action=logout' ); ?>" style="color:#6b7280;">로그아웃</a>
+                </div>
+                <p style="font-size:12px; color:#999; margin:0; text-align:center;">계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.</p>
+            </div>
+        <?php endif; ?>
+
+        <?php if ( $is_kakao ) : ?>
+            <div class="ptg-links" style="margin-top:40px; border-top:1px solid #eee; padding-top:20px; flex-direction:column; gap:10px;">
+                 <div style="display:flex; justify-content:center; align-items:center; gap:10px;">
                     <form method="post" class="ptg-form-delete" onsubmit="return confirm('정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.');" style="display:inline;">
                         <?php wp_nonce_field( 'wpklk_delete_action', 'wpklk_delete_nonce' ); ?>
                         <button type="submit" style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:14px;">회원 탈퇴</button>
