@@ -29,6 +29,12 @@ final class PTG_Admin_Plugin {
 		add_action( 'admin_menu', [ $this, 'remove_duplicate_submenu' ], 999 );
 			// AJAX 요청 처리 (WordPress 헤더 출력 전에 처리)
 			add_action( 'admin_init', [ $this, 'handle_ajax_request' ], 1 );
+			// Seed Products (Once)
+			add_action( 'init', [ $this, 'seed_products_once' ] );
+            
+            // Register Admin Columns (Join Date, Last Login)
+            include_once plugin_dir_path( __FILE__ ) . 'includes/class-admin-settings.php';
+            PTG_Admin_Settings::init_columns();
 		}
 
 		// 숏코드 등록 (프론트엔드/관리자 모두)
@@ -83,7 +89,7 @@ final class PTG_Admin_Plugin {
 			}
 			
 			// 멤버십 관련 AJAX 액션
-			$member_actions = array( 'ptg_admin_get_member', 'ptg_admin_update_member', 'ptg_admin_get_history' );
+			$member_actions = array( 'ptg_admin_get_member', 'ptg_admin_update_member', 'ptg_admin_get_history', 'ptg_admin_get_user_stats' );
 			if ( in_array( $_POST['action'], $member_actions, true ) ) {
 				$members_file = plugin_dir_path( __FILE__ ) . 'includes/class-members.php';
 				if ( file_exists( $members_file ) ) {
@@ -96,12 +102,129 @@ final class PTG_Admin_Plugin {
 						PTG_Admin_Members::ajax_update_member();
 					} elseif ( $_POST['action'] === 'ptg_admin_get_history' ) {
 						PTG_Admin_Members::ajax_get_history();
+					} elseif ( $_POST['action'] === 'ptg_admin_get_user_stats' ) {
+						PTG_Admin_Members::ajax_get_user_stats();
 					}
 					exit;
 				}
 			}
+
+            // 상품 관련 AJAX 액션
+            $product_actions = array( 'ptg_admin_get_products', 'ptg_admin_save_product', 'ptg_admin_delete_product', 'ptg_admin_toggle_product_status' );
+            if ( in_array( $_POST['action'], $product_actions, true ) ) {
+                $products_file = plugin_dir_path( __FILE__ ) . 'includes/class-admin-products.php';
+                if ( file_exists( $products_file ) ) {
+                    require_once $products_file;
+                    
+                    if ( $_POST['action'] === 'ptg_admin_get_products' ) {
+                        \PTG\Admin\Products::ajax_get_products();
+                    } elseif ( $_POST['action'] === 'ptg_admin_save_product' ) {
+                        \PTG\Admin\Products::ajax_save_product();
+                    } elseif ( $_POST['action'] === 'ptg_admin_delete_product' ) {
+                        \PTG\Admin\Products::ajax_delete_product();
+                    } elseif ( $_POST['action'] === 'ptg_admin_toggle_product_status' ) {
+                        \PTG\Admin\Products::ajax_toggle_product_status();
+                    }
+                    exit;
+                }
+            }
 		}
 	}
+
+	/**
+	 * Seed Products Data (Run once or on demand)
+	 */
+	public function seed_products_once() {
+        // 이미 실행되었는지 확인 (옵션 키: ptg_products_seeded_v2)
+        // 강제 실행을 위해 URL 파라미터 체크도 가능
+        if ( get_option( 'ptg_products_seeded_v2' ) && !isset($_GET['ptg_force_seed']) ) {
+            return;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'ptgates_products';
+        
+        // 테이블 존재 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+             // 테이블이 없으면 마이그레이션 실행 시도 (optional)
+             return;
+        }
+
+        $features = [
+            "무제한 문제 풀이 (Study & Quiz)",
+            "무제한 암기카드 생성 및 학습",
+            "모의고사 무제한 응시",
+            "오답노트 및 학습 통계 제공",
+            "광고 없는 쾌적한 학습 환경"
+        ];
+        $features_json = json_encode($features, JSON_UNESCAPED_UNICODE);
+
+        $products = [
+            [
+                'product_code' => 'PREMIUM_1M',
+                'title' => 'Premium 1개월',
+                'description' => '1개월 동안 모든 프리미엄 기능을 이용할 수 있습니다.',
+                'price' => 9900,
+                'price_label' => '월 9,900원',
+                'duration_months' => 1,
+                'features_json' => $features_json,
+                'featured_level' => 0,
+                'sort_order' => 1,
+                'is_active' => 1
+            ],
+            [
+                'product_code' => 'PREMIUM_3M',
+                'title' => 'Premium 3개월',
+                'description' => '3개월 프리미엄 멤버십 할인 상품입니다.',
+                'price' => 29000,
+                'price_label' => '29,000원 (약 2% 할인)',
+                'duration_months' => 3,
+                'features_json' => $features_json,
+                'featured_level' => 1, 
+                'sort_order' => 2,
+                'is_active' => 1
+            ],
+            [
+                'product_code' => 'PREMIUM_6M',
+                'title' => 'Premium 6개월',
+                'description' => '6개월 치어업 멤버십입니다.',
+                'price' => 55000,
+                'price_label' => '55,000원 (약 7% 할인)',
+                'duration_months' => 6,
+                'features_json' => $features_json,
+                'featured_level' => 0,
+                'sort_order' => 3,
+                'is_active' => 1
+            ],
+            [
+                'product_code' => 'PREMIUM_12M',
+                'title' => 'Premium 12개월',
+                'description' => '1년 베스트 멤버십입니다.',
+                'price' => 99000,
+                'price_label' => '99,000원 (약 17% 할인)',
+                'duration_months' => 12,
+                'features_json' => $features_json,
+                'featured_level' => 2,
+                'sort_order' => 4,
+                'is_active' => 1
+            ]
+        ];
+
+        foreach ($products as $p) {
+            $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_name WHERE product_code = %s", $p['product_code']));
+            if ($exists) {
+                $wpdb->update($table_name, $p, ['id' => $exists]);
+            } else {
+                $wpdb->insert($table_name, $p);
+            }
+        }
+
+        update_option( 'ptg_products_seeded_v2', 1 );
+        
+        if (isset($_GET['ptg_force_seed'])) {
+             wp_die('Products Seeded Successfully! <br><a href="' . admin_url() . '">Return to Admin</a>');
+        }
+    }
 
 	/**
 	 * 숏코드 등록
@@ -235,6 +358,18 @@ final class PTG_Admin_Plugin {
 					true
 				);
 			}
+
+            // 상품 관리 페이지 스크립트
+            if ( $current_page === 'ptgates-admin-products' ) {
+                wp_enqueue_script(
+                    'ptg-admin-products',
+                    plugin_dir_url( __FILE__ ) . 'assets/js/admin-products.js',
+                    ['jquery'],
+                    file_exists(plugin_dir_path(__FILE__) . 'assets/js/admin-products.js') ? filemtime(plugin_dir_path(__FILE__) . 'assets/js/admin-products.js') : '1.0.0',
+                    true
+                );
+                wp_localize_script('ptg-admin-products', 'ptgAdmin', $script_data);
+            }
 			
 			// 문제 생성 페이지 스크립트
 			if ( $current_page === 'ptgates-admin-create' ) {
@@ -254,6 +389,9 @@ final class PTG_Admin_Plugin {
 	 * 관리자 메뉴 추가
 	 */
 	public function add_admin_menu() { 
+		// Include Settings Class
+		require_once plugin_dir_path( __FILE__ ) . 'includes/class-admin-settings.php';
+
 		add_menu_page(
 			'PTGates 문제은행 관리',
 			'PTGate 문제은행',
@@ -314,6 +452,26 @@ final class PTG_Admin_Plugin {
 			[ $this, 'render_members_page' ]
 		);
 
+		// 다섯 번째 서브메뉴: 상품 관리
+		add_submenu_page(
+			'ptgates-admin',
+			'상품 관리',
+			'상품 관리',
+			'manage_options',
+			'ptgates-admin-products',
+			[ $this, 'render_products_page' ]
+		);
+
+		// 여섯 번째 서브메뉴: 설정 (Kakao, 결제 등)
+		add_submenu_page(
+			'ptgates-admin',
+			'설정',
+			'설정',
+			'manage_options',
+			'ptgates-admin-settings',
+			[ 'PTG_Admin_Settings', 'render_page' ]
+		);
+
 
 
 		// 기본 상위 메뉴(첫 번째 하위) 중복 제거
@@ -341,6 +499,7 @@ final class PTG_Admin_Plugin {
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-import' ); ?>">CSV 일괄 삽입</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-stats' ); ?>">과목 관리</a></li>
 				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-members' ); ?>">멤버십 관리</a></li>
+				<li><a href="<?php echo admin_url( 'admin.php?page=ptgates-admin-products' ); ?>">상품 관리</a></li>
 			</ul>
 		</div>
 		<?php
@@ -449,6 +608,42 @@ final class PTG_Admin_Plugin {
 		</div>
 		<?php
 	}
+
+    /**
+     * 상품 관리 페이지 렌더링
+     */
+    public function render_products_page() {
+        // ptGates 관리자 권한 확인
+        if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+            wp_die( 'ptGates 관리자 권한이 필요합니다. (pt_admin 등급 필요)' );
+        }
+
+        $products_file = plugin_dir_path( __FILE__ ) . 'includes/class-admin-products.php';
+        if ( file_exists( $products_file ) ) {
+            require_once $products_file;
+            \PTG\Admin\Products::render_page();
+        } else {
+            echo '<div class="wrap"><h1>오류</h1><p>상품 관리 파일을 찾을 수 없습니다.</p></div>';
+        }
+    }
+
+    /**
+     * 카카오 로그인 설정 페이지 렌더링
+     */
+    public function render_kakao_settings_page() {
+        // ptGates 관리자 권한 확인
+        if ( ! class_exists( '\PTG\Platform\Permissions' ) || ! \PTG\Platform\Permissions::can_manage_ptgates() ) {
+            wp_die( 'ptGates 관리자 권한이 필요합니다.' );
+        }
+
+        $kakao_file = plugin_dir_path( __FILE__ ) . 'includes/class-admin-kakao.php';
+        if ( file_exists( $kakao_file ) ) {
+            require_once $kakao_file;
+            PTG_Admin_Kakao::render_page();
+        } else {
+            echo '<div class="wrap"><h1>오류</h1><p>카카오 로그인 설정 파일을 찾을 수 없습니다.</p></div>';
+        }
+    }
 
 	/**
 	 * 과목 관리 페이지 렌더링 (구 통계 페이지)

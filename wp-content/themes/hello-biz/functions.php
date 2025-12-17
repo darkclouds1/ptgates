@@ -48,18 +48,9 @@ add_action( 'wp_enqueue_scripts', function () {
         return;
     }
 
-    // 🔹 UM 관련 페이지에서는 어떤 것도 건드리지 않는다.
     //    (/um-account/*, /register, /login 등)
     $uri = strtok( $_SERVER['REQUEST_URI'], '?' );
     $uri = rtrim( $uri, '/' );
-
-    if (
-        strpos( $uri, '/um-account' ) === 0 ||
-        $uri === '/register' ||
-        $uri === '/login'
-    ) {
-        return;
-    }
 
     // 🔹 여기서부터는 Gutenberg(블록 에디터) 관련만 제거
     $wp_scripts = array(

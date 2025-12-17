@@ -518,8 +518,7 @@ class PTG_Support {
 
 		echo '<div class="ptg-qna-header">';
 		echo '<h2>QnA 게시판</h2>';
-		echo '<a href="' . esc_url( add_query_arg( 'action', 'write' ) ) . '" class="ptg-btn ptg-btn-primary">질문하기</a>';
-		echo '</div>';
+		echo '<button type="button" class="button" onclick="location.href=\'' . esc_url( add_query_arg( 'action', 'write' ) ) . '\'"> 질문하기 </button></div>';
 
 		if ( $query->have_posts() ) {
 			echo '<div class="ptg-qna-list">';

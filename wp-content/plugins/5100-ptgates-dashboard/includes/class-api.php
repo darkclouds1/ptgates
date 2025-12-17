@@ -80,6 +80,62 @@ class API {
 
         \add_action('rest_api_init', [__CLASS__, 'register_routes']);
         \add_action('admin_init', [__CLASS__, 'maybe_add_indexes']);
+        \add_action('init', [__CLASS__, 'add_rewrite_endpoints']);
+        \add_action('template_redirect', [__CLASS__, 'handle_payment_return']);
+    }
+
+    public static function add_rewrite_endpoints() {
+        add_rewrite_tag('%ptg_payment%', '([^&]+)');
+        add_rewrite_rule('^ptg-payment-return/?', 'index.php?ptg_payment=return', 'top');
+        add_rewrite_rule('^ptg-payment-close/?', 'index.php?ptg_payment=close', 'top');
+        add_rewrite_rule('^ptg-payment-return-mobile/?', 'index.php?ptg_payment=mobile_return', 'top');
+    }
+    
+    public static function handle_payment_return() {
+        global $wp_query;
+        $action = $wp_query->get('ptg_payment');
+        
+        if (!$action) {
+            return;
+        }
+
+        if (!class_exists('\PTG\Platform\Payment')) {
+             $platform_payment = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-payment.php';
+             if (file_exists($platform_payment)) require_once $platform_payment;
+        }
+
+        if ($action === 'close') {
+            // Close Popup/Modal helper
+            echo '<script>window.close();</script>';
+            exit;
+        }
+
+        if ($action === 'return' || $action === 'mobile_return') {
+            // KG Inicis Return Logic
+            // KG Inicis Return Logic
+            // PC: result code, auth token delivered. Need to verify.
+            // Mobile: P_STATUS, P_RMESG1, etc.
+            
+            $params = $_REQUEST;
+            $oid = $params['oid'] ?? ($params['P_OID'] ?? '');
+            
+            if (!$oid) {
+                wp_die('Invalid Payment Return');
+            }
+
+            // Step 3. 승인 요청 (Server-to-Server)
+            // approve_transaction 내부에서 승인 요청 후 complete_transaction 호출
+            $result = \PTG\Platform\Payment::approve_transaction($params);
+            
+            if (is_wp_error($result)) {
+                // 실패 시 상세 에러 표시
+                wp_die($result->get_error_message());
+            }
+            
+            // Redirect to Dashboard Membership page with success message
+            wp_redirect(home_url('/dashboard?view=membership&payment=success'));
+            exit;
+        }
     }
 
     /**
@@ -215,6 +271,24 @@ class API {
             },
         ]);
         
+        // 결제 준비
+        $result4 = \register_rest_route(self::REST_NAMESPACE, '/payment/prepare', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'payment_prepare'],
+            'permission_callback' => function() {
+                 return is_user_logged_in();
+            },
+        ]);
+        
+        // 결제 준비
+        $result4 = \register_rest_route(self::REST_NAMESPACE, '/payment/prepare', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'payment_prepare'],
+            'permission_callback' => function() {
+                 return is_user_logged_in();
+            },
+        ]);
+        
         // 정상 로그는 debug.log에 기록하지 않음 (성공 시 로그 제거)
         // 실패 시에만 로그 기록
         if (!$result && defined('WP_DEBUG') && WP_DEBUG) {
@@ -253,6 +327,41 @@ class API {
         }
         
         return (int)$result > 0;
+    }
+
+    /**
+     * 활성화된 상품 목록 조회 (Helper for Templates)
+     */
+    public static function get_active_products() {
+        global $wpdb;
+        // Standard WP Prefix usage is safer than dynamic checks in some environments
+        $table_name = $wpdb->prefix . 'ptgates_products';
+        
+        // Fallback or Check
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            // Try without prefix just in case legacy
+            if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_products'") == 'ptgates_products') {
+                $table_name = 'ptgates_products';
+            } else {
+                return [];
+            }
+        }
+        
+        $results = $wpdb->get_results( "SELECT * FROM {$table_name} WHERE is_active = 1 ORDER BY sort_order ASC, duration_months ASC" );
+        
+        // JSON Decoding
+        if ($results) {
+            foreach ($results as &$row) {
+                // Ensure features_json is valid string
+                if (!empty($row->features_json)) {
+                    $row->features = json_decode($row->features_json);
+                } else {
+                    $row->features = [];
+                }
+            }
+        }
+        
+        return $results;
     }
 
     public static function get_summary($request) {
@@ -564,6 +673,7 @@ class API {
                 ],
                 'mynote_count' => $mynote_count,
                 'billing_history' => $billing_history,
+                'products' => self::get_active_products(),
             ];
 
             // 캐싱: 5분간 저장
@@ -775,6 +885,32 @@ class API {
             
             return new \WP_Error('reset_failed', '데이터 초기화 중 오류가 발생했습니다: ' . $e->getMessage(), ['status' => 500]);
         }
+    }
+
+    /**
+     * 결제 준비 API
+     */
+    public static function payment_prepare($request) {
+        $user_id = get_current_user_id();
+        $product_code = $request->get_param('product_code');
+        $device_type = $request->get_param('device_type') ?: 'pc';
+        
+        if (!class_exists('\PTG\Platform\Payment')) {
+             $platform_payment = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-payment.php';
+             if (file_exists($platform_payment)) require_once $platform_payment;
+        }
+        
+        if (!class_exists('\PTG\Platform\Payment')) {
+            return new \WP_Error('system_error', '결제 모듈을 로드할 수 없습니다.', ['status' => 500]);
+        }
+        
+        $result = \PTG\Platform\Payment::prepare_transaction($user_id, $product_code, $device_type, home_url());
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response($result);
     }
 }
 

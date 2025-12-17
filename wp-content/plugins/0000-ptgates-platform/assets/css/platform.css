@@ -6,104 +6,141 @@
 
 /* 공통 유틸리티 클래스 */
 .ptg-hidden {
-    display: none !important;
+  display: none !important;
 }
 
 .ptg-sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* 로딩 스피너 */
 .ptg-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(0, 0, 0, 0.1);
-    border-radius: 50%;
-    border-top-color: #0073aa;
-    animation: ptg-spin 0.8s linear infinite;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: #0073aa;
+  animation: ptg-spin 0.8s linear infinite;
 }
 
 @keyframes ptg-spin {
-    to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 버튼 스타일 */
 .ptg-btn {
-    display: inline-block;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.5;
-    text-align: center;
-    text-decoration: none;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .ptg-btn-primary {
-    background-color: #0073aa;
-    color: #fff;
-    border-color: #0073aa;
+  background-color: #0073aa;
+  color: #fff;
+  border-color: #0073aa;
 }
 
 .ptg-btn-primary:hover {
-    background-color: #005a87;
-    border-color: #005a87;
+  background-color: #005a87;
+  border-color: #005a87;
 }
 
 .ptg-btn-secondary {
-    background-color: #f0f0f1;
-    color: #1d2327;
-    border-color: #dcdcde;
+  background-color: #f0f0f1;
+  color: #1d2327;
+  border-color: #dcdcde;
 }
 
 .ptg-btn-secondary:hover {
-    background-color: #dcdcde;
+  background-color: #dcdcde;
 }
 
 /* 카드 스타일 */
 .ptg-card {
-    background: #fff;
-    border: 1px solid #c3c4c7;
-    border-radius: 4px;
-    padding: 16px;
-    margin-bottom: 16px;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 /* 반응형 컨테이너 */
 .ptg-container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 0 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
 @media (max-width: 768px) {
-    .ptg-container {
-        padding: 0 12px;
-    }
+  .ptg-container {
+    padding: 0 12px;
+  }
 }
 
 /* 접근성: 포커스 스타일 */
 .ptg-focus-visible:focus-visible {
-    outline: 2px solid #0073aa;
-    outline-offset: 2px;
+  outline: 2px solid #0073aa;
+  outline-offset: 2px;
 }
 
 /* 키보드 단축키 힌트 */
 .ptg-keyboard-hint {
-    font-size: 12px;
-    color: #646970;
-    margin-left: 8px;
+  font-size: 12px;
+  color: #646970;
+  margin-left: 8px;
 }
 
+/* 카카오 로그인 버튼 */
+.ptg-kakao-login-wrapper {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.ptg-btn-kakao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 300px;
+  height: 45px;
+  background-color: #fee500;
+  color: #000000;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  transition: background-color 0.2s;
+  box-sizing: border-box;
+}
+
+.ptg-btn-kakao:hover {
+  background-color: #fdd835; /* Slightly darker yellow */
+  text-decoration: none;
+  color: #000000;
+}
+
+.ptg-icon-kakao {
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+}

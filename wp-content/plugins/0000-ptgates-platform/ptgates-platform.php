@@ -11,7 +11,7 @@
  * Text Domain: ptgates-platform
  * Domain Path: /languages
  * Requires Plugins: 
- * Requires PHP: 8.1
+ * Requires PHP: 7.4
  * Requires at least: 6.0
  */
 
@@ -98,6 +98,16 @@ class PTG_Platform {
         // 핵심 테이블이 없으면 자동으로 마이그레이션 실행
         add_action('init', array($this, 'ensure_database_schema'), 0);
         
+        // [CRITICAL] 사용자 삭제 시 Elementor Kit 보호 (Reassign to Admin)
+        add_action( 'delete_user', array( $this, 'reassign_elementor_posts_before_delete' ) );
+        add_action( 'wpmu_delete_user', array( $this, 'reassign_elementor_posts_before_delete' ) );
+        
+        // [KAKAO] 사용자 삭제 시 카카오 연동 해제
+        add_action( 'delete_user', array( $this, 'unlink_kakao_on_delete' ) );
+
+        // [UM] 계정 삭제 탭 커스터마이징 (카카오 전용)
+        add_action( 'um_account_content_hook_delete', array( $this, 'um_custom_delete_content' ) );
+        
         // 관리자 페이지에서 마이그레이션 수동 실행 (디버깅용)
         add_action('admin_init', array($this, 'maybe_run_migration_manually'));
 
@@ -113,6 +123,62 @@ class PTG_Platform {
         // Ultimate Member 커스텀 로그인/로그아웃 페이지 적용 (인증 UI 일관성)
         add_filter('login_url', array($this, 'custom_login_url'), 10, 2);
         add_filter('logout_url', array($this, 'custom_logout_url'), 10, 2);
+
+        // 카카오 로그인 버튼 표시 (Ultimate Member 로그인/회원가입 폼 하단)
+        add_action( 'um_after_login_fields', array( '\PTG\Platform\KakaoAuth', 'render_login_button' ) );
+        add_action( 'um_after_register_fields', array( '\PTG\Platform\KakaoAuth', 'render_login_button' ) );
+
+        // SSL 루프백 오류 수정 (강력한 적용: WP가 외부 요청으로 인식할 수 있으므로 http_request_args 사용)
+        add_filter( 'http_request_args', function( $args, $url ) {
+            // 내 사이트(ptgates.com)로 보내는 요청은 무조건 SSL 검증 끄기
+            if ( strpos( $url, 'ptgates.com' ) !== false || strpos( $url, home_url() ) !== false ) {
+                $args['sslverify'] = false;
+            }
+            return $args;
+        }, 10, 2 );
+        
+        // 기존 로컬 필터도 유지
+        add_filter( 'https_local_ssl_verify', '__return_false' );
+
+        // 사용자 삭제 시 Elementor Kit 소유권 이전 (삭제 방지)
+        // Priority 5: 기본 삭제 로직(10)보다 먼저 실행
+        add_action( 'delete_user', array( $this, 'reassign_elementor_posts_before_delete' ), 5 );
+    }
+
+    /**
+     * 사용자 삭제 전 Elementor 게시물 소유권 이전
+     * 
+     * Elementor는 'kit' 타입의 게시물이 삭제되려 하면 wp_die()를 발생시킴.
+     * 사용자가 해당 게시물의 작성자일 경우 삭제 과정에서 문제가 발생하므로,
+     * 삭제 전에 관리자(1)에게 소유권을 이전함.
+     * 
+     * @param int $user_id 삭제될 사용자 ID
+     */
+    public function reassign_elementor_posts_before_delete( $user_id ) {
+        // 본인 삭제 시도 등 예외 상황 체크 (optional)
+        
+        $args = array(
+            'post_type' => 'elementor_library', // Kit, Templates etc
+            'author'    => $user_id,
+            'posts_per_page' => -1,
+            'fields'    => 'ids',
+            'post_status' => 'any'
+        );
+        
+        $posts = get_posts( $args );
+        
+        if ( ! empty( $posts ) ) {
+            foreach ( $posts as $post_id ) {
+                $update_args = array(
+                    'ID'          => $post_id,
+                    'post_author' => 1 // Admin User ID
+                );
+                wp_update_post( $update_args );
+                
+                // Optional: Log
+                // error_log( "[PTG] Reassigned Elementor post {$post_id} from user {$user_id} to Admin due to deletion." );
+            }
+        }
     }
     
     /**
@@ -124,6 +190,7 @@ class PTG_Platform {
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-legacy-repo.php'; // 기존 테이블 접근용
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-permissions.php';
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-rest.php';
+        require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-auth-kakao.php';
         // 교시/과목/세부과목 정적 정의 클래스 (최초 로드 시 자동 메모리에 로드)
         require_once PTG_PLATFORM_PLUGIN_DIR . 'includes/class-subjects.php';
     }
@@ -256,6 +323,12 @@ class PTG_Platform {
     public function register_rest_routes() {
         // 플랫폼 코어는 공통 유틸리티만 제공
         // 각 모듈이 자체 REST API를 가짐
+
+        // 카카오 로그인 인증 라우트 등록 (공통 플랫폼 기능으로 제공)
+        // [COMPAT] 9000-wp-kakao-login-kit 플러그인이 활성화되어 있으면 기존 로직 비활성화
+        if ( ! class_exists( 'Monolith\KakaoLoginKit\Loader' ) && class_exists( '\PTG\Platform\KakaoAuth' ) ) {
+            \PTG\Platform\KakaoAuth::register_routes();
+        }
     }
 
     /**
@@ -361,17 +434,114 @@ class PTG_Platform {
         $existing = \PTG\Platform\Repo::find_one('ptgates_user_member', array('user_id' => $user_id));
 
         if (!$existing) {
-            $defaults = self::get_default_limits('trial');
+            // [Trial Abuse Prevention]
+            // Check if this user (Email or Kakao ID) has already received a trial in the past.
+            global $wpdb;
+            $history_table = 'ptgates_auth_history'; // Table name (no prefix if migration used fix name, wait migration uses prefix?) 
+            // Migration uses: $table_name = 'ptgates_auth_history'; INSIDE migration. 
+            // But dbDelta usually expects full name? 
+            // Let's check migration again. Migration used: $table_name = 'ptgates_auth_history'; which implies NO prefix if not handled carefully, 
+            // BUT WordPress tables usually need prefix. 
+            // Wait, looking at Migration code: `$sql = "CREATE TABLE IF NOT EXISTS {$table_name}...` 
+            // It did NOT use $wpdb->prefix in the snippet I wrote? 
+            // Let me re-read the snippet I sent in Step 555.
+            // " $table_name = 'ptgates_auth_history'; " ... It does NOT have $wpdb->prefix. 
+            // THIS IS A BUG in my previous step if I intended to use prefix. 
+            // However, dbDelta often handles it? No, if I didn't add it, it's a raw table name.
+            // Update: I should check if I should fix the table name or use it as is. 
+            // Most plugins use $wpdb->prefix. Standard practice.
+            // I will assume for now I should use standard prefix practices. 
+            // But if I already ran migration without prefix, the table is `ptgates_auth_history`.
+            // Let's check `create_billing_history_table` in the same file `class-migration.php` (Step 540).
+            // It uses `$table_name = 'ptgates_billing_history';` WITHOUT prefix variable usage in the string assignment? 
+            // No, look at `create_exam_sessions_table`: `$table_name = 'ptgates_exam_sessions';`
+            // Wait, usually people do `$table_name = $wpdb->prefix . 'ptgates_...';`
+            // Let's check Step 540 content line 82: `swpdb->...` is not used.
+            // Just `$table_name = 'ptgates_exam_sessions';`
+            // Checking `run_migrations`: `self::create_exam_sessions_table($charset_collate);`
+            // This suggests the existing codebase uses tables WITHOUT WP prefix? Or maybe I misread.
+            // Let's look at `create_user_member_table` (Line 463). `$table_name = 'ptgates_user_member';`
+            // This is strange. Usually WP plugins use prefixes.
+            // Maybe they are defined loosely. 
+            // I will check `ptgates_user_member` usage in `check_and_create_member_on_login` (Line 434).
+            // `\PTG\Platform\Repo::find_one('ptgates_user_member', ...)`
+            // The `Repo` class likely handles the prefix if it's an ORM.
+            // However, for raw SQL in `check_and_create_member_on_login` (if I use raw SQL), I need to know.
+            // `Repo` class is likely `Idiorm` or similar wrapper.
+            // I will assume `ptgates_auth_history` matches the convention of other tables.
             
-            // 레코드가 없으면 생성 (기본값: trial)
+            // Back to Logic:
+            $identifiers = array();
+            
+            // 1. Email
+            if ( ! empty( $user->user_email ) ) {
+                $identifiers[] = array( 'type' => 'email', 'val' => $user->user_email );
+            }
+            
+            // 2. Kakao IDs (Check both plugins' meta keys)
+            $kakao_id_old = get_user_meta( $user_id, 'ptg_kakao_id', true );
+            $kakao_id_new = get_user_meta( $user_id, 'wpklk_kakao_id', true );
+            
+            if ( $kakao_id_old ) {
+                $identifiers[] = array( 'type' => 'kakao', 'val' => $kakao_id_old );
+            }
+            if ( $kakao_id_new && $kakao_id_new !== $kakao_id_old ) {
+                $identifiers[] = array( 'type' => 'kakao', 'val' => $kakao_id_new );
+            }
+            
+            $found_history = false;
+            
+            // Check History
+            foreach ( $identifiers as $id_data ) {
+                $hash = hash( 'sha256', $id_data['val'] );
+                // Use raw query for the history table (Assuming it might not be in Repo properly yet or just safer)
+                // Note: The table name in DB might be `ptgates_auth_history` (no prefix from my migration code).
+                // I'll try to start with just `ptgates_auth_history`. 
+                // Wait, if I want to be safe I should check `SHOW TABLES` logic in migration?
+                // Migration Step 555: `create_auth_history_table` just used string literal.
+                // So I will use the string literal.
+                
+                $exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM ptgates_auth_history WHERE identifier_hash = %s", $hash ) );
+                if ( $exists ) {
+                    $found_history = true;
+                    if ( defined('WP_DEBUG') && WP_DEBUG ) error_log( "[PTG] Trial denied. Found history for hash: " . $hash );
+                    break;
+                }
+            }
+            
+            if ( $found_history ) {
+                // Deny Trial -> Grant Basic
+                $target_grade = 'basic';
+                $trial_expiry = null; // No expiry for basic usually, or irrelevant
+                if ( defined('WP_DEBUG') && WP_DEBUG ) error_log( "[PTG] User {$user_id} granted BASIC (History found)" );
+            } else {
+                // Grant Trial
+                $target_grade = 'trial';
+                $trial_days   = self::get_trial_period_days();
+                $trial_expiry = date( 'Y-m-d H:i:s', strtotime( '+' . $trial_days . ' days' ) );
+                
+                // Record History
+                foreach ( $identifiers as $id_data ) {
+                    $hash = hash( 'sha256', $id_data['val'] );
+                    $wpdb->query( $wpdb->prepare( 
+                        "INSERT IGNORE INTO ptgates_auth_history (identifier_hash, auth_type) VALUES (%s, %s)", 
+                        $hash, $id_data['type'] 
+                    ) );
+                }
+                if ( defined('WP_DEBUG') && WP_DEBUG ) error_log( "[PTG] User {$user_id} granted TRIAL (New user)" );
+            }
+
+            $defaults = self::get_default_limits( $target_grade );
+            
+            // Create Record
             $result = \PTG\Platform\Repo::insert(
                 'ptgates_user_member',
                 array(
                     'user_id' => $user_id,
                     'membership_source' => 'individual',
-                    'member_grade' => 'trial', // 기본 등급
+                    'member_grade' => $target_grade, 
                     'billing_status' => 'active',
-                    'billing_expiry_date' => date('Y-m-d H:i:s', strtotime('+7 days')), // 7일 체험
+                    'billing_expiry_date' => $trial_expiry, 
                     'exam_count_used' => 0,
                     'exam_count_total' => $defaults['exam_count_total'],
                     'study_count_used' => 0,
@@ -433,6 +603,11 @@ class PTG_Platform {
      * @return string 커스텀 로그인 URL
      */
     public function custom_login_url($login_url, $redirect = '') {
+        // 관리자 페이지에서 접근 시(wp-admin)에는 기본 wp-login.php 유지 (무한 리다이렉트 방지)
+        if ( is_admin() ) {
+            return $login_url;
+        }
+
         // Ultimate Member 로그인 페이지 URL
         $custom_login_page = home_url('/login/');
         
@@ -462,6 +637,8 @@ class PTG_Platform {
         return $custom_logout_url;
     }
 
+
+
     /**
      * 등급별 기본 한도 값 반환
      * 
@@ -490,6 +667,76 @@ class PTG_Platform {
         );
         
         return isset($defaults[$grade]) ? $defaults[$grade] : $defaults['basic'];
+    }
+
+    /**
+     * 체험판 기간 설정값 가져오기 (Helper)
+     */
+    public static function get_trial_period_days() {
+        $conf = get_option('ptg_conf_membership', []);
+        return isset($conf['TRIAL_PERIOD_DAYS']) ? intval($conf['TRIAL_PERIOD_DAYS']) : 10;
+    }
+
+
+    /**
+     * 사용자 삭제 시 Kakao 연동 해제 (Unlink)
+     * Hook: delete_user
+     */
+    public function unlink_kakao_on_delete( $user_id ) {
+        // Kakao ID 확인 (없으면 연동된 계정 아님)
+        $kakao_id = get_user_meta( $user_id, 'ptg_kakao_id', true );
+        if ( ! empty( $kakao_id ) ) {
+            // KakaoAuth 클래스 로드 필요 (네임스페이스 확인)
+            if ( class_exists( '\PTG\Platform\KakaoAuth' ) ) {
+                \PTG\Platform\KakaoAuth::unlink_kakao_user( $kakao_id );
+            }
+        }
+    }
+
+    /**
+     * Ultimate Member 계정 삭제 탭 커스터마이징
+     * Hook: um_account_content_hook_delete
+     */
+    public function um_custom_delete_content( $output ) {
+        $user_id = get_current_user_id();
+        $kakao_id = get_user_meta( $user_id, 'ptg_kakao_id', true );
+
+        // 카카오 회원이 아니면 기본 동작 유지
+        if ( empty( $kakao_id ) ) {
+            return;
+        }
+
+        // 카카오 회원용 UI 출력
+        $delete_url = rest_url( 'ptg/v1/auth/kakao/start?action=delete' );
+        
+        ?>
+        <div class="ptg-kakao-delete-wrapper" style="margin-bottom: 20px;">
+            <div class="um-field-label">
+                <label>카카오 계정 인증</label>
+                <div class="um-clear"></div>
+            </div>
+            <div class="um-field-area">
+                <p>회원 안전을 위해 카카오 계정 재인증 후 탈퇴가 진행됩니다.</p>
+                <a href="<?php echo esc_url( $delete_url ); ?>" class="ptg-btn-kakao" style="display:inline-block; padding:10px 20px; background:#FEE500; color:#000000; text-decoration:none; border-radius:5px; font-weight:bold;">
+                    카카오로 인증하고 탈퇴하기
+                </a>
+            </div>
+        </div>
+
+        <style>
+            /* 카카오 회원에게는 기존 비밀번호 입력란 숨김 */
+            .um-account-delete-password,
+            input[name="single_user_password"],
+            .um-field-password-id {
+                display: none !important;
+            }
+             /* UM의 삭제 버튼(submit)도 숨겨야 함 (비밀번호 없이 제출하면 에러나므로) */
+             .um-after-account-delete, 
+             .um-account-tab-delete .um-col-alt-b {
+                 display: none !important;
+             }
+        </style>
+        <?php
     }
 }
 

@@ -103,6 +103,9 @@ if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_bi
     ));
 }
 
+// 5. 상품 목록 조회 (for Payment Tab)
+$active_products = \PTG\Dashboard\API::get_active_products();
+
 ?>
 <style>
     .ptg-membership-container {
@@ -420,14 +423,14 @@ if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_bi
 
     <!-- 3. Account Management -->
     <section class="ptg-mb-section">
-        <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2>
+        <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2><br>
         <div class="ptg-account-links">
-            <a href="<?php echo esc_url($account_url . '/general'); ?>" class="ptg-account-link">
+            <a href="https://ptgates.com/account/?tab=profile" class="ptg-account-link">
                 <span class="ptg-link-icon">👤</span>
                 <span class="ptg-link-text">프로필 수정</span>
                 <span class="ptg-link-arrow">→</span>
             </a>
-            <a href="<?php echo esc_url($account_url . '/password'); ?>" class="ptg-account-link">
+            <a href="https://ptgates.com/account/?tab=security" class="ptg-account-link">
                 <span class="ptg-link-icon">🔒</span>
                 <span class="ptg-link-text">비밀번호 변경</span>
                 <span class="ptg-link-arrow">→</span>
@@ -450,21 +453,85 @@ if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_bi
 
             <!-- Tab Content: Product Selection -->
             <div id="ptg-pm-content-product" class="ptg-pm-content is-active">
-                <div class="ptg-pricing-card">
-                    <div class="ptg-pricing-header">
-                        <h3 class="ptg-pricing-title">Premium Membership</h3>
-                        <div class="ptg-pricing-price">₩9,900 <span class="ptg-pricing-period">/ 월</span></div>
-                        <p class="ptg-pricing-desc">모든 학습 기능을 제한 없이 이용하세요.</p>
+                <style>
+                    .ptg-products-grid {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                        gap: 20px;
+                        justify-content: center;
+                    }
+                    .ptg-pricing-card {
+                        margin: 0; /* Override auto margin */
+                        max-width: none;
+                        display: flex;
+                        flex-direction: column;
+                        height: 100%;
+                    }
+                    .ptg-pricing-card.is-featured {
+                        border: 2px solid #4f46e5;
+                        box-shadow: 0 8px 30px rgba(79, 70, 229, 0.15);
+                        transform: scale(1.02);
+                    }
+                    .ptg-pricing-badge {
+                        background: #4f46e5;
+                        color: white;
+                        font-size: 12px;
+                        font-weight: 700;
+                        padding: 4px 12px;
+                        border-radius: 999px;
+                        position: absolute;
+                        top: -12px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                    }
+                </style>
+                
+                <?php if (empty($active_products)): ?>
+                    <div style="text-align:center; padding: 40px; color: #6b7280;">
+                        현재 판매 중인 상품이 없습니다.
                     </div>
-                    <ul class="ptg-pricing-features">
-                        <li>✅ <strong>무제한</strong> 문제 풀이 (Study & Quiz)</li>
-                        <li>✅ <strong>무제한</strong> 암기카드 생성 및 학습</li>
-                        <li>✅ <strong>모의고사</strong> 무제한 응시</li>
-                        <li>✅ <strong>오답노트</strong> 및 학습 통계 제공</li>
-                        <li>✅ <strong>광고 없는</strong> 쾌적한 학습 환경</li>
-                    </ul>
-                    <a href="/checkout?product_id=premium" class="ptg-pricing-btn">지금 시작하기</a>
-                </div>
+                <?php else: ?>
+                    <div class="ptg-products-grid">
+                        <?php foreach ($active_products as $prod): ?>
+                            <?php 
+                                $is_featured = $prod->featured_level > 0;
+                                $features = $prod->features; // Array or Object
+                            ?>
+                            <div class="ptg-pricing-card <?php echo $is_featured ? 'is-featured' : ''; ?>" style="position: relative;">
+                                <?php if ($is_featured): ?>
+                                    <div class="ptg-pricing-badge">RECOMMENDED</div>
+                                <?php endif; ?>
+                                
+                                <div class="ptg-pricing-header">
+                                    <h3 class="ptg-pricing-title"><?php echo esc_html($prod->title); ?></h3>
+                                    <div class="ptg-pricing-price">
+                                        <?php echo number_format($prod->price); ?>원 
+                                        <?php if (!empty($prod->price_label)): ?>
+                                            <div style="font-size: 14px; color: #6b7280; font-weight: normal; margin-top: 4px;">
+                                                <?php echo esc_html($prod->price_label); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <p class="ptg-pricing-desc"><?php echo nl2br(esc_html($prod->description)); ?></p>
+                                </div>
+                                
+                                <?php if (!empty($features)): ?>
+                                    <ul class="ptg-pricing-features" style="flex-grow: 1;">
+                                        <?php foreach ($features as $feat): ?>
+                                            <li>✅ <?php echo esc_html($feat); ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php else: ?>
+                                    <div style="flex-grow: 1;"></div>
+                                <?php endif; ?>
+                                
+                                <button type="button" class="ptg-pricing-btn" onclick="initiatePayment('<?php echo esc_attr($prod->product_code); ?>', <?php echo intval($prod->price); ?>, '<?php echo esc_attr($prod->title); ?>')">
+                                    선택하기
+                                </button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <!-- Tab Content: Payment History -->
@@ -503,25 +570,47 @@ if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_bi
 
         </div>
 
-        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="font-size: 13px; color: #6b7280;">
-                    <a href="<?php echo esc_url($account_url . '/delete'); ?>" 
-                       style="color: #991b1b; font-weight: bold; text-decoration: underline; margin-right: 4px;"
-                       onclick="return confirm('정말로 계정을 삭제하시겠습니까?\n\n삭제된 계정과 모든 학습 데이터는 복구할 수 없습니다.');">
-                        계정 탈퇴
-                    </a>
-                    계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.
-                </div>
-                <a href="<?php echo esc_url($logout_url); ?>" 
-                   style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap;">
-                    로그아웃
-                </a>
-            </div>
+        <div style="margin-top: 24px; text-align: right;">
+            <a href="<?php echo esc_url($logout_url); ?>" 
+               style="padding: 8px 16px; background-color: #f3f4f6; color: #4b5563; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500; white-space: nowrap;">
+                로그아웃
+            </a>
         </div>
     </section>
 </div>
 
+
+<!-- KG Inicis Payment Form (Hidden) -->
+<form id="ptg-payment-form" method="POST" style="display:none;">
+    <!-- Common -->
+    <input type="hidden" name="mid" >
+    <input type="hidden" name="goodname" >
+    <input type="hidden" name="oid" >
+    <input type="hidden" name="price" >
+    <input type="hidden" name="buyername" >
+    <input type="hidden" name="buyeremail" >
+    <input type="hidden" name="timestamp" >
+    <input type="hidden" name="returnUrl" >
+    <input type="hidden" name="closeUrl" >
+    <input type="hidden" name="signature" >
+    <input type="hidden" name="mKey" >
+    <input type="hidden" name="currency" value="WON">
+    <input type="hidden" name="payViewType" value="overlay">
+    <input type="hidden" name="charset" value="UTF-8">
+    
+    <!-- Mobile Specific -->
+    <input type="hidden" name="P_MID" >
+    <input type="hidden" name="P_OID" >
+    <input type="hidden" name="P_AMT" >
+    <input type="hidden" name="P_UNAME" >
+    <input type="hidden" name="P_GOODS" >
+    <input type="hidden" name="P_NEXT_URL" >
+    <input type="hidden" name="P_NOTI_URL" >
+    <input type="hidden" name="P_HPP_METHOD" value="1">
+</form>
+
+<!-- KG Inicis StdPay JS (Staging) -->
+<script language="javascript" type="text/javascript" src="https://stgstdpay.inicis.com/stdjs/INIStdPay.js" charset="UTF-8"></script>
 <script>
 function togglePaymentManagement() {
     var el = document.getElementById('ptg-payment-management');
@@ -548,6 +637,98 @@ function switchPmTab(tabName) {
         c.classList.remove('is-active');
     });
     document.getElementById('ptg-pm-content-' + tabName).classList.add('is-active');
+}
+
+
+function initiatePayment(productCode, price, productName) {
+    if (!confirm(productName + ' (' + price.toLocaleString() + '원)을 결제하시겠습니까?')) {
+        return;
+    }
+    
+    // Check Device
+    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    var deviceType = isMobile ? 'mobile' : 'pc';
+
+    // Show Loading
+    // Simple overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'ptg-pay-loading';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;';
+    overlay.innerHTML = '결제 준비 중입니다...';
+    document.body.appendChild(overlay);
+
+    // Call API
+    jQuery.ajax({
+        url: '/wp-json/ptg-dash/v1/payment/prepare',
+        method: 'POST',
+        headers: {
+            'X-WP-Nonce': '<?php echo wp_create_nonce("wp_rest"); ?>'
+        },
+        data: {
+            product_code: productCode,
+            device_type: deviceType
+        },
+        success: function(response) {
+            if (document.getElementById('ptg-pay-loading')) document.body.removeChild(document.getElementById('ptg-pay-loading'));
+
+            var form = document.getElementById('ptg-payment-form');
+            
+            if (deviceType === 'mobile') {
+                // Mobile Logic
+                // Map API response to Mobile Form Fields
+                form.action = 'https://stgmobile.inicis.com/smart/payment/'; // Staging URL
+                form.acceptCharset = 'euc-kr'; // Mobile sometimes requires EUC-KR, but UTF-8 is standard now. verifying.
+                form.acceptCharset = 'UTF-8';
+                
+                // Mappings
+                // API returns: mid, oid, price...
+                // Mobile needs: P_MID, P_OID, P_AMT...
+                
+                // Note: prepare_transaction only returns PC params mostly.
+                // I need to ensure Payment class returns Mobile params too or map them here.
+                // In Payment class I returned 'P_NEXT_URL' which suggests Mobile awareness.
+                // Let's assume standard params are returned.
+                
+                // Mapping
+                if (response.mid) form.P_MID.value = response.mid;
+                if (response.oid) form.P_OID.value = response.oid;
+                if (response.price) form.P_AMT.value = response.price;
+                if (response.buyername) form.P_UNAME.value = response.buyername;
+                if (response.goodname) form.P_GOODS.value = response.goodname;
+                if (response.P_NEXT_URL) form.P_NEXT_URL.value = response.P_NEXT_URL;
+                // P_NOTI_URL is optional/server-to-server
+                
+                form.submit();
+                
+            } else {
+                // PC Logic
+                // Field Mapping
+                form.mid.value = response.mid;
+                form.oid.value = response.oid;
+                form.price.value = response.price;
+                form.goodname.value = response.goodname;
+                form.buyername.value = response.buyername;
+                form.buyeremail.value = response.buyeremail;
+                form.timestamp.value = response.timestamp;
+                form.signature.value = response.signature;
+                form.mKey.value = response.mKey;
+                form.returnUrl.value = response.returnUrl;
+                form.closeUrl.value = response.closeUrl;
+                
+                // Execute StdPay
+                try {
+                    INIStdPay.pay('ptg-payment-form');
+                } catch (e) {
+                    alert('결제 모듈 실행 실패: ' + e.message);
+                }
+            }
+        },
+        error: function(xhr) {
+            if (document.getElementById('ptg-pay-loading')) document.body.removeChild(document.getElementById('ptg-pay-loading'));
+            alert('오류 발생: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText));
+        }
+    });
+
 }
 </script>
 

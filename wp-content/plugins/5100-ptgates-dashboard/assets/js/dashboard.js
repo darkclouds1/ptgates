@@ -736,10 +736,165 @@
       });
     },
 
-    initiatePayment: function (plan) {
-      console.log("Initiating payment for plan:", plan);
-      alert("선택하신 플랜 (" + plan + ") 결제 페이지로 이동합니다. (준비중)");
-      // TODO: KG Inicis integration
+    /**
+     * 결제 시작 (PC/Mobile 분기)
+     */
+    initiatePayment: function (productCode, price, productName) {
+      if (
+        !confirm(
+          productName +
+            " (" +
+            price.toLocaleString() +
+            "원)을 결제하시겠습니까?"
+        )
+      ) {
+        return;
+      }
+
+      // 1. Device Check
+      var isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+      var deviceType = isMobile ? "mobile" : "pc";
+
+      // 2. Loading UI
+      var overlay = document.createElement("div");
+      overlay.id = "ptg-pay-loading";
+      overlay.style.cssText =
+        "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;";
+      overlay.innerHTML = "결제 준비 중입니다...";
+      document.body.appendChild(overlay);
+
+      // 3. API Call
+      $.ajax({
+        url: "/wp-json/ptg-dash/v1/payment/prepare",
+        method: "POST",
+        headers: {
+          "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "",
+        },
+        data: {
+          product_code: productCode,
+          device_type: deviceType,
+        },
+        success: function (response) {
+          if (document.getElementById("ptg-pay-loading"))
+            document.body.removeChild(
+              document.getElementById("ptg-pay-loading")
+            );
+
+          // Form 찾기
+          // dashboard.js가 실행되는 페이지에 폼이 없을 수 있으므로 동적 생성
+          let form = document.getElementById("ptg-payment-form");
+          if (!form) {
+            // Create Form if not exists
+            const formHtml = `
+                    <form id="ptg-payment-form" method="POST" style="display:none;">
+                        <!-- StdPay PC Fields -->
+                        <input type="hidden" name="version" >
+                        <input type="hidden" name="gopaymethod" >
+                        <input type="hidden" name="mid" >
+                        <input type="hidden" name="oid" >
+                        <input type="hidden" name="price" >
+                        <input type="hidden" name="timestamp" >
+                        <input type="hidden" name="use_chkfake" >
+                        <input type="hidden" name="signature" >
+                        <input type="hidden" name="verification" >
+                        <input type="hidden" name="mKey" >
+                        <input type="hidden" name="currency" >
+                        <input type="hidden" name="goodname" >
+                        <input type="hidden" name="buyername" >
+                        <input type="hidden" name="buyertel" >
+                        <input type="hidden" name="buyeremail" >
+                        <input type="hidden" name="returnUrl" >
+                        <input type="hidden" name="closeUrl" >
+                        <input type="hidden" name="acceptmethod" >
+                        <input type="hidden" name="payViewType" value="overlay">
+                        <input type="hidden" name="charset" value="UTF-8">
+                        
+                        <!-- Mobile Specific (Smart Pay) -->
+                        <input type="hidden" name="P_MID" >
+                        <input type="hidden" name="P_OID" >
+                        <input type="hidden" name="P_AMT" >
+                        <input type="hidden" name="P_UNAME" >
+                        <input type="hidden" name="P_GOODS" >
+                        <input type="hidden" name="P_NEXT_URL" >
+                        <input type="hidden" name="P_NOTI_URL" >
+                        <input type="hidden" name="P_HPP_METHOD" value="1">
+                    </form>`;
+            $("body").append(formHtml);
+            form = document.getElementById("ptg-payment-form");
+          }
+
+          if (deviceType === "mobile") {
+            form.action = "https://stgmobile.inicis.com/smart/payment/";
+            form.acceptCharset = "UTF-8";
+
+            if (response.mid) form.P_MID.value = response.mid;
+            if (response.oid) form.P_OID.value = response.oid;
+            if (response.price) form.P_AMT.value = response.price;
+            if (response.buyername) form.P_UNAME.value = response.buyername;
+            if (response.goodname) form.P_GOODS.value = response.goodname;
+            if (response.P_NEXT_URL)
+              form.P_NEXT_URL.value = response.P_NEXT_URL;
+            if (response.P_NOTI_URL)
+              form.P_NOTI_URL.value = response.P_NOTI_URL;
+
+            form.submit();
+          } else {
+            // Check INIStdPay
+            if (typeof INIStdPay === "undefined") {
+              // Load Script Dynamically
+              $.getScript("https://stgstdpay.inicis.com/stdjs/INIStdPay.js")
+                .done(function () {
+                  executePcPayment(form, response);
+                })
+                .fail(function () {
+                  alert("결제 모듈 로드 실패");
+                });
+            } else {
+              executePcPayment(form, response);
+            }
+          }
+        },
+        error: function (xhr) {
+          if (document.getElementById("ptg-pay-loading"))
+            document.body.removeChild(
+              document.getElementById("ptg-pay-loading")
+            );
+          alert(
+            "오류 발생: " +
+              (xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText)
+          );
+        },
+      });
+
+      function executePcPayment(form, response) {
+        form.version.value = response.version || "1.0";
+        form.gopaymethod.value = response.gopaymethod || "Card";
+        form.mid.value = response.mid;
+        form.oid.value = response.oid;
+        form.price.value = response.price;
+        form.timestamp.value = response.timestamp;
+        form.use_chkfake.value = response.use_chkfake || "Y";
+        form.signature.value = response.signature;
+        form.verification.value = response.verification;
+        form.mKey.value = response.mKey;
+        form.currency.value = response.currency || "WON";
+        form.goodname.value = response.goodname;
+        form.buyername.value = response.buyername;
+        form.buyertel.value = response.buyertel || "010-0000-0000"; // 임시
+        form.buyeremail.value = response.buyeremail;
+        form.returnUrl.value = response.returnUrl;
+        form.closeUrl.value = response.closeUrl;
+        form.acceptmethod.value = response.acceptmethod || "centerCd(Y)";
+
+        try {
+          INIStdPay.pay("ptg-payment-form");
+        } catch (e) {
+          alert("결제 모듈 실행 오류: " + e.message);
+        }
+      }
     },
 
     openPricingGuide: function () {
@@ -1307,18 +1462,14 @@
 
                     <!-- Account Management -->
                     <section class="ptg-mb-section">
-                        <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2>
+                        <h2 class="ptg-mb-section-title">⚙️ 계정 관리</h2><br>
                         <div class="ptg-account-links">
-                            <a href="${
-                              window.ptg_dashboard_vars?.account_url || "#"
-                            }/general" class="ptg-account-link">
+                            <a href="https://ptgates.com/account/?tab=profile" class="ptg-account-link">
                                 <span class="ptg-link-icon">👤</span>
                                 <span class="ptg-link-text">프로필 수정</span>
                                 <span class="ptg-link-arrow">→</span>
                             </a>
-                            <a href="${
-                              window.ptg_dashboard_vars?.account_url || "#"
-                            }/password" class="ptg-account-link">
+                            <a href="https://ptgates.com/account/?tab=security" class="ptg-account-link">
                                 <span class="ptg-link-icon">🔒</span>
                                 <span class="ptg-link-text">비밀번호 변경</span>
                                 <span class="ptg-link-arrow">→</span>
@@ -1352,35 +1503,51 @@
                                             </p>
 
                                             <div class="ptg-plan-grid">
-                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('1month')">
-                                                    <div class="ptg-plan-name">1개월</div>
-                                                    <div class="ptg-plan-month">체험 · 막판 벼락치기용</div>
-                                                    <div class="ptg-plan-price">24,000원</div>
-                                                    <div class="ptg-plan-monthly">월 환산 약 24,000원</div>
-                                                </div>
+                                                ${
+                                                  data.products &&
+                                                  data.products.length > 0
+                                                    ? data.products
+                                                        .map((p) => {
+                                                          const isPopular =
+                                                            p.featured_level >
+                                                            0;
+                                                          const tag = isPopular
+                                                            ? '<span class="ptg-plan-tag popular-tag">RECOMMENDED</span>'
+                                                            : "";
+                                                          const popularClass =
+                                                            isPopular
+                                                              ? "popular"
+                                                              : "";
 
-                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('3month')">
-                                                    <div class="ptg-plan-name">3개월</div>
-                                                    <div class="ptg-plan-month">단기 집중 학습 플랜</div>
-                                                    <div class="ptg-plan-price">59,000원</div>
-                                                    <div class="ptg-plan-monthly">월 환산 약 19,700원</div>
-                                                </div>
+                                                          // Convert price to number just in case
+                                                          const priceVal =
+                                                            parseInt(p.price);
 
-                                                <div class="ptg-plan-cell popular" onclick="Dashboard.initiatePayment('6month')">
-                                                    <div class="ptg-plan-name">6개월</div>
-                                                    <div class="ptg-plan-month">실습 이후 ~ 국시 직전까지</div>
-                                                    <div class="ptg-plan-price">89,000원</div>
-                                                    <div class="ptg-plan-monthly">월 환산 약 14,800원</div>
-                                                    <span class="ptg-plan-tag popular-tag">가장 많이 선택</span>
-                                                </div>
-
-                                                <div class="ptg-plan-cell" onclick="Dashboard.initiatePayment('12month')">
-                                                    <div class="ptg-plan-name">12개월</div>
-                                                    <div class="ptg-plan-month">장기 준비 · 재응시 대비</div>
-                                                    <div class="ptg-plan-price">129,000원</div>
-                                                    <div class="ptg-plan-monthly">월 환산 약 10,800원</div>
-                                                    <span class="ptg-plan-tag value-tag">가성비 최고</span>
-                                                </div>
+                                                          return `
+                                                        <div class="ptg-plan-cell ${popularClass}" onclick="Dashboard.initiatePayment('${
+                                                            p.product_code
+                                                          }', ${priceVal}, '${
+                                                            p.title
+                                                          }')">
+                                                            <div class="ptg-plan-name">${
+                                                              p.title
+                                                            }</div>
+                                                            <div class="ptg-plan-month">${
+                                                              p.description ||
+                                                              ""
+                                                            }</div>
+                                                            <div class="ptg-plan-price">${priceVal.toLocaleString()}원</div>
+                                                            <div class="ptg-plan-monthly">${
+                                                              p.price_label ||
+                                                              ""
+                                                            }</div>
+                                                            ${tag}
+                                                        </div>
+                                                        `;
+                                                        })
+                                                        .join("")
+                                                    : '<div style="grid-column: 1 / -1; text-align:center; padding: 20px;">판매 중인 상품이 없습니다.</div>'
+                                                }
                                             </div>
                                             
                                             <div style="text-align: center; margin-top: 20px;">
@@ -1401,25 +1568,6 @@
                             </div>
                         </div>
 
-                        <div class="ptg-footer-actions">
-                            <div style="font-size: 13px; color: #6b7280;">
-                                <a href="${
-                                  window.ptg_dashboard_vars?.account_url || "#"
-                                }/delete" 
-                                   style="color: #991b1b; font-weight: bold; text-decoration: underline; margin-right: 4px;"
-                                   onclick="return confirm('정말로 계정을 삭제하시겠습니까?\n\n삭제된 계정과 모든 학습 데이터는 복구할 수 없습니다.');">
-                                    계정 탈퇴
-                                </a>
-                                계정을 삭제하면 모든 학습 기록과 데이터가 영구적으로 삭제됩니다.
-                            </div>
-                            <div class="ptg-footer-buttons">
-                                <button type="button" onclick="document.getElementById('ptg-membership-details').style.display = 'none';" 
-                                   class="ptg-btn-secondary">
-                                    닫기
-                                </button>
-
-                            </div>
-                        </div>
                     </section>
                 </div>
             `;

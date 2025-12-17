@@ -7,22 +7,11 @@
  */
 
 // ** Database settings - You can get this info from your web host ** //
-/** The name of the database for WordPress */
 define( 'DB_NAME', 'ptgates' );
-
-/** Database username */
 define( 'DB_USER', 'ptgates' );
-
-/** Database password */
-define( 'DB_PASSWORD', 'w3m5935P@#21' );
-
-/** Database hostname */
-define( 'DB_HOST', 'localhost' );
-
-/** Database charset to use in creating database tables. */
+define( 'DB_PASSWORD', 'PBrZmtfoJl8b8jQNd' );
+define( 'DB_HOST', '127.0.0.1' );
 define( 'DB_CHARSET', 'utf8' );
-
-/** The database collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', '' );
 
 /**#@+
@@ -81,4 +70,3 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Sets up WordPress vars and included files. */
 require_once ABSPATH . 'wp-settings.php';
-

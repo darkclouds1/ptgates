@@ -41,7 +41,8 @@ class PTG_Admin_Members {
 			'users' => '사용자 관리',
 			'study' => '1100-Study 설정',
 			'quiz'  => '1200-Quiz 설정',
-			'flash' => '2200-Flash 설정'
+			'flash' => '2200-Flash 설정',
+			'membership' => '멤버십 설정'
 		];
 
 		echo '<h2 class="nav-tab-wrapper">';
@@ -118,6 +119,17 @@ class PTG_Admin_Members {
 				'LIMIT_BASIC_CARDS' => 'Basic(로그인 무료회원) 1일 암기카드 학습 제한',
 				'LIMIT_TRIAL_CARDS' => 'Trial(체험판) 회원 1일 암기카드 학습 제한',
 				'MEMBERSHIP_URL' => '멤버십 안내 페이지 URL'
+			];
+			$configs = get_option($option_name, $defaults);
+		} elseif ($tab === 'membership') {
+			$option_name = 'ptg_conf_membership';
+			$defaults = [
+				'TRIAL_PERIOD_DAYS' => 10,
+				'TRIAL_EXAM_LIMIT' => 5,
+			];
+			$descriptions = [
+				'TRIAL_PERIOD_DAYS' => '최초 가입 시 제공되는 체험판(Trial) 기간 (일 단위)',
+				'TRIAL_EXAM_LIMIT' => '체험판(Trial) 회원의 모의고사 응시 횟수 제한'
 			];
 			$configs = get_option($option_name, $defaults);
 		}
@@ -215,8 +227,23 @@ class PTG_Admin_Members {
 		$total_pages = $data['total_pages'];
 		$total_items = $data['total_items'];
 
+		$total_items = $data['total_items'];
+
+		// 접속 중인 회원 수 계산 (30분 이내 활동)
+		global $wpdb;
+		$active_count_sql = "SELECT COUNT(*) FROM ptgates_user_member WHERE last_login > %s";
+		$active_threshold = date('Y-m-d H:i:s', current_time('timestamp') - 1800); // 30분 전
+		$active_users = $wpdb->get_var($wpdb->prepare($active_count_sql, $active_threshold));
+
 		?>
 		<!-- 상단 툴바 -->
+		<div style="background: #fff; padding: 10px 15px; border: 1px solid #c3c4c7; border-left: 4px solid #72aee6; margin: 10px 0;">
+			<span style="font-size: 14px; font-weight: 500;">
+				로그인: <strong style="color: #0073aa;"><?php echo number_format($active_users); ?></strong> / 
+				전체: <strong><?php echo number_format($total_items); ?></strong> 명
+			</span>
+		</div>
+		
 		<div class="tablenav top">
 			<form method="get">
 				<input type="hidden" name="page" value="ptgates-admin-members">
@@ -256,6 +283,9 @@ class PTG_Admin_Members {
 				<tr>
 					<th scope="col" class="manage-column column-cb check-column"><input type="checkbox"></th>
 					<th scope="col" class="manage-column column-username">사용자</th>
+                    <th scope="col" class="manage-column">이름</th>
+					<th scope="col" class="manage-column">가입일</th>
+					<th scope="col" class="manage-column">접속</th>
 					<th scope="col" class="manage-column">등급</th>
 					<th scope="col" class="manage-column">상태</th>
 					<th scope="col" class="manage-column">만료일</th>
@@ -268,17 +298,42 @@ class PTG_Admin_Members {
 					<tr><td colspan="7">데이터가 없습니다.</td></tr>
 				<?php else : ?>
 					<?php foreach ($members as $member) : ?>
+						<?php 
+                            $u = get_userdata($member['user_id']);
+                            $dname = $u ? $u->display_name : '';
+                            $fname = $u ? $u->first_name : '';
+                            if ($fname && $fname !== $dname) $dname .= " ($fname)";
+                        ?>
 						<tr>
 							<th scope="row" class="check-column"><input type="checkbox" name="users[]" value="<?php echo $member['user_id']; ?>"></th>
 							<td class="username column-username">
 								<strong><a href="<?php echo get_edit_user_link($member['user_id']); ?>"><?php echo esc_html($member['user_login']); ?></a></strong>
 								<br><?php echo esc_html($member['user_email']); ?>
 							</td>
+                            <td><?php echo esc_html($dname); ?></td>
+							<td>
+								<?php echo date('Y-m-d', strtotime($member['user_registered'])); ?>
+							</td>
+							<td>
+								<?php 
+								$last_login = $member['last_login'];
+								if ($last_login) {
+									$diff = (current_time('timestamp') - strtotime($last_login));
+									if ($diff < 1800) { // 30분 이내
+										echo '<span class="ptg-badge ptg-status-active">접속중</span>';
+									} else {
+										echo date('Y-m-d H:i', strtotime($last_login));
+									}
+								} else {
+									echo '-';
+								}
+								?>
+							</td>
 							<td>
 								<span class="ptg-badge ptg-grade-<?php echo esc_attr($member['member_grade']); ?>"><?php echo esc_html($member['member_grade']); ?></span>
 								<a href="#" class="ptg-edit-grade-btn dashicons dashicons-edit" data-user-id="<?php echo $member['user_id']; ?>" title="등급 수정"></a>
 							</td>
-							<td>
+							<td class="ptg-status-cell" data-user-id="<?php echo $member['user_id']; ?>" style="cursor: pointer;" title="클릭하여 오늘 사용량 확인">
 								<span class="ptg-status-<?php echo esc_attr($member['billing_status']); ?>"><?php echo esc_html($member['billing_status']); ?></span>
 							</td>
 							<td>
@@ -370,7 +425,7 @@ class PTG_Admin_Members {
 		// 그러나 성능상 ptgates_user_member 테이블을 기준으로 하는게 나을 수도 있음 (멤버십 관리니까).
 		// 일단 ptgates_user_member 테이블 기준으로 조회 (로그인 시 자동 생성되므로 활성 유저는 다 있음)
 		
-		$sql = "SELECT m.*, u.user_login, u.user_email 
+		$sql = "SELECT m.*, u.user_login, u.user_email, u.user_registered 
 				FROM ptgates_user_member m
 				JOIN {$wpdb->users} u ON m.user_id = u.ID";
 		
@@ -473,6 +528,78 @@ class PTG_Admin_Members {
 		$html = ob_get_clean();
 		
 		wp_send_json_success($html);
+	}
+
+	/**
+	 * AJAX: 사용자 일일 사용량 조회 (Study, Quiz, Mock, Flash)
+	 */
+	public static function ajax_get_user_stats() {
+		self::check_permission();
+		
+		$user_id = intval($_POST['user_id']);
+		global $wpdb;
+		
+		$today = current_time('Y-m-d');
+		
+		// 1. Study (과목 학습): ptgates_user_states에서 last_study_date가 오늘인 항목 수
+		$study_count = $wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM ptgates_user_states WHERE user_id = %d AND DATE(last_study_date) = %s AND study_count > 0",
+			$user_id, $today
+		));
+
+		// 2. Quiz (퀴즈/문제풀이): ptgates_user_results에서 attempted_at이 오늘인 항목 수
+		$quiz_count = $wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM ptgates_user_results WHERE user_id = %d AND DATE(attempted_at) = %s",
+			$user_id, $today
+		));
+
+		// 3. Mock (모의고사): ptgates_exam_sessions에서 created_at이 오늘인 세션 수
+		$mock_count = $wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM ptgates_exam_sessions WHERE user_id = %d AND DATE(created_at) = %s",
+			$user_id, $today
+		));
+
+		// 4. Flash (암기카드): ptgates_flashcards에서 updated_at이 오늘인 카드 수 (학습/수정)
+		// ptgates_flashcards 테이블의 updated_at 활용
+		$flash_count = $wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM ptgates_flashcards WHERE user_id = %d AND DATE(updated_at) = %s",
+			$user_id, $today
+		));
+
+		// 5. 마지막 활동 시간 (Last Active)
+		// 여러 테이블 중 가장 최근 시간을 가져옴
+		$last_study = $wpdb->get_var($wpdb->prepare("SELECT MAX(last_study_date) FROM ptgates_user_states WHERE user_id = %d", $user_id));
+		$last_quiz  = $wpdb->get_var($wpdb->prepare("SELECT MAX(attempted_at) FROM ptgates_user_results WHERE user_id = %d", $user_id));
+		$last_mock  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM ptgates_exam_sessions WHERE user_id = %d", $user_id));
+		$last_flash = $wpdb->get_var($wpdb->prepare("SELECT MAX(updated_at) FROM ptgates_flashcards WHERE user_id = %d", $user_id));
+		$last_login = $wpdb->get_var($wpdb->prepare("SELECT last_login FROM ptgates_user_member WHERE user_id = %d", $user_id)); // 접속로그
+
+		$timestamps = array_filter([
+			strtotime($last_study), 
+			strtotime($last_quiz), 
+			strtotime($last_mock), 
+			strtotime($last_flash),
+			strtotime($last_login)
+		]);
+		
+		$last_active_str = '-';
+		if (!empty($timestamps)) {
+			$max_time = max($timestamps);
+			$last_active_str = date('Y-m-d H:i:s', $max_time);
+			
+			// 10분 이내면 "방금 전" 등 표시 가능하지만, 여기선 정확한 시간 표시
+		}
+
+		$data = [
+			'study' => intval($study_count),
+			'quiz' => intval($quiz_count),
+			'mock' => intval($mock_count),
+			'flash' => intval($flash_count),
+			'last_active' => $last_active_str,
+			'today' => $today
+		];
+
+		wp_send_json_success($data);
 	}
 
 	/**

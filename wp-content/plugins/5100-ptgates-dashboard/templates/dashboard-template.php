@@ -961,32 +961,6 @@ if ($grade === 'basic') {
         transform: translateY(-1px);
     }
 
-    .ptg-footer-actions {
-        margin-top: 24px;
-        padding-top: 20px;
-        border-top: 1px solid #e5e7eb;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
-    .ptg-footer-buttons {
-        display: flex;
-        gap: 8px;
-    }
-
-    @media (max-width: 768px) {
-        .ptg-footer-actions {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 16px;
-        }
-        .ptg-footer-buttons {
-            width: 100%;
-            justify-content: flex-end;
-        }
-    }
-
     .ptg-link-icon {
         font-size: 20px;
         margin-right: 12px;

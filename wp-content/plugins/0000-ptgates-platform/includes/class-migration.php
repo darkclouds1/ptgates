@@ -63,11 +63,39 @@ class Migration {
 
         // 12. 기관-사용자 연결 테이블
         self::create_org_member_link_table($charset_collate);
+
+        // 13. 상품 테이블 (NEW)
+        self::create_products_table($charset_collate);
+
+        // 14. [NEW] 인증/가입 이력 테이블 (Trial Abuse 방지)
+        self::create_auth_history_table($charset_collate);
         
-        // 13. ptgates_user_states 테이블 트리거 생성
+        // 15. ptgates_user_states 테이블 트리거 생성
         self::create_user_states_triggers();
         
         // 정상 케이스는 로그를 남기지 않음
+    }
+
+    /**
+     * 인증/가입 이력 테이블 생성 (Trial Abuse 방지)
+     * 탈퇴 후 재가입 시에도 이력이 남도록 해시값 저장
+     */
+    private static function create_auth_history_table($charset_collate) {
+        global $wpdb;
+        
+        $table_name = 'ptgates_auth_history';
+        
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `identifier_hash` varchar(64) NOT NULL COMMENT '이메일 또는 Kakao ID의 SHA-256 해시값',
+            `auth_type` varchar(20) NOT NULL COMMENT 'email, kakao 등 식별자 타입',
+            `trial_granted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '체험판 등급 부여 시점',
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `identifier_hash` (`identifier_hash`)
+        ) {$charset_collate};";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
     }
     
     /**
@@ -568,6 +596,79 @@ class Migration {
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+
+    /**
+     * 상품 테이블 생성
+     */
+    private static function create_products_table($charset_collate) {
+        global $wpdb;
+
+        $table_name = 'ptgates_products';
+
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `product_code` varchar(50) NOT NULL COMMENT '상품 코드 (Unique)',
+            `title` varchar(100) NOT NULL COMMENT '상품명',
+            `description` text NULL COMMENT '상품 설명',
+            `price` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '가격 (원)',
+            `price_label` varchar(50) NULL COMMENT '가격 표시용 라벨 (예: 월 9,900원)',
+            `duration_months` int(11) unsigned NOT NULL DEFAULT 1 COMMENT '멤버십 기간 (개월)',
+            `features_json` json NULL COMMENT '상품 특징 리스트 (JSON)',
+            `featured_level` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '추천 등급 (높을수록 강조)',
+            `sort_order` int(11) unsigned NOT NULL DEFAULT 0 COMMENT '정렬 순서',
+            `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '활성화 여부',
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `product_code` (`product_code`),
+            KEY `sort_order` (`sort_order`),
+            KEY `is_active` (`is_active`)
+        ) {$charset_collate};";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+
+        // 초기 상품 데이터 시딩 (테이블이 비어있을 경우에만)
+        $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+        if ($count == 0) {
+            $wpdb->insert($table_name, [
+                'product_code' => 'PREMIUM_1M',
+                'title' => 'Premium 1개월',
+                'description' => '모든 기능을 제한 없이 1개월 동안 이용하세요.',
+                'price' => 9900,
+                'price_label' => '월 9,900원',
+                'duration_months' => 1,
+                'features_json' => json_encode([
+                    '무제한 문제 풀이',
+                    '무제한 암기카드',
+                    '모의고사 응시',
+                    '오답노트 및 통계'
+                ], JSON_UNESCAPED_UNICODE),
+                'featured_level' => 0,
+                'sort_order' => 1,
+                'is_active' => 1
+            ]);
+            
+            $wpdb->insert($table_name, [
+                'product_code' => 'PREMIUM_3M',
+                'title' => 'Premium 3개월',
+                'description' => '3개월 멤버십으로 더 저렴하게 이용하세요.',
+                'price' => 19800,
+                'price_label' => '월 6,600원',
+                'duration_months' => 3,
+                'features_json' => json_encode([
+                    '1개월권 대비 33% 할인',
+                    '무제한 문제 풀이',
+                    '무제한 암기카드',
+                    '모의고사 응시',
+                    '오답노트 및 통계'
+                ], JSON_UNESCAPED_UNICODE),
+                'featured_level' => 1,
+                'sort_order' => 2,
+                'is_active' => 1
+            ]);
+        }
     }
     
     /**
