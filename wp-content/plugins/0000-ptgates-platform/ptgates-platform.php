@@ -3,7 +3,7 @@
  * Plugin Name: 0000-ptgates-platform (PTGates Platform)
  * Plugin URI: https://ptgates.com
  * Description: PTGates 플랫폼 코어 - 공통 DB 스키마, 권한, 유틸리티, 컴포넌트 제공. 모든 모듈의 필수 의존성.
- * Version: 1.0.2
+ * Version: 1.0.4
  * Author: PTGates
  * Author URI: https://ptgates.com
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // 플러그인 상수 정의
-define('PTG_PLATFORM_VERSION', '1.0.2');
+define('PTG_PLATFORM_VERSION', '1.0.5');
 define('PTG_PLATFORM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PTG_PLATFORM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PTG_PLATFORM_PLUGIN_BASENAME', plugin_basename(__FILE__)); 
@@ -98,6 +98,9 @@ class PTG_Platform {
         // 핵심 테이블이 없으면 자동으로 마이그레이션 실행
         add_action('init', array($this, 'ensure_database_schema'), 0);
         
+        // [FIX] 버전 변경 감지 및 마이그레이션 실행
+        add_action('init', array($this, 'check_version_and_migrate'), 1);
+        
         // [CRITICAL] 사용자 삭제 시 Elementor Kit 보호 (Reassign to Admin)
         add_action( 'delete_user', array( $this, 'reassign_elementor_posts_before_delete' ) );
         add_action( 'wpmu_delete_user', array( $this, 'reassign_elementor_posts_before_delete' ) );
@@ -143,6 +146,26 @@ class PTG_Platform {
         // 사용자 삭제 시 Elementor Kit 소유권 이전 (삭제 방지)
         // Priority 5: 기본 삭제 로직(10)보다 먼저 실행
         add_action( 'delete_user', array( $this, 'reassign_elementor_posts_before_delete' ), 5 );
+    }
+
+    /**
+     * 버전 확인 및 마이그레이션 실행
+     * 플러그인 업데이트 시 스키마 변경 반영을 위해 필요
+     */
+    public function check_version_and_migrate() {
+        $current_version = get_option('ptg_platform_version', '0.0.0');
+        
+        if (version_compare($current_version, PTG_PLATFORM_VERSION, '<')) {
+            // 버전이 낮으면 마이그레이션 실행
+            \PTG\Platform\Migration::run_migrations();
+            
+            // 버전 업데이트
+            update_option('ptg_platform_version', PTG_PLATFORM_VERSION);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[PTG Platform] Updated to version ' . PTG_PLATFORM_VERSION);
+            }
+        }
     }
 
     /**

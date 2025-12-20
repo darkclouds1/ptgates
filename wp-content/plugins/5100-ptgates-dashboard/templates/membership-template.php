@@ -580,37 +580,11 @@ $active_products = \PTG\Dashboard\API::get_active_products();
 </div>
 
 
-<!-- KG Inicis Payment Form (Hidden) -->
-<form id="ptg-payment-form" method="POST" style="display:none;">
-    <!-- Common -->
-    <input type="hidden" name="mid" >
-    <input type="hidden" name="goodname" >
-    <input type="hidden" name="oid" >
-    <input type="hidden" name="price" >
-    <input type="hidden" name="buyername" >
-    <input type="hidden" name="buyeremail" >
-    <input type="hidden" name="timestamp" >
-    <input type="hidden" name="returnUrl" >
-    <input type="hidden" name="closeUrl" >
-    <input type="hidden" name="signature" >
-    <input type="hidden" name="mKey" >
-    <input type="hidden" name="currency" value="WON">
-    <input type="hidden" name="payViewType" value="overlay">
-    <input type="hidden" name="charset" value="UTF-8">
-    
-    <!-- Mobile Specific -->
-    <input type="hidden" name="P_MID" >
-    <input type="hidden" name="P_OID" >
-    <input type="hidden" name="P_AMT" >
-    <input type="hidden" name="P_UNAME" >
-    <input type="hidden" name="P_GOODS" >
-    <input type="hidden" name="P_NEXT_URL" >
-    <input type="hidden" name="P_NOTI_URL" >
-    <input type="hidden" name="P_HPP_METHOD" value="1">
-</form>
 
-<!-- KG Inicis StdPay JS (Staging) -->
-<script language="javascript" type="text/javascript" src="https://stgstdpay.inicis.com/stdjs/INIStdPay.js" charset="UTF-8"></script>
+
+<!-- PortOne V2 SDK -->
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
 <script>
 function togglePaymentManagement() {
     var el = document.getElementById('ptg-payment-management');
@@ -640,95 +614,86 @@ function switchPmTab(tabName) {
 }
 
 
-function initiatePayment(productCode, price, productName) {
+async function initiatePayment(productCode, price, productName) {
     if (!confirm(productName + ' (' + price.toLocaleString() + '원)을 결제하시겠습니까?')) {
         return;
     }
     
-    // Check Device
-    var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    var deviceType = isMobile ? 'mobile' : 'pc';
-
     // Show Loading
-    // Simple overlay
     var overlay = document.createElement('div');
     overlay.id = 'ptg-pay-loading';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;';
-    overlay.innerHTML = '결제 준비 중입니다...';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;flex-direction:column;gap:10px;';
+    overlay.innerHTML = '<div>결제 준비 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">창을 닫지 마세요.</div>';
     document.body.appendChild(overlay);
 
-    // Call API
-    jQuery.ajax({
-        url: '/wp-json/ptg-dash/v1/payment/prepare',
-        method: 'POST',
-        headers: {
-            'X-WP-Nonce': '<?php echo wp_create_nonce("wp_rest"); ?>'
-        },
-        data: {
-            product_code: productCode,
-            device_type: deviceType
-        },
-        success: function(response) {
-            if (document.getElementById('ptg-pay-loading')) document.body.removeChild(document.getElementById('ptg-pay-loading'));
+    try {
+        // 1. Prepare Payment (Get paymentId)
+        const prepareRes = await jQuery.ajax({
+            url: '/wp-json/ptg-dash/v1/payment/prepare',
+            method: 'POST',
+            headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce("wp_rest"); ?>' },
+            data: { product_code: productCode }
+        });
 
-            var form = document.getElementById('ptg-payment-form');
-            
-            if (deviceType === 'mobile') {
-                // Mobile Logic
-                // Map API response to Mobile Form Fields
-                form.action = 'https://stgmobile.inicis.com/smart/payment/'; // Staging URL
-                form.acceptCharset = 'euc-kr'; // Mobile sometimes requires EUC-KR, but UTF-8 is standard now. verifying.
-                form.acceptCharset = 'UTF-8';
-                
-                // Mappings
-                // API returns: mid, oid, price...
-                // Mobile needs: P_MID, P_OID, P_AMT...
-                
-                // Note: prepare_transaction only returns PC params mostly.
-                // I need to ensure Payment class returns Mobile params too or map them here.
-                // In Payment class I returned 'P_NEXT_URL' which suggests Mobile awareness.
-                // Let's assume standard params are returned.
-                
-                // Mapping
-                if (response.mid) form.P_MID.value = response.mid;
-                if (response.oid) form.P_OID.value = response.oid;
-                if (response.price) form.P_AMT.value = response.price;
-                if (response.buyername) form.P_UNAME.value = response.buyername;
-                if (response.goodname) form.P_GOODS.value = response.goodname;
-                if (response.P_NEXT_URL) form.P_NEXT_URL.value = response.P_NEXT_URL;
-                // P_NOTI_URL is optional/server-to-server
-                
-                form.submit();
-                
-            } else {
-                // PC Logic
-                // Field Mapping
-                form.mid.value = response.mid;
-                form.oid.value = response.oid;
-                form.price.value = response.price;
-                form.goodname.value = response.goodname;
-                form.buyername.value = response.buyername;
-                form.buyeremail.value = response.buyeremail;
-                form.timestamp.value = response.timestamp;
-                form.signature.value = response.signature;
-                form.mKey.value = response.mKey;
-                form.returnUrl.value = response.returnUrl;
-                form.closeUrl.value = response.closeUrl;
-                
-                // Execute StdPay
-                try {
-                    INIStdPay.pay('ptg-payment-form');
-                } catch (e) {
-                    alert('결제 모듈 실행 실패: ' + e.message);
-                }
-            }
-        },
-        error: function(xhr) {
-            if (document.getElementById('ptg-pay-loading')) document.body.removeChild(document.getElementById('ptg-pay-loading'));
-            alert('오류 발생: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText));
+        if (!prepareRes || !prepareRes.paymentId) {
+            throw new Error('결제 정보를 불러오지 못했습니다.');
         }
-    });
 
+        // 2. Request Payment (PortOne V2)
+        const response = await PortOne.requestPayment({
+            storeId: prepareRes.storeId,
+            channelKey: prepareRes.channelKey,
+            paymentId: prepareRes.paymentId,
+            orderName: prepareRes.orderName,
+            totalAmount: prepareRes.totalAmount,
+            currency: prepareRes.currency,
+            payMethod: prepareRes.payMethod,
+            customer: prepareRes.customer,
+            windowType: {
+                pc: 'IFRAME',
+                mobile: 'REDIRECTION'
+            }
+        });
+
+        // 3. Process Response
+        if (response.code != null) {
+            // Error occurred (code exists usually means error, or check documentation strictly)
+            // PortOne V2: if code is present, it's error. If success, it returns paymentId object?
+            // Actually V2 returns { code, message, paymentId, ... } on failures?
+            // Let's check docs safely: if response.code exists, it is FAILURE or CANCELLATION
+            alert('결제 실패: ' + response.message);
+            return;
+        }
+
+        // Success Case (paymentId returned) - But V2 response might vary slightly on payment method.
+        // Usually invalid response throws or returns code.
+        
+        // 4. Verify Payment (Server-side)
+        overlay.innerHTML = '<div>결제 확인 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">잠시만 기다려주세요.</div>';
+        
+        const verifyRes = await jQuery.ajax({
+            url: '/wp-json/ptg-dash/v1/payment/complete',
+            method: 'POST',
+            headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce("wp_rest"); ?>' },
+            data: { paymentId: prepareRes.paymentId } // Use original ID or response.paymentId
+        });
+
+        if (verifyRes && verifyRes.success) {
+            alert('결제가 완료되었습니다. 프리미엄 멤버십이 활성화되었습니다.');
+            window.location.reload();
+        } else {
+             throw new Error('검증 실패: ' + (verifyRes.message || '알 수 없는 오류'));
+        }
+
+    } catch (e) {
+        console.error(e);
+        let msg = e.message || e.responseJSON?.message || e.statusText || '알 수 없는 오류';
+        alert('오류 발생: ' + msg);
+    } finally {
+        if (document.getElementById('ptg-pay-loading')) {
+            document.body.removeChild(document.getElementById('ptg-pay-loading'));
+        }
+    }
 }
 </script>
 

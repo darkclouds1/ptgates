@@ -95,6 +95,20 @@ class LegacyRepo {
                 $where_values = array_merge($where_values, $exclude_ids);
             }
         }
+
+        // include_ids 필터 (특정 문제만 포함)
+        if (!empty($args['include_ids']) && is_array($args['include_ids'])) {
+            $include_ids = array_map('absint', $args['include_ids']);
+            $include_ids = array_filter($include_ids); // 0 제거
+            if (!empty($include_ids)) {
+                $placeholders = implode(',', array_fill(0, count($include_ids), '%d'));
+                $where[] = "q.question_id IN ($placeholders)";
+                $where_values = array_merge($where_values, $include_ids);
+            } else {
+                // include_ids가 제공되었으나 비어있는 경우 (예: 오답이 없음), 결과도 비어야 함
+                $where[] = "1=0";
+            }
+        }
         
         $where_clause = implode(' AND ', $where);
         
@@ -377,7 +391,7 @@ class LegacyRepo {
         $insert_data = array(
             'user_id' => absint($user_id),
             'question_id' => absint($data['question_id']),
-            'user_answer' => isset($data['user_answer']) ? sanitize_text_field($data['user_answer']) : null,
+            'user_answer' => isset($data['user_answer']) ? (int) $data['user_answer'] : null,
             'is_correct' => isset($data['is_correct']) ? (int) $data['is_correct'] : 0,
             'elapsed_time' => isset($data['elapsed_time']) ? absint($data['elapsed_time']) : null,
         );

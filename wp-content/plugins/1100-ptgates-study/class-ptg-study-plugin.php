@@ -30,12 +30,38 @@ class PTG_Study_Plugin {
         // Actions
         add_action('wp_enqueue_scripts', [$this, 'enqueue_scripts_styles']);
         add_action('wp_head', [$this, 'inject_critical_styles']);
+        add_action('init', [$this, 'init']); // [NEW] Init hook
         
         // Shortcodes
         add_shortcode('ptg_study', [$this, 'render_study_shortcode']);
         
         // Initialize API
         $this->init_api();
+    }
+
+    public function init() {
+        // Register rewrite for mock review
+        add_rewrite_rule('^mock-review/?$', 'index.php?ptg_action=mock_review', 'top');
+        
+        add_filter('query_vars', function($vars) {
+            $vars[] = 'ptg_action';
+            return $vars;
+        });
+
+        add_action('template_redirect', [$this, 'handle_mock_review_template']);
+
+        // [TEMP] Force Flush Rules to fix 404
+        if (!get_option('ptg_study_rewrite_flushed')) {
+            flush_rewrite_rules();
+            update_option('ptg_study_rewrite_flushed', true);
+        }
+    }
+
+    public function handle_mock_review_template() {
+        if (get_query_var('ptg_action') === 'mock_review') {
+            include plugin_dir_path(PTG_STUDY_MAIN_FILE) . 'templates/mock-review.php';
+            exit;
+        }
     }
 
     public function enqueue_scripts_styles() {

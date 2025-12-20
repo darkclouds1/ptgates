@@ -109,6 +109,32 @@ if ($grade === 'basic') {
 // 인라인 스타일 (간단한 스타일은 여기에 포함, 복잡하면 css 파일로 분리 권장)
 ?>
 <style>
+/* Force Centering for Plan Grid in Dashboard View */
+.ptg-plan-grid {
+    display: flex;
+    justify-content: center !important;
+    align-items: center; /* Vertically align if needed */
+    gap: 16px; /* Increased gap slightly */
+    margin-top: 12px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+
+.ptg-plan-cell {
+    width: 240px;      /* Fixed width */
+    height: 260px;     /* Fixed height */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    /* Other styles inherited from dashboard.js generation (bg, border radius) */
+}
+/* Ensure wrapper or other elements don't block centering */
+</style>
+<style>
 
     .ptg-dashboard-container {
         max-width: 1000px !important;

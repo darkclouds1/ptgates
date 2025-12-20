@@ -904,6 +904,8 @@
         return;
       }
 
+      const self = this; // reference for products
+
       // Fetch the HTML content
       $.get(
         "/wp-content/plugins/5100-ptgates-dashboard/assets/html/pricing-guide.html",
@@ -914,6 +916,53 @@
           // Extract styles and remove body selector to prevent global override
           let styles = doc.querySelector("style").innerHTML;
           styles = styles.replace(/body\s*{[^}]*}/, "");
+
+          // --- Dynamic Rendering Logic Start ---
+          const products = self.products || [];
+          const grids = doc.querySelectorAll(".ptg-plan-grid");
+
+          grids.forEach((grid) => {
+            if (grid && products.length > 0) {
+              // Clear existing static placeholder content
+              grid.innerHTML = "";
+
+              // Render active products
+              products.forEach((p) => {
+                const isPopular = p.featured_level > 0;
+                const tag = isPopular
+                  ? '<span class="ptg-plan-tag popular-tag">가장 많이 선택</span>'
+                  : "";
+                const popularClass = isPopular ? "popular" : "";
+                const priceVal = parseInt(p.price).toLocaleString();
+
+                // Determine secondary tag (e.g., Value choice for 12 months)
+                // Logic can be based on product code or duration
+                let extraTag = "";
+                if (!isPopular && p.duration_months === 12) {
+                  extraTag =
+                    '<span class="ptg-plan-tag value-tag">가성비 최고</span>';
+                }
+
+                const cardHtml = `
+                    <div class="ptg-plan-cell ${popularClass}">
+                        <div class="ptg-plan-name">${p.title}</div>
+                        <div class="ptg-plan-month">${p.description || ""}</div>
+                        <div class="ptg-plan-price">${priceVal}원</div>
+                        <div class="ptg-plan-monthly">${
+                          p.price_label || ""
+                        }</div>
+                        ${tag}
+                        ${extraTag}
+                    </div>
+                `;
+                grid.innerHTML += cardHtml;
+              });
+            } else if (grid) {
+              grid.innerHTML =
+                '<div style="grid-column: 1 / -1; text-align:center; padding: 20px;">판매 중인 상품이 없습니다.</div>';
+            }
+          });
+          // --- Dynamic Rendering Logic End ---
 
           const content = doc.querySelector(
             ".ptg-membership-wrapper"
@@ -1252,6 +1301,8 @@
     },
 
     render: function (data) {
+      this.products = data.products || []; // Store products for global access
+
       const {
         user_name,
         premium,
@@ -1594,7 +1645,14 @@
                     <div class="ptg-card-stat">${quizPercent}%</div>
                 </a>
 
-                <!-- 3. Bookmark -->
+                <!-- 3. Mock Exam (New) -->
+                <a href="/ptg_quiz/?mode=mock" class="ptg-dash-card">
+                    <div class="ptg-card-icon">💯</div>
+                    <div class="ptg-card-title">모의시험</div>
+                    <div class="ptg-card-stat"><strong>GO</strong></div>
+                </a>
+
+                <!-- 4. Bookmark -->
                 <a href="/bookmark/" class="ptg-dash-card">
                     <div class="ptg-card-icon">🔖</div>
                     <div class="ptg-card-title">북마크</div>
@@ -1603,7 +1661,7 @@
                     )}</strong> 문제</div>
                 </a>
 
-                <!-- 4. Review | Quiz -->
+                <!-- 5. Review | Quiz -->
                 <a href="/ptg_quiz/?review_only=1&auto_start=1" class="ptg-dash-card">
                     <div class="ptg-card-icon">🧠</div>
                     <div class="ptg-card-title">복습|Quiz</div>
@@ -1613,7 +1671,7 @@
                         ).toLocaleString()}</strong> 문제
                     </div>
                 </a>
-                <!-- 5. My Note -->
+                <!-- 6. My Note -->
                 <a href="/mynote/" class="ptg-dash-card">
                     <div class="ptg-card-icon">🗒️</div>
                     <div class="ptg-card-title">마이노트</div>
@@ -1622,7 +1680,7 @@
                     }</strong> 문제</div>
                 </a>
 
-                <!-- 6. Flashcard -->
+                <!-- 7. Flashcard -->
                 <a href="/flashcards/" class="ptg-dash-card">
                     <div class="ptg-card-icon">🃏</div>
                     <div class="ptg-card-title">암기카드</div>

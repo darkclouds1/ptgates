@@ -79,50 +79,61 @@
 
     // URL 파라미터에서 세부과목 자동 열기 (대시보드에서 링크로 이동한 경우)
     const urlParams = new URLSearchParams(window.location.search);
+    // Check for "Subject" - Deep Link (Direct Load Strategy)
     const subjectParam = urlParams.get("subject");
     if (subjectParam) {
       try {
-        const subjectId = decodeURIComponent(subjectParam);
-        const subjectLabel = subjectId;
-        // 해당 세부과목이 있는 카테고리 찾기
-        const $targetItem = studyContainer
-          .find(".ptg-subject-item")
-          .filter(function () {
-            const itemId = $(this).data("subject-id");
-            if (!itemId) return false;
-            try {
-              return decodeURIComponent(itemId) === subjectId;
-            } catch (e) {
-              return itemId === subjectId;
-            }
-          });
-
-        if ($targetItem.length > 0) {
-          const $category = $targetItem.closest(".ptg-category");
-          const categoryLabel = $category
-            .find(".ptg-category-title")
-            .text()
-            .trim();
-          // 약간의 지연 후 자동으로 클릭 (DOM이 완전히 준비된 후)
-          setTimeout(function () {
-            studyContainer.html(
-              `<p>${escapeHtml(
-                subjectLabel
-              )} 과목의 학습 내용을 불러오는 중...</p>`
-            );
-            fetchAndRenderLessons(
-              studyContainer,
-              subjectId,
-              subjectLabel,
-              categoryLabel
-            );
-          }, 100);
+        // Safe Decode
+        let subjectIdRaw = "";
+        try {
+          subjectIdRaw = decodeURIComponent(subjectParam);
+        } catch (e) {
+          subjectIdRaw = subjectParam;
         }
+
+        const subjectLabel = subjectIdRaw; // Use ID as label since we don't have DOM context
+        const categoryLabel = "내 학습 기록"; // Generic context since we bypass category selection
+
+        // Set UI State
+        const wrongOnlyParam = urlParams.get("wrong_only");
+        const infiniteParam = urlParams.get("infinite_scroll");
+        const randomParam = urlParams.get("random");
+        const mockExamIdParam = urlParams.get("mock_exam_id");
+
+        const isWrongOnly = wrongOnlyParam === "1" || wrongOnlyParam === "true";
+        const initialInfiniteState =
+          infiniteParam !== "0" && infiniteParam !== "false";
+        const isRandom = randomParam === "1" || randomParam === "true";
+
+        if (isWrongOnly) {
+          $("#ptg-global-wrong-only").prop("checked", true);
+        }
+
+        // Direct Call - Bypass DOM Search
+        // Give a small delay just to ensure StudyContainer is ready to be wiped/written to
+        setTimeout(function () {
+          studyContainer.html(
+            `<p>${escapeHtml(
+              subjectLabel
+            )} 과목의 학습 내용을 불러오는 중...</p>`
+          );
+
+          fetchAndRenderLessons(
+            studyContainer,
+            subjectIdRaw,
+            subjectLabel,
+            categoryLabel,
+            0,
+            isRandom,
+            initialInfiniteState,
+            isWrongOnly,
+            mockExamIdParam
+          );
+        }, 100);
       } catch (e) {
         console.warn("PTG Study: Failed to parse subject parameter", e);
       }
     }
-
     // 카테고리 클릭 이벤트 (과목 클릭 시 중복 실행 방지)
     studyContainer.off("click", ".ptg-category");
     studyContainer.on("click", ".ptg-category", function (event) {
@@ -608,7 +619,8 @@
     offset = 0,
     random = false,
     initialInfiniteState = true,
-    isWrongOnly = false
+    isWrongOnly = false,
+    mockExamId = null // [NEW]
   ) {
     const displayName = subjectLabel || decodeURIComponent(subjectId);
 
@@ -637,6 +649,9 @@
     }
     if (initialInfiniteState) {
       params.set("infinite_scroll", "1");
+    }
+    if (mockExamId) {
+      params.set("mock_exam_id", mockExamId);
     }
     const url = rest.baseUrl + "courses/" + subjectId + "?" + params.toString();
     if (PTG_STUDY_DEBUG)

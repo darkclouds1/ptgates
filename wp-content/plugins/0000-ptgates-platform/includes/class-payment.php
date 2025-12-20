@@ -7,22 +7,17 @@ if (!defined('ABSPATH')) {
 
 class Payment {
 
-    // KG Inicis Config (Defaults for Test)
-    const MID_PC_DEFAULT = 'INIpayTest'; 
-    const MID_MO_DEFAULT = 'INIpayTest'; 
-    const SIGN_KEY_DEFAULT = 'SU5JTElURV9UUklQTEVERVNfS0VZU1RS'; 
-    const URL_STD_PAY_DEFAULT = 'https://stgstdpay.inicis.com/stdjs/INIStdPay.js';
+    // PortOne V2 Config
+    const V2_API_URL = 'https://api.portone.io/payments/';
 
     /**
-     * 결제 준비 (트랜잭션 생성 및 시그니처 생성) - Step 1
+     * 결제 준비 (트랜잭션 생성) - Step 1
      * 
      * @param int $user_id
      * @param string $product_code
-     * @param string $device_type 'pc' or 'mobile'
-     * @param string $site_url 사이트 도메인 (리턴 URL용)
      * @return array|WP_Error
      */
-    public static function prepare_transaction($user_id, $product_code, $device_type = 'pc', $site_url = '') {
+    public static function prepare_transaction($user_id, $product_code) {
         global $wpdb;
 
         // 1. 상품 조회
@@ -51,139 +46,114 @@ class Payment {
             'currency' => 'KRW',
             'status' => 'pending',
             'transaction_date' => current_time('mysql'),
-            'memo' => json_encode(['product_code' => $product_code, 'device' => $device_type])
+            // 'memo' => json_encode(['product_code' => $product_code])
+             // PortOne V2 requires simple strings or objects, storing product_code in memo for recovery
+             'memo' => json_encode(['product_code' => $product_code])
         ]);
 
         if ($inserted === false) {
             return new \WP_Error('db_error', '주문 생성 실패: ' . $wpdb->last_error);
         }
 
-        // 4. KG Inicis 파라미터 생성 (Dynamic Settings)
-        $mid = get_option('ptg_payment_mid_pc', self::MID_PC_DEFAULT);
-        
-        $retrieved_sign_key = get_option('ptg_payment_sign_key', self::SIGN_KEY_DEFAULT);
-        // Force fix if old wrong key is stored in DB
-        if ($retrieved_sign_key === 'SU5JTGl0ZV90cmlwbGVkZXNfa2V5U3Ry') {
-            $signKey = self::SIGN_KEY_DEFAULT; // Correct: SU5JTElURV9UUklQTEVERVNfS0VZU1RS
-        } else {
-            $signKey = $retrieved_sign_key;
+        // 4. PortOne V2 파라미터 반환
+        $store_id = get_option('ptg_portone_store_id', '');
+        $channel_key = get_option('ptg_portone_channel_key', '');
+
+        if (empty($store_id) || empty($channel_key)) {
+            return new \WP_Error('config_error', '결제 설정(Store ID/Channel Key)이 누락되었습니다.');
         }
 
-        $price = $product->price;
-        // $timestamp = time() * 1000; // Legacy
-        $timestamp = round(microtime(true) * 1000); // 밀리초 타임스탬프 (High Precision)
-
-        // Signature (Step 1): SHA256(oid + price + timestamp)
-        $signature_string = "oid={$oid}&price={$price}&timestamp={$timestamp}";
-        $signature = hash('sha256', $signature_string);
-
-        // Verification (Step 1): SHA256(oid + price + signKey + timestamp)
-        $verification_string = "oid={$oid}&price={$price}&signKey={$signKey}&timestamp={$timestamp}";
-        $verification = hash('sha256', $verification_string);
-
-        // mKey: SHA256(signKey)
-        $mKey = hash('sha256', $signKey);
-
-        // 리턴 데이터 (프론트엔드 Form 매핑용)
+        // 리턴 데이터 (프론트엔드 SDK 전달용)
         $data = [
-            'version' => '1.0',
-            'gopaymethod' => 'Card', // 기본 카드
-            'mid' => $mid,
-            'oid' => $oid,
-            'price' => $price,
-            'goodname' => $product->title,
-            'buyername' => wp_get_current_user()->display_name,
-            'buyeremail' => wp_get_current_user()->user_email,
-            'timestamp' => $timestamp,
-            'signature' => $signature,
-            'verification' => $verification,
-            'mKey' => $mKey,
-            'currency' => 'WON',
-            'use_chkfake' => 'Y', // PC 보안강화
-            'acceptmethod' => 'centerCd(Y)', // 필수 옵션
-            'returnUrl' => $site_url . '/ptg-payment-return', 
-            'closeUrl' => $site_url . '/ptg-payment-close', 
-            // Mobile Specific
-            'P_NEXT_URL' => $site_url . '/ptg-payment-return-mobile',
+            'storeId' => $store_id,
+            'channelKey' => $channel_key,
+            'paymentId' => $oid,
+            'orderName' => $product->title,
+            'totalAmount' => (int)$product->price,
+            'currency' => 'CURRENCY_KRW',
+            'payMethod' => 'CARD', // Default, can be easy_pay etc.
+            'customer' => [
+                 'fullName' => wp_get_current_user()->display_name,
+                 'email' => wp_get_current_user()->user_email,
+                 'phoneNumber' => '', // Optional
+            ]
         ];
 
         return $data;
     }
 
     /**
-     * 승인 요청 (Step 3) - Server to Server
+     * 결제 검증 (Step 3) - Server to Server (PortOne V2)
      * 
-     * @param array $params Step 2 인증결과 파라미터
+     * @param string $payment_id (OID와 동일)
      * @return bool|WP_Error
      */
-    public static function approve_transaction($params) {
-        // 1. 필수 파라미터 확인
-        if (empty($params['authUrl']) || empty($params['authToken'])) {
-            return new \WP_Error('invalid_params', '승인 요청 정보가 부족합니다.');
+    public static function verify_payment($payment_id) {
+        // 1. 설정 확인
+        $api_secret = get_option('ptg_portone_api_secret', '');
+        if (empty($api_secret)) {
+            return new \WP_Error('config_error', 'API Secret이 설정되지 않았습니다.');
         }
 
-        $authUrl = $params['authUrl'];
-        // 보안상 여기서 authUrl이 이니시스 도메인인지 체크하는 것이 좋음 (fcstdpay.inicis.com, stgstdpay.inicis.com 등)
+        // 2. PortOne V2 API 호출 (GET /payments/{paymentId})
+        $url = self::V2_API_URL . $payment_id;
         
-        $mid = get_option('ptg_payment_mid_pc', self::MID_PC_DEFAULT);
-        
-        $retrieved_sign_key = get_option('ptg_payment_sign_key', self::SIGN_KEY_DEFAULT);
-        if ($retrieved_sign_key === 'SU5JTGl0ZV90cmlwbGVkZXNfa2V5U3Ry') {
-            $signKey = self::SIGN_KEY_DEFAULT;
-        } else {
-            $signKey = $retrieved_sign_key;
-        }
-        
-        $authToken = $params['authToken'];
-        // $timestamp = time() * 1000;
-        $timestamp = round(microtime(true) * 1000);
-
-        // Signature (Step 3): SHA256(authToken + timestamp)
-        $signature = hash('sha256', "authToken={$authToken}&timestamp={$timestamp}");
-        
-        // Verification (Step 3): SHA256(authToken + signKey + timestamp)
-        $verification = hash('sha256', "authToken={$authToken}&signKey={$signKey}&timestamp={$timestamp}");
-
-        // 2. 승인 요청 (POST)
-        $request_args = [
-            'body' => [
-                'mid' => $mid,
-                'authToken' => $authToken,
-                'signature' => $signature,
-                'verification' => $verification,
-                'timestamp' => $timestamp,
-                'charset' => 'UTF-8',
-                'format' => 'JSON'
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'Authorization' => 'PortOne ' . $api_secret,
+                'Content-Type' => 'application/json'
             ],
-            'timeout' => 30,
-            'sslverify' => false // 개발/테스트 환경용. 운영 시 true 권장
-        ];
-
-        $response = wp_remote_post($authUrl, $request_args);
+            'timeout' => 30
+        ]);
 
         if (is_wp_error($response)) {
-            return $response;
+             return $response;
         }
 
+        $code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
         $result = json_decode($body, true);
 
-        if (!$result) {
-            return new \WP_Error('api_error', '승인 응답 파싱 실패: ' . $body);
+        if ($code !== 200 || empty($result)) {
+            return new \WP_Error('api_error', 'PortOne API 호출 실패: ' . $body);
+        }
+        
+        // 3. 검증 로직
+        // $result 구조: { "status": "PAID", "amount": { "total": 1000, ... }, ... }
+        $status = $result['status'] ?? '';
+        $amount_data = $result['amount'] ?? [];
+        $total_amount = $amount_data['total'] ?? 0;
+
+        if ($status !== 'PAID') {
+            return new \WP_Error('payment_not_paid', "결제 상태가 PAID가 아닙니다. (Status: $status)");
         }
 
-        // 3. 승인 결과 확인 및 처리
-        $oid = $params['oid'] ?? ($params['orderNumber'] ?? ''); // Return params의 orderNumber 사용 가능
-        
-        // complete_transaction 호출로 통합 처리
-        return self::complete_transaction($oid, $result);
+        // DB에서 주문 정보 조회하여 금액 비교
+        global $wpdb;
+        $history_table = 'ptgates_billing_history';
+        $transaction = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $history_table WHERE order_id = %s",
+            $payment_id
+        ));
+
+        if (!$transaction) {
+             return new \WP_Error('invalid_order', '내부 주문 정보를 찾을 수 없습니다.');
+        }
+
+        // 금액 비교 (주의: 정수형 비교)
+        if ((int)$transaction->amount !== (int)$total_amount) {
+             return new \WP_Error('amount_mismatch', "결제 금액 불일치: 요청({$transaction->amount}) != 실결제({$total_amount})");
+        }
+
+        // 4. 완료 처리
+        return self::complete_transaction($payment_id, $result);
     }
 
     /**
-     * 결제 완료 처리 (DB 업데이트) - Step 4
+     * 결제 완료 처리 (DB 업데이트)
      * 
-     * @param string $oid
-     * @param array $pg_result PG사 최종 승인 결과 데이터
+     * @param string $oid (payment_id)
+     * @param array $pg_result PortOne API 결과
      * @return bool|WP_Error
      */
     public static function complete_transaction($oid, $pg_result) {
@@ -204,20 +174,9 @@ class Payment {
             return true; // 이미 처리됨
         }
 
-        // 2. 결과 코드 확인
-        $is_success = isset($pg_result['resultCode']) && $pg_result['resultCode'] === '0000';
-        
-        if (!$is_success) {
-             $wpdb->update($history_table, [
-                'status' => 'failed',
-                'memo' => $transaction->memo . ' | Fail: ' . ($pg_result['resultMsg'] ?? 'Unknown Error')
-            ], ['order_id' => $oid]);
-            return new \WP_Error('payment_failed', '결제 승인 실패: ' . ($pg_result['resultMsg'] ?? ''));
-        }
-
         // 3. DB 업데이트 (Paid)
         $memo_data = json_decode($transaction->memo, true);
-        $product_code = $memo_data['product_code'];
+        $product_code = $memo_data['product_code'] ?? '';
         
         // 상품 정보 재조회
         $product = $wpdb->get_row($wpdb->prepare(
@@ -226,6 +185,10 @@ class Payment {
         ));
         
         $duration_months = $product ? $product->duration_months : 1;
+        $method_str = $pg_result['method']['type'] ?? 'CARD'; // V2 structure check needed, assuming 'method' object or similar
+        // V2 Response: "method": { "type": "CARD", "card": { ... } } or simple method string depending on version? 
+        // Docs say: selectedPaymentMethod... actually let's just save generic 'card' or parse if possible.
+        // Let's stick to safe default or extracted value.
 
         // 트랜잭션 시작
         $wpdb->query('START TRANSACTION');
@@ -234,8 +197,8 @@ class Payment {
             // 3-1. Billing History 업데이트
             $wpdb->update($history_table, [
                 'status' => 'paid',
-                'pg_transaction_id' => $pg_result['tid'] ?? '', // 결과 tid
-                'payment_method' => $pg_result['payMethod'] ?? 'card',
+                'pg_transaction_id' => $pg_result['id'] ?? '', // PortOne Payment ID acts as transaction ID
+                'payment_method' => $method_str,
                 // 'transaction_date'는 결제 시작일 유지
             ], ['order_id' => $oid]);
 
@@ -309,3 +272,4 @@ class Payment {
         }
     }
 }
+

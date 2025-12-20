@@ -430,6 +430,13 @@ class API {
                 ),
             ),
         ));
+        // 모의고사 회차 목록 조회
+        register_rest_route(self::NAMESPACE, '/sessions/mock', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_mock_sessions'),
+            'permission_callback' => '__return_true', // 공개 API
+        ));
+
     }
     
     /**
@@ -799,6 +806,11 @@ class API {
             }
         }
         
+        // [FIX] Mock Exam Session Filtering (1001 ~ 1999)
+        if (!empty($session) && $session >= 1001 && $session <= 1999) {
+            $where[] = $wpdb->prepare("c.exam_session = %d", $session);
+        }
+        
         // 검색 필터 (ID) - 여기서 추가 (단독 조건)
         if (!empty($search_id)) {
             $where[] = $wpdb->prepare("q.question_id = %d", $search_id);
@@ -857,11 +869,26 @@ class API {
                 }
             }
             
-            // 교시 필터
-            if (!empty($session)) {
+            // 교시 필터 (Legacy Period Logic vs Mock Exam Period)
+            // Mock Exam passes 'exam_course' parameter specifically.
+            $exam_course = $request->get_param('exam_course');
+            
+            if (!empty($exam_course)) {
+                 // [FIX] Enforce strict '1교시' format
+                 if (is_numeric($exam_course)) {
+                     $exam_course = $exam_course . '교시';
+                 } else if (strpos($exam_course, '교시') === false) {
+                      $exam_course = $exam_course . '교시';
+                 }
+                 
+                 $where[] = $wpdb->prepare("c.exam_course = %s", $exam_course);
+            } elseif (!empty($session) && $session < 1000) {
+                // Legacy: If it's a normal session (1,2,3), treat it as Period
                 $session_val = absint($session);
                 $exact_label = $session_val . '교시';
-                // Strict equality for session
+                // Legacy logic assumed 'X교시' format, but let's be safe here too? 
+                // Legacy code used: $where[] = $wpdb->prepare("c.exam_course = %s", $exact_label);
+                // Keeping legacy behavior for now to avoid side effects on other modes
                 $where[] = $wpdb->prepare("c.exam_course = %s", $exact_label);
             }
         }
@@ -881,8 +908,49 @@ class API {
                     return Rest::error($check_result->get_error_code(), $check_result->get_error_message(), array('status' => 403));
                 }
             }
+            
+            // [FIX] Mock Exam Mode (Session 1001 ~ 1999)
+            // Retrieve ALL questions for this session/course Deterministically (Ordered by ID ASC)
+            // Do NOT use RAND() or Ratio logic.
+            if ($session >= 1001 && $session <= 1999) {
+                // Ensure query joins with categories table (already done in $join_clause logic if filters present, but we need to ensure it here if not)
+                // Actually $join_clause above was conditional. We need a base join if explicit filtering didn't trigger it?
+                // Wait, $where includes 'c.', so query needs join.
+                // The base $query construction below uses INNER JOIN categories. 
+                // We can construct a direct query here.
+                
+                $query = "
+                    SELECT q.question_id
+                    FROM {$questions_table} q
+                    INNER JOIN {$categories_table} c ON q.question_id = c.question_id
+                    {$join_clause}
+                    WHERE {$where_clause}
+                    ORDER BY q.question_id ASC
+                ";
+                
+                $results = $wpdb->get_results($query, ARRAY_A);
+                
+                $question_ids = array();
+                if (!empty($results)) {
+                    $question_ids = array_map(function($row) {
+                        return (int) $row['question_id'];
+                    }, $results);
+                }
+                
+                return Rest::success($question_ids);
+            }
 
-            $question_ids = self::get_session_questions_by_ratio($session, $where_clause, $join_clause);
+            // Legacy Logic (Random Generation for Practice Sessions 1/2)
+            // Limit Logic: uses Period (1, 2) to determine question count (105, 85).
+            // in Mock Mode: session=1001, exam_course=1. We must pass 1.
+            // in Legacy Mode: session=1. We pass 1.
+            $target_course_no = $session;
+            if (!empty($exam_course)) {
+                 $target_course_no = absint($exam_course);
+            }
+            
+            // Randomly pick questions by subject ratio
+            $question_ids = self::get_session_questions_by_ratio($target_course_no, $where_clause, $join_clause);
             
             return Rest::success($question_ids);
         }
@@ -1023,10 +1091,16 @@ class API {
         $question_ids = array();
         
         // 1. 전체 문제 수 조회 (ptgates_subject 테이블)
-        // 1교시(course_no=1) -> 105문제, 2교시(course_no=2) -> 85문제
+        // 1교시(course_no='1교시') -> 105문제, 2교시(course_no='2교시') -> 85문제
+        // [FIX] Using string format for course_no
+        $session_label = $session . '교시';
+        if (strpos($session, '교시') !== false) {
+            $session_label = $session;
+        }
+        
         $limit_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT sum(questions) FROM ptgates_subject WHERE course_no = %d",
-            $session
+            "SELECT sum(questions) FROM ptgates_subject WHERE course_no = %s",
+            $session_label
         ));
         
         // Fallback: 테이블이나 데이터가 없으면 하드코딩된 값 사용
@@ -1404,7 +1478,7 @@ class API {
         $user_id = get_current_user_id();
         
         $question_id = absint($request->get_param('question_id'));
-        $user_answer = $request->get_param('answer');
+        $user_answer = (int) $request->get_param('answer'); // [FIX] Ensure INT
         $elapsed = absint($request->get_param('elapsed'));
         $skip_count_update = $request->get_param('skip_count_update') === true || $request->get_param('skip_count_update') === 'true';
 
@@ -1510,7 +1584,7 @@ class API {
                     $wpdb->prepare(
                         "UPDATE `{$states_table}` 
                         SET `last_result` = %s, 
-                            `last_answer` = %s,
+                            `last_answer` = %d,
                             `needs_review` = 0 
                         WHERE `user_id` = %d AND `question_id` = %d",
                         $is_correct ? 'correct' : 'wrong',
@@ -1549,7 +1623,7 @@ class API {
                         '%s', // last_quiz_date
                         '%s', // updated_at
                         '%s', // last_result
-                        '%s', // last_answer
+                        '%d', // last_answer
                     )
                 );
             }
@@ -1573,7 +1647,7 @@ class API {
                     $wpdb->prepare(
                         "UPDATE `{$states_table}` 
                         SET `last_result` = %s, 
-                            `last_answer` = %s, 
+                            `last_answer` = %d, 
                             `quiz_count` = %d,
                             `needs_review` = 0 
                         WHERE `user_id` = %d AND `question_id` = %d",
@@ -1612,7 +1686,7 @@ class API {
                         '%s', // last_study_date
                         '%s', // updated_at
                         '%s', // last_result
-                        '%s', // last_answer
+                        '%d', // last_answer
                         '%d', // quiz_count
                         '%s', // last_quiz_date
                     )
@@ -2204,6 +2278,62 @@ class API {
             'memo' => (bool) $result['has_memo'],
             'flashcard' => (bool) $result['has_flashcard']
         ));
+    }
+    /**
+     * 모의고사 회차 목록 조회
+     * 테이블: ptgates_categories
+     * 조건: exam_session BETWEEN 1001 AND 1999
+     */
+    public static function get_mock_sessions() {
+        global $wpdb;
+        
+        // [RULE] All ptgates_ tables do NOT use db prefix
+        $table_name = 'ptgates_categories';
+
+        // 1. DB에서 회차 정보 조회 (중복 제거, 내림차순 정렬)
+        // exam_course(교시)도 함께 조회하여 회차별 가능한 교시 목록을 구성
+        $query = "SELECT DISTINCT exam_session, exam_course 
+                  FROM {$table_name} 
+                  WHERE exam_session BETWEEN 1001 AND 1999 
+                  ORDER BY exam_session DESC, exam_course ASC";
+
+        $results = $wpdb->get_results($query);
+
+        $sessions = [];
+        $temp_map = [];
+
+        if (!empty($results)) {
+            foreach ($results as $row) {
+                $code = intval($row->exam_session);
+                // exam_course가 '1교시', '2교시' 등의 문자열일 수 있으므로 숫자만 추출하거나 그대로 사용
+                // class-import.php에서는 문자열로 저장됨. 여기서는 숫자로 변환 시도
+                $course_val = $row->exam_course; 
+                // 숫자만 추출 (예: "1교시" -> 1)
+                if (preg_match('/(\d+)/', $course_val, $m)) {
+                    $course_num = intval($m[1]);
+                } else {
+                    $course_num = intval($course_val);
+                }
+                
+                if (!isset($temp_map[$code])) {
+                    $round_num = $code - 1000;
+                    $temp_map[$code] = [
+                        'id' => $code,
+                        'title' => "{$round_num}회차",
+                        'courses' => []
+                    ];
+                }
+                
+                if ($course_num > 0 && !in_array($course_num, $temp_map[$code]['courses'])) {
+                    $temp_map[$code]['courses'][] = $course_num;
+                }
+            }
+            
+            // 맵을 배열로 변환
+            $sessions = array_values($temp_map);
+        }
+
+        return Rest::success($sessions);
     }
 }
 

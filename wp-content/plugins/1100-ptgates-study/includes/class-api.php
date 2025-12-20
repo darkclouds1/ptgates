@@ -605,6 +605,48 @@ class Study_API {
              $repo_limit = min($limit, max(0, $max_items - $offset));
         }
 
+        // [NEW] Mock Exam Context Filter
+        $include_ids = [];
+        $mock_exam_id = (int) $request->get_param('mock_exam_id');
+        
+        if ($mock_exam_id > 0) {
+            global $wpdb;
+            $history_table = 'ptgates_mock_history';
+            
+            // Verify ownership
+            $history = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $history_table WHERE history_id = %d AND user_id = %d",
+                $mock_exam_id,
+                $user_id
+            ));
+
+            if ($history && !empty($history->answers_json)) {
+                $answers = json_decode($history->answers_json, true);
+                if (is_array($answers)) {
+                    foreach ($answers as $ans) {
+                        // Check if answer is incorrect (is_correct must be true to pass, so anything else is wrong)
+                        if (empty($ans['is_correct']) || $ans['is_correct'] !== true) {
+                            $include_ids[] = (int) $ans['question_id'];
+                        }
+                    }
+                }
+                
+                // If no incorrect answers found, ensure result is empty
+                if (empty($include_ids)) {
+                     // Empty array will be handled by LegacyRepo as 1=0 query
+                     $include_ids = [0]; // Force empty result safely
+                }
+                
+                // Override filters to focus ONLY on these questions
+                $max_items = count($include_ids);
+                $repo_limit = $limit; // Reset repo limit as we are explicit now
+                
+                // Disable global wrong_only filter if we use explicit mock filter, as we ALREADY filtered for wrong answers here
+                // We trust the history record over the current global state (which might have changed)
+                $wrong_only = false; 
+            }
+        }
+
 		// 세부과목 단일 조회
 		$args = [
 			'subject'          => $matched_subject,
@@ -616,6 +658,7 @@ class Study_API {
             'smart_random_exclude_correct' => $is_smart_random, 
             'wrong_only_user_id' => $wrong_only ? $user_id : null,
             'exclude_ids'      => $exclude_ids,
+            'include_ids'      => $include_ids, // [NEW] Pass specific IDs
 		];
 
 		$questions = LegacyRepo::get_questions_with_categories($args);

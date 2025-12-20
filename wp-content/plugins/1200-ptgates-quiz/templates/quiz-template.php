@@ -35,7 +35,7 @@ if (class_exists('PTG_Dashboard')) {
 }
 
 $is_admin = current_user_can('manage_options');
-
+$is_mock_mode = isset($_GET['mode']) && $_GET['mode'] === 'mock';
 ?>
 
 <!-- 디버깅: 템플릿 변수 확인 -->
@@ -59,7 +59,8 @@ $is_admin = current_user_can('manage_options');
     
     <!-- 플러그인 헤더 -->
     <div class="ptg-quiz-header">
-        <h1>실전|Quiz</h1>
+        <h1><?php echo $is_mock_mode ? '모의시험' : '실전|Quiz'; ?></h1>
+        <?php if (!$is_mock_mode): ?>
         <div class="ptgates-filter-checkboxes header-checkboxes">
             <label class="ptg-checkbox-label">
                 <span>복습문제만</span>
@@ -74,6 +75,7 @@ $is_admin = current_user_can('manage_options');
                 <input type="checkbox" id="ptg-quiz-filter-drawing" value="1">
             </label>
         </div>
+        <?php endif; ?>
         
         <div class="ptg-quiz-header-right">
             <a href="<?php echo esc_url($dashboard_url); ?>" class="ptg-quiz-dashboard-link ptg-header-btn" aria-label="학습현황으로 돌아가기">학습현황</a>
@@ -85,6 +87,30 @@ $is_admin = current_user_can('manage_options');
     
     <!-- 필터 섹션 -->
     <div id="ptg-quiz-filter-section" class="ptgates-filter-section">
+        <?php if ($is_mock_mode): ?>
+        <!-- 모의시험 전용 필터 -->
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-mock-round" class="ptgates-filter-input" aria-label="회차">
+                <option value="">회차를 선택하세요</option>
+                <!-- JS에서 동적으로 로드 (1001 -> 1회차) -->
+            </select>
+        </div>
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-mock-course" class="ptgates-filter-input" aria-label="교시">
+                <option value="">교시 선택</option>
+                <option value="1">1교시</option>
+                <option value="2">2교시</option>
+                <option value="3">3교시</option>
+            </select>
+        </div>
+        <div class="ptgates-filter-row">
+            <select id="ptg-quiz-mock-mode" class="ptgates-filter-input" aria-label="모드">
+                <option value="study">학습 모드 (정답 즉시 확인)</option>
+                <option value="exam">시험 모드 (종료 후 결과 확인)</option>
+            </select>
+        </div>
+        <?php else: ?>
+        <!-- 기존 Quiz 필터 -->
         <div class="ptgates-filter-row">
             <select id="ptg-quiz-filter-session" class="ptgates-filter-input" aria-label="교시">
                 <option value="">교시</option>
@@ -116,16 +142,17 @@ $is_admin = current_user_can('manage_options');
                 <option value="unsolved">안푼 문제만(10문제)</option>
             </select>
         </div>
-        
-
-        
-
+        <?php endif; ?>
         
         <div class="ptgates-filter-actions">
-            <button id="ptg-quiz-start-btn" class="ptgates-btn ptgates-btn-primary">조회</button>
+            <button id="<?php echo $is_mock_mode ? 'ptg-quiz-mock-start-btn' : 'ptg-quiz-start-btn'; ?>" class="ptgates-btn ptgates-btn-primary" data-mode="<?php echo $is_mock_mode ? 'mock' : 'quiz'; ?>">
+                <?php echo $is_mock_mode ? '시험 시작' : '조회'; ?>
+            </button>
+            <?php if (!$is_mock_mode): ?>
             <button id="ptg-quiz-search-toggle" class="ptgates-btn ptgates-btn-icon" aria-label="검색" title="문제ID·검색어로 빠른 검색">
                 <span class="dashicons dashicons-search"></span>
             </button>
+            <?php endif; ?>
         </div>
     </div>
     
@@ -289,6 +316,7 @@ $is_admin = current_user_can('manage_options');
         }
     </style>
 
+    <?php if (!$is_mock_mode): ?>
     <div class="ptg-quiz-course-categories" id="ptg-quiz-grid-section">
         <?php if ( ! empty( $subjects_map ) ) : ?>
             <?php foreach ( $subjects_map as $session_key => $session_data ) : ?>
@@ -333,6 +361,7 @@ $is_admin = current_user_can('manage_options');
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
     
     <!-- 문제 ID 확인 메시지 제거: 기본값으로 자동 처리됨 -->
     <!-- 에러 메시지가 여기에 표시되지 않도록 확인 -->

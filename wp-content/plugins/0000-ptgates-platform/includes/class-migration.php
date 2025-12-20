@@ -73,7 +73,96 @@ class Migration {
         // 15. ptgates_user_states 테이블 트리거 생성
         self::create_user_states_triggers();
         
+        // 16. ptgates_user_results 테이블 user_answer 컬럼 타입 변경 (VARCHAR -> INT)
+        self::modify_user_results_table_schema();
+
+        // 17. ptgates_user_states 테이블 last_answer 컬럼 타입 변경 (VARCHAR -> INT)
+        self::modify_user_states_last_answer_schema();
+        
+        // 18. ptgates_subject 테이블 course_no 컬럼 타입 변경 (INT -> VARCHAR) 및 데이터 표준화
+        self::modify_subject_table_schema();
+
+        // 19. [FIX] ptgates_categories 테이블 exam_course 컬럼 타입 변경 및 데이터 표준화
+        self::modify_categories_table_schema();
+
         // 정상 케이스는 로그를 남기지 않음
+    }
+
+    /**
+     * ptgates_user_states 테이블 last_answer 컬럼 타입 변경 (VARCHAR -> INT)
+     * 1~5 숫자만 들어가도록 강제
+     */
+    private static function modify_user_states_last_answer_schema() {
+        global $wpdb;
+        $table_name = 'ptgates_user_states';
+        
+        // 테이블 존재 여부 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return;
+        }
+        
+        // 컬럼 타입 변경 (VARCHAR -> TINYINT)
+        $wpdb->query("ALTER TABLE $table_name MODIFY COLUMN last_answer TINYINT(3) DEFAULT NULL");
+    }
+
+    /**
+     * ptgates_user_results 테이블 user_answer 컬럼 타입 변경 (VARCHAR -> INT)
+     * 1~5 숫자만 들어가도록 강제
+     */
+    private static function modify_user_results_table_schema() {
+        global $wpdb;
+        $table_name = 'ptgates_user_results';
+        
+        // 테이블 존재 여부 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return;
+        }
+        
+        // 컬럼 타입 변경 (VARCHAR -> TINYINT)
+        // 기존 데이터는 자동으로 변환됨 (숫자 문자열 -> 숫자)
+        $wpdb->query("ALTER TABLE $table_name MODIFY COLUMN user_answer TINYINT(3) DEFAULT NULL COMMENT '선택지 번호 (1-5)'");
+    }
+
+    /**
+     * ptgates_subject 테이블 course_no 컬럼 타입 변경 (INT -> VARCHAR)
+     * '1' -> '1교시', '2' -> '2교시' 등으로 데이터 표준화
+     */
+    private static function modify_subject_table_schema() {
+        global $wpdb;
+        $table_name = 'ptgates_subject';
+        
+        // 테이블 존재 여부 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return;
+        }
+        
+        // 1. 컬럼 타입 변경 (INT -> VARCHAR)
+        // 기존 데이터는 문자열로 변환됨 ("1", "2" 등)
+        $wpdb->query("ALTER TABLE $table_name MODIFY COLUMN course_no VARCHAR(10) DEFAULT NULL COMMENT '교시 (1교시, 2교시)'");
+        
+        // 2. 데이터 표준화 ('1' -> '1교시' 등)
+        $wpdb->query("UPDATE $table_name SET course_no = CONCAT(course_no, '교시') WHERE course_no REGEXP '^[0-9]+$'");
+    }
+
+    /**
+     * ptgates_categories 테이블 exam_course 컬럼 타입 변경 (VARCHAR)
+     * '1' -> '1교시' 등으로 데이터 표준화
+     */
+    private static function modify_categories_table_schema() {
+        global $wpdb;
+        $table_name = 'ptgates_categories';
+        
+        // 테이블 존재 여부 확인
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return;
+        }
+        
+        // 1. 컬럼 타입 변경 (혹시 INT였다면 VARCHAR로, 이미 VARCHAR라면 길이 확보)
+        $wpdb->query("ALTER TABLE $table_name MODIFY COLUMN exam_course VARCHAR(10) DEFAULT NULL COMMENT '교시 (1교시, 2교시)'");
+        
+        // 2. 데이터 표준화 ('1' -> '1교시' 등)
+        // 숫자만 있는 경우 '교시' 접미사 추가
+        $wpdb->query("UPDATE $table_name SET exam_course = CONCAT(exam_course, '교시') WHERE exam_course REGEXP '^[0-9]+$'");
     }
 
     /**

@@ -158,68 +158,64 @@ class PTG_Admin_Settings {
     }
 
     /**
-     * Tab: KG Inicis Settings
+     * Tab: PortOne V2 Settings
      */
     private static function render_payment_tab() {
         // Option Saving
         if ( isset( $_POST['ptg_payment_save'] ) && check_admin_referer( 'ptg_payment_settings_nonce' ) ) {
-            $mid_pc = sanitize_text_field( $_POST['ptg_payment_mid_pc'] );
-            $mid_mo = sanitize_text_field( $_POST['ptg_payment_mid_mo'] );
-            $sign_key = sanitize_text_field( $_POST['ptg_payment_sign_key'] );
-            $api_url = sanitize_text_field( $_POST['ptg_payment_api_url'] );
+            $store_id = sanitize_text_field( $_POST['ptg_portone_store_id'] );
+            $channel_key = sanitize_text_field( $_POST['ptg_portone_channel_key'] );
+            $api_secret = sanitize_text_field( $_POST['ptg_portone_api_secret'] );
 
-            update_option( 'ptg_payment_mid_pc', $mid_pc );
-            update_option( 'ptg_payment_mid_mo', $mid_mo );
-            update_option( 'ptg_payment_sign_key', $sign_key );
-            update_option( 'ptg_payment_api_url', $api_url );
+            // Legacy support (optional, can be removed)
+            // update_option( 'ptg_payment_mid_pc', sanitize_text_field( $_POST['ptg_payment_mid_pc'] ) );
 
-            echo '<div class="notice notice-success is-dismissible"><p>결제 설정이 저장되었습니다.</p></div>';
+            update_option( 'ptg_portone_store_id', $store_id );
+            update_option( 'ptg_portone_channel_key', $channel_key );
+            update_option( 'ptg_portone_api_secret', $api_secret );
+
+            echo '<div class="notice notice-success is-dismissible"><p>PortOne V2 결제 설정이 저장되었습니다.</p></div>';
         }
 
-        // Retrieve Options (Default to Test Values)
-        $mid_pc = get_option( 'ptg_payment_mid_pc', 'INIpayTest' );
-        $mid_mo = get_option( 'ptg_payment_mid_mo', 'INIpayTest' );
-        // $sign_key = get_option( 'ptg_payment_sign_key', 'SU5JTGl0ZV90cmlwbGVkZXNfa2V5U3Ry' ); // Old Wrong Key
-        $sign_key = get_option( 'ptg_payment_sign_key', 'SU5JTElURV9UUklQTEVERVNfS0VZU1RS' ); // Correct Test Key
-        $api_url = get_option( 'ptg_payment_api_url', 'https://stgstdpay.inicis.com/stdjs/INIStdPay.js' );
+        // Retrieve Options
+        $store_id = get_option( 'ptg_portone_store_id', '' );
+        $channel_key = get_option( 'ptg_portone_channel_key', '' );
+        $api_secret = get_option( 'ptg_portone_api_secret', '' );
 
         ?>
         <form method="post" action="">
             <?php wp_nonce_field( 'ptg_payment_settings_nonce' ); ?>
             <table class="form-table">
                 <tr>
-                    <th scope="row">MID (PC)</th>
+                    <th scope="row">Store ID (스토어 아이디)</th>
                     <td>
-                        <input type="text" name="ptg_payment_mid_pc" value="<?php echo esc_attr( $mid_pc ); ?>" class="regular-text" required>
-                        <p class="description">KG이니시스에서 발급받은 PC용 상점 아이디 (테스트: INIpayTest)</p>
+                        <input type="text" name="ptg_portone_store_id" value="<?php echo esc_attr( $store_id ); ?>" class="regular-text" required placeholder="store-...">
+                        <p class="description">포트원 콘솔 > 결제 연동 > 연동 정보 > Store ID</p>
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row">MID (Mobile)</th>
+                    <th scope="row">Channel Key (채널 키)</th>
                     <td>
-                        <input type="text" name="ptg_payment_mid_mo" value="<?php echo esc_attr( $mid_mo ); ?>" class="regular-text" required>
-                        <p class="description">KG이니시스에서 발급받은 모바일용 상점 아이디 (테스트: INIpayTest)</p>
+                        <input type="text" name="ptg_portone_channel_key" value="<?php echo esc_attr( $channel_key ); ?>" class="large-text" required placeholder="channel-key-...">
+                        <p class="description">포트원 콘솔 > 결제 연동 > 연동 정보 > 채널 관리 > Channel Key (V2)</p>
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row">Sign Key (웹결제 사인키)</th>
+                    <th scope="row">API Secret (시크릿)</th>
                     <td>
-                        <input type="password" name="ptg_payment_sign_key" value="<?php echo esc_attr( $sign_key ); ?>" class="large-text" required>
-                        <p class="description">상점 키파일 대신 사용하는 웹결제 SignKey (테스트: SU5JTElURV9UUklQTEVERVNfS0VZU1RS)</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">JS SDK URL</th>
-                    <td>
-                        <input type="text" name="ptg_payment_api_url" value="<?php echo esc_attr( $api_url ); ?>" class="large-text" required>
-                        <p class="description">
-                            테스트: https://stgstdpay.inicis.com/stdjs/INIStdPay.js<br>
-                            운영: https://stdpay.inicis.com/stdjs/INIStdPay.js
-                        </p>
+                        <input type="password" name="ptg_portone_api_secret" value="<?php echo esc_attr( $api_secret ); ?>" class="large-text" required>
+                        <p class="description">포트원 콘솔 > 결제 연동 > 연동 정보 > API Keys > Secret (V2)</p>
                     </td>
                 </tr>
             </table>
-            <?php submit_button( '결제 설정 저장', 'primary', 'ptg_payment_save' ); ?>
+            
+            <hr>
+            <p class="description">
+                <strong>참고:</strong> 기존 KG이니시스 V1 설정은 더 이상 사용되지 않습니다.<br>
+                연동 가이드는 <a href="https://developers.portone.io/opi/ko/integration/start/v2/readme?v=v2" target="_blank">포트원 개발자 센터</a>를 참조하세요.
+            </p>
+
+            <?php submit_button( 'PortOne V2 설정 저장', 'primary', 'ptg_payment_save' ); ?>
         </form>
         <?php
     }

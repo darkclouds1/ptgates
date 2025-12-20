@@ -157,7 +157,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
     .ptg-learning-date {
         font-weight: 700;
-        color: #1e293b;
+        color: #ffffffff;
         font-size: 0.95rem;
     }
 

@@ -449,8 +449,17 @@ function PTG_quiz_alert(message) {
       bookmarked: false,
       needsReview: false,
     },
+    persistentFilters: {
+      bookmarked: false,
+      needsReview: false,
+    },
     // 관리자 편집 모드
     isEditing: false,
+    // 퀴즈 모드 (learning | exam | mock_exam)
+    mode: "learning",
+    // 모의고사 정보
+    session: null, // Round (1001)
+    exam_course: null, // Period (1)
   };
 
   /**
@@ -1796,10 +1805,45 @@ function PTG_quiz_alert(message) {
         if (searchToggle) searchToggle.classList.remove("active");
       }
 
-      if (startBtn) {
-        startBtn.disabled = true;
-        startBtn.classList.add("ptg-btn-loading");
+      await startQuizWithParams(filters);
+    } catch (error) {
+      console.error("[PTG Quiz] 퀴즈 시작 오류:", error);
+      if (!error || !error.alertShown) {
+        const fallback =
+          error &&
+          typeof error.message === "string" &&
+          error.message.trim().length > 0
+            ? error.message
+            : "문제를 불러오는 중 오류가 발생했습니다.";
+        PTG_quiz_alert(fallback);
       }
+      setState("idle");
+    } finally {
+      // startQuizWithParams 내부에서 처리됨 (또는 여기서 중복 처리해도 무방)
+    }
+  }
+
+  /**
+   * 파라미터로 퀴즈 시작 (Mock Exam 등 외부 호출용)
+   */
+  async function startQuizWithParams(filters) {
+    const startBtn = document.getElementById("ptg-quiz-start-btn");
+
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.classList.add("ptg-btn-loading");
+    }
+
+    try {
+      // 모드 설정 (mock_exam 등)
+      if (filters.mode) {
+        QuizState.mode = filters.mode;
+      } else {
+        QuizState.mode = "learning";
+      }
+      // 세션/교시 정보 저장 (제출용)
+      if (filters.session) QuizState.session = filters.session;
+      if (filters.exam_course) QuizState.exam_course = filters.exam_course;
 
       const questionIds = await loadQuestionsList(filters);
 
@@ -1825,21 +1869,25 @@ function PTG_quiz_alert(message) {
       QuizState.startTime = null;
       QuizState.giveUpInProgress = false; // 포기하기 플래그 초기화
 
-      // 타이머 설정: 문제 수 × 50초
-      QuizState.timerSeconds = questionIds.length * 50;
+      // 타이머 설정:
+      // 1. 모의고사 모드인 경우: 설정된 시간(filters.timer_minutes) 사용
+      // 2. 그 외: 문제 수 × 50초
+      if (filters.timer_minutes) {
+        QuizState.timerSeconds = parseInt(filters.timer_minutes) * 60;
+      } else {
+        QuizState.timerSeconds = questionIds.length * 50;
+      }
 
       // 필터 섹션 숨기기
       hideFilterSection();
-      // 퀴즈 UI 표시
-      // 퀴즈 UI 표시 (loadQuestion 완료 후 표시됨)
-      // showQuizUI();
 
       // 활성 필터 표시 업데이트 (조회 후에도 필터 표시 유지)
+      // 일반 조회 시 필터값은 filters 객체에 있음.
       if (QuizState.persistentFilters) {
         updateActiveFilters(
           QuizState.persistentFilters.bookmarked,
           QuizState.persistentFilters.needsReview,
-          wrongOnly // 틀린 문제만 필터 추가
+          filters.wrong_only // 틀린 문제만 필터 추가
         );
       }
 
@@ -1867,12 +1915,12 @@ function PTG_quiz_alert(message) {
 
       // 첫 번째 문제 로드 (즉시 시작하여 사용자 대기 시간 최소화)
       // 문제 목록은 이미 로드되었으므로 첫 문제를 바로 로드
-      loadQuestion().catch((error) => {
+      await loadQuestion().catch((error) => {
         console.error("[PTG Quiz] 첫 문제 로드 오류:", error);
         showError("문제를 불러오는 중 오류가 발생했습니다.");
       });
 
-      // 타이머 시작
+      // 타이머 시작 (무제한 아닐 때)
       const container = document.getElementById("ptg-quiz-container");
       if (container && container.dataset.unlimited !== "1") {
         startTimer();
@@ -1890,18 +1938,6 @@ function PTG_quiz_alert(message) {
       if (window.PTGQuizToolbar && window.PTGQuizToolbar.scrollToHeader) {
         window.PTGQuizToolbar.scrollToHeader();
       }
-    } catch (error) {
-      console.error("[PTG Quiz] 퀴즈 시작 오류:", error);
-      if (!error || !error.alertShown) {
-        const fallback =
-          error &&
-          typeof error.message === "string" &&
-          error.message.trim().length > 0
-            ? error.message
-            : "문제를 불러오는 중 오류가 발생했습니다.";
-        PTG_quiz_alert(fallback);
-      }
-      setState("idle");
     } finally {
       if (startBtn) {
         startBtn.disabled = false;
@@ -3132,7 +3168,12 @@ function PTG_quiz_alert(message) {
       if (QuizState.terminated) {
         btnCheck.style.display = "none";
       } else {
-        btnCheck.style.display = "inline-block";
+        // [NEW] Mock Exam 모드에서는 정답 확인 버튼 숨김
+        if (QuizState.mode === "mock_exam" || QuizState.mode === "exam") {
+          btnCheck.style.display = "none";
+        } else {
+          btnCheck.style.display = "inline-block";
+        }
         btnCheck.disabled = false; // 항상 활성화
         // 버튼 텍스트 설정 (다른 버튼들과 동일한 스타일)
         if (!btnCheck.textContent || btnCheck.textContent.trim() === "") {
@@ -4344,6 +4385,10 @@ function PTG_quiz_alert(message) {
           params.append("device_type", QuizState.deviceType);
         }
       }
+      // [NEW] Mock Exam Params
+      if (filters.mode) params.append("mode", filters.mode);
+      if (filters.exam_course)
+        params.append("exam_course", filters.exam_course);
 
       const endpoint = `ptg-quiz/v1/questions?${params.toString()}`;
       const response = await PTGPlatform.get(endpoint);
@@ -4718,12 +4763,17 @@ function PTG_quiz_alert(message) {
     const btnPrev = document.getElementById("ptg-btn-prev-question");
 
     if (btnCheck) {
-      btnCheck.style.display = "inline-block";
-      btnCheck.disabled = false; // 항상 활성화
-      // 버튼 텍스트를 한 줄로 설정
-      if (!btnCheck.querySelector(".ptg-btn-text-main")) {
-        btnCheck.innerHTML =
-          '<span class="ptg-btn-text-main">정답 확인(풀이)</span>';
+      // [FIX] Mock Exam 모드에서는 무조건 숨김 (Flicker 방지)
+      if (QuizState.mode === "mock_exam" || QuizState.mode === "exam") {
+        btnCheck.style.display = "none";
+      } else {
+        btnCheck.style.display = "inline-block";
+        btnCheck.disabled = false;
+        // 버튼 텍스트를 한 줄로 설정
+        if (!btnCheck.querySelector(".ptg-btn-text-main")) {
+          btnCheck.innerHTML =
+            '<span class="ptg-btn-text-main">정답 확인(풀이)</span>';
+        }
       }
     }
     if (btnNext) {
@@ -4983,10 +5033,258 @@ function PTG_quiz_alert(message) {
     } else {
       applyUIForState();
     }
+
+    // [NEW] Mock Exam 모드에서는 결과 제출
+    // [NEW] Mock Exam 모드이거나 모의고사 컨텍스트(교시 정보 있음)인 경우 결과 제출
+    if (
+      QuizState.mode === "mock_exam" ||
+      (QuizState.session && QuizState.exam_course)
+    ) {
+      submitMockExam();
+    }
   }
 
   /**
-   * 완료 화면 표시
+   * 모의고사 결과 제출
+   */
+  async function submitMockExam() {
+    // 로딩 표시
+    const resultSection = document.getElementById("ptg-quiz-result-section");
+    if (!resultSection) return;
+
+    // 로딩 추가 (기존 내용 유지)
+    let loadingDiv = document.getElementById("ptg-mock-loading");
+    if (!loadingDiv) {
+      loadingDiv = document.createElement("div");
+      loadingDiv.id = "ptg-mock-loading";
+      loadingDiv.className = "ptg-quiz-loading";
+      loadingDiv.style.cssText =
+        "display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 40px; border-top: 1px solid #eee; margin-top: 30px;";
+      loadingDiv.innerHTML =
+        '<div class="ptg-loader"></div><p style="margin-top:15px; color:#666;">결과를 제출하고 채점 중입니다...</p>';
+      resultSection.appendChild(loadingDiv);
+    }
+
+    try {
+      const payload = {
+        session_code: QuizState.session,
+        exam_course: QuizState.exam_course,
+        start_time: QuizState.startTime
+          ? new Date(QuizState.startTime).toISOString()
+          : new Date().toISOString(),
+        end_time: new Date().toISOString(),
+        answers: QuizState.answers.map((a) => ({
+          question_id: a.questionId,
+          is_correct: a.isCorrect,
+          user_answer: a.userAnswer,
+        })),
+        question_ids: QuizState.questions,
+      };
+
+      const response = await PTGPlatform.post("ptg-mock/v1/submit", payload);
+
+      // 로딩 제거
+      if (loadingDiv) loadingDiv.remove();
+
+      if (response && response.success) {
+        // 결과 브리핑 표시 (리다이렉트 없음)
+        // 과목별 점수 테이블 생성
+        let subjectRows = "";
+        if (response.subjects && Array.isArray(response.subjects)) {
+          // Group by Category
+          const groups = {};
+          const groupOrder = [];
+
+          response.subjects.forEach((subj) => {
+            const cat = subj.category || "기타";
+            if (!groups[cat]) {
+              groups[cat] = [];
+              groupOrder.push(cat);
+            }
+            groups[cat].push(subj);
+          });
+
+          subjectRows = `
+            <div class="ptg-mock-subject-table" style="margin: 20px 0; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <table style="width:100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background: #4a69bd; color: #ffffff;">
+                            <th style="padding: 14px; text-align: center; font-weight: 600; width: 22%; border-right: 1px solid rgba(255,255,255,0.3);">대분류</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600; width: 33%; border-right: 1px solid rgba(255,255,255,0.3);">세부과목</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.3);">문제수</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.3);">정답</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.3);">오답</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.3);">점수</th>
+                            <th style="padding: 14px; text-align: center; font-weight: 600;">결과</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+          `;
+
+          let totalQ = 0;
+          let totalC = 0;
+          let totalW = 0;
+
+          groupOrder.forEach((catName) => {
+            const subjs = groups[catName];
+            let subQ = 0;
+            let subC = 0;
+            let subW = 0;
+
+            // Render Subjects
+            subjs.forEach((subj, idx) => {
+              const t = parseInt(subj.total);
+              const c = parseInt(subj.correct);
+              const w = t - c;
+
+              subQ += t;
+              subC += c;
+              subW += w;
+
+              const catDisplay =
+                idx === 0
+                  ? `<span style="font-weight:700; color:#333;">${catName}</span>`
+                  : "";
+              const encodedSubj = encodeURIComponent(subj.subject);
+              // [SECURE REVIEW LINK]
+              const reviewToken = subj.review_token || "";
+              const wrongLink =
+                w > 0 && reviewToken
+                  ? `<a href="/mock-review/?token=${encodeURIComponent(
+                      reviewToken
+                    )}" target="_blank" style="color:#d63031; text-decoration:underline; font-weight:bold;">${w}</a>`
+                  : w > 0
+                  ? `<span style="color:#d63031; font-weight:bold;">${w}</span>` // No token available fallback
+                  : `<span style="color:#ccc;">0</span>`;
+
+              subjectRows += `
+                        <tr style="border-top: 1px solid #f0f0f0;">
+                            <td style="padding: 12px; text-align: center; color: #333; border-right: 1px solid #d0d0d0;">${catDisplay}</td>
+                            <td style="padding: 12px; text-align: left; color: #555;">${subj.subject}</td>
+                            <td style="padding: 12px; text-align: center; color: #666;">${t}</td>
+                            <td style="padding: 12px; text-align: center; color: #666;">${c}</td>
+                            <td style="padding: 12px; text-align: center;">${wrongLink}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #333;">${subj.score}점</td>
+                            <td style="padding: 12px; text-align: center; color: #ccc;">-</td>
+                        </tr>
+                  `;
+            });
+
+            // Subtotal Row
+            const subScore = subQ > 0 ? Math.round((subC / subQ) * 100) : 0;
+            const isFail = subScore < 40;
+            const subStatusText = isFail ? "과락" : "통과";
+            const subStatusColor = isFail ? "#e74c3c" : "#2ecc71";
+
+            subjectRows += `
+                    <tr style="background-color: #f1f4f8; border-top: 1px solid #dce4ec; border-bottom: 1px solid #dce4ec;">
+                        <td colspan="2" style="padding: 12px; text-align: center; font-weight: 700; color: #2c3e50; border-right: 1px solid #dcdcdc;">${catName} 소계</td>
+                        <td style="padding: 12px; text-align: center; font-weight: 700; color: #2c3e50;">${subQ}</td>
+                        <td style="padding: 12px; text-align: center; font-weight: 700; color: #2c3e50;">${subC}</td>
+                        <td style="padding: 12px; text-align: center; font-weight: 700; color: #d63031;">${subW}</td>
+                        <td style="padding: 12px; text-align: center; font-weight: 800; color: #2c3e50;">${subScore}점</td>
+                        <td style="padding: 12px; text-align: center; font-weight: 800; color: ${subStatusColor};">${subStatusText}</td>
+                    </tr>
+              `;
+
+            totalQ += subQ;
+            totalC += subC;
+            totalW += subW;
+          });
+
+          // Grand Total Row
+          const totalStatusColor = response.is_pass ? "#2ecc71" : "#e74c3c";
+          const totalStatusText = response.is_pass ? "합격" : "불합격";
+
+          subjectRows += `
+                        <tr style="border-top: 3px solid #bdc3c7; background-color: #ecf0f1;">
+                            <td colspan="2" style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: #2c3e50;">전체 합계</td>
+                            <td style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: #2c3e50;">${totalQ}</td>
+                            <td style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: #2c3e50;">${totalC}</td>
+                            <td style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: #d63031;">${totalW}</td>
+                            <td style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: #2c3e50;">${response.score}점</td>
+                            <td style="padding: 16px; text-align: center; font-size: 16px; font-weight: 800; color: ${totalStatusColor};">${totalStatusText}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+          `;
+        }
+
+        const resultHtml = `
+            <div id="ptg-mock-briefing-container" class="ptg-mock-result-briefing" style="text-align:center; padding: 20px 10px; max-width: 900px; margin: 20px auto 0; border-top: 2px dashed #eee;">
+                <h2 style="margin-bottom: 20px; font-weight:700; color:#333;">
+                    ${QuizState.year ? QuizState.year + "년 " : ""}
+                    ${
+                      QuizState.session
+                        ? (QuizState.session > 1000
+                            ? QuizState.session - 1000
+                            : QuizState.session) + "회차 "
+                        : ""
+                    }
+                    ${
+                      QuizState.exam_course
+                        ? QuizState.exam_course + "교시 "
+                        : ""
+                    }
+                    모의고사 결과
+                </h2>
+                
+                <div class="ptg-mock-summary-card" style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 25px;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">총점 (평균)</div>
+                    <div class="ptg-mock-score" style="font-size: 42px; font-weight: 800; color: #2c3e50; line-height: 1.2;">
+                        ${
+                          response.score !== null &&
+                          response.score !== undefined
+                            ? response.score
+                            : 0
+                        }<span style="font-size: 20px; font-weight: 600;">점</span>
+                    </div>
+                    <div class="ptg-mock-status" style="margin-top: 10px; font-size: 18px; font-weight: bold; color: ${
+                      response.is_pass ? "#28a745" : "#dc3545"
+                    };">
+                        ${response.is_pass ? "🎉 합격입니다!" : "불합격입니다"}
+                    </div>
+                </div>
+
+                ${subjectRows}
+                
+                <div class="ptg-mock-actions" style="margin-top: 30px; display: flex; gap: 10px; justify-content: center;">
+                    <button onclick="window.location.reload()" class="ptg-btn ptg-btn-primary" style="padding: 12px 30px; font-size: 16px; border:none; border-radius:6px; cursor:pointer; font-weight: 600;">확인 (마침)</button>
+                </div>
+                
+                <p style="margin-top: 20px; font-size: 13px; color: #999;">
+                    * 상세 결과 및 오답 노트는 '학습현황의 시험결과' 메뉴에서 확인하실 수 있습니다.
+                </p>
+            </div>
+        `;
+        // 기존 브리핑 영역 제거
+        const oldBriefing = document.getElementById(
+          "ptg-mock-briefing-container"
+        );
+        if (oldBriefing) oldBriefing.remove();
+
+        resultSection.insertAdjacentHTML("beforeend", resultHtml);
+      } else {
+        throw new Error(response.message || "제출 실패");
+      }
+    } catch (error) {
+      console.error("결과 제출 오류:", error);
+      if (resultSection) {
+        const errorHtml = `<div class="ptg-error-message" style="margin-top: 20px; padding: 15px; background: #fff0f0; border-radius: 8px; text-align: center;">
+            <p style="color: #d63031; font-weight: bold;">결과 제출 중 오류가 발생했습니다.</p>
+            <p style="font-size: 13px; color: #666;">${
+              error.message || "잠시 후 다시 시도해주세요."
+            }</p>
+            <button onclick="submitMockExam()" class="ptg-btn ptg-btn-sm" style="margin-top: 10px;">다시 시도</button>
+        </div>`;
+        resultSection.insertAdjacentHTML("beforeend", errorHtml);
+      }
+    }
+  }
+
+  /**
+   * 완료 화면 표시（Mock Exam 모드에서는 사용되지 않거나 제출 실패 시 표시됨）
    */
   function showQuizResult(stats) {
     const section = document.getElementById("ptg-quiz-result-section");
@@ -5265,8 +5563,8 @@ function PTG_quiz_alert(message) {
         return window.PTGQuizDrawing.toggleDrawing(force);
       }
     },
-    checkAnswer,
     selectFilterAndStart: selectFilterAndStart,
+    startQuizWithParams: startQuizWithParams,
   };
 
   /**

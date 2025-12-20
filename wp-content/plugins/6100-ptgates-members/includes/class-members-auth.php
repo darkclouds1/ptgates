@@ -33,6 +33,11 @@ class PTG_Members_Auth {
             return;
         }
 
+        // [DEBUG]
+        $debug_file = plugin_dir_path( __FILE__ ) . 'signup_debug.txt';
+        $log_entry = date('Y-m-d H:i:s') . " - Signup Attempt: Data=" . print_r($_POST, true) . "\n";
+        file_put_contents($debug_file, $log_entry, FILE_APPEND);
+
         $email    = sanitize_email( $_POST['email'] );
         $username = sanitize_user( $_POST['username'] );
         $name     = sanitize_text_field( $_POST['name'] );
@@ -112,7 +117,14 @@ class PTG_Members_Auth {
 
         $headers = [ 'Content-Type: text/plain; charset=UTF-8', 'From: ptGates <no-reply@ptgates.com>' ];
 
-        wp_mail( $email, $subject, $message, $headers );
+        error_log( "[PTG Auth] Attempting to send verification email to: $email" );
+        $result = wp_mail( $email, $subject, $message, $headers );
+        
+        if ( $result ) {
+            error_log( "[PTG Auth] Email sent successfully to: $email" );
+        } else {
+            error_log( "[PTG Auth] Failed to send email to: $email. Check SMTP/Mail settings." );
+        }
     }
 
     /**

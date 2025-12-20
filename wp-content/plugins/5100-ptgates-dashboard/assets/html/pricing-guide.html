@@ -250,20 +250,33 @@
         color: #4b5563;
       }
 
-      /* 플랜 비교표 */
+      /* 플랜 비교표 - Center Alignment Enforced */
       .ptg-plan-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
+        display: flex;
+        justify-content: center !important;
+        flex-wrap: wrap;
+        gap: 20px;
         margin-top: 12px;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .ptg-plan-cell {
         background: #f9fafb;
         border-radius: 14px;
-        padding: 10px 10px 12px;
+        padding: 20px 16px;
         border: 1px solid rgba(148, 163, 184, 0.4);
         font-size: 13px;
+        width: 240px;      /* Fixed width */
+        height: 260px;     /* Fixed height */
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        flex: 0 0 auto; /* Do not grow or shrink */
       }
 
       .ptg-plan-cell.popular {
@@ -331,14 +344,10 @@
           flex-direction: column;
           align-items: flex-start;
         }
+        /* Mobile: Keep standard Flex wrap for better centering instead of forced grid columns */
         .ptg-plan-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
-
-      @media (max-width: 480px) {
-        .ptg-plan-grid {
-          grid-template-columns: 1fr;
+           /* Use same flexible centering on mobile */
+           gap: 10px;
         }
       }
     </style>
@@ -376,48 +385,8 @@
           <div class="ptg-cta-caption">
             지금 업그레이드하면
             <b>오늘부터 남은 기간 동안 정답 보기 제한 없이</b> 학습을 이어갈 수
-            학습 기간과 예산에 맞게 Premium 이용 기간을 선택하세요. 기간이
-            길수록 <b>월 환산 비용은 더 저렴</b>해집니다.
-          </p>
-
-          <div class="ptg-plan-grid">
-            <div class="ptg-plan-cell">
-              <div class="ptg-plan-name">1개월</div>
-              <div class="ptg-plan-month">체험 · 막판 벼락치기용</div>
-              <div class="ptg-plan-price">9,900원</div>
-              <div class="ptg-plan-monthly">월 환산 약 9,900원</div>
-            </div>
-
-            <div class="ptg-plan-cell">
-              <div class="ptg-plan-name">3개월</div>
-              <div class="ptg-plan-month">단기 집중 학습 플랜</div>
-              <div class="ptg-plan-price">29,000원</div>
-              <div class="ptg-plan-monthly">월 환산 약 9,600원</div>
-            </div>
-
-            <div class="ptg-plan-cell popular">
-              <div class="ptg-plan-name">6개월</div>
-              <div class="ptg-plan-month">실습 이후 ~ 국시 직전까지</div>
-              <div class="ptg-plan-price">55,000원</div>
-              <div class="ptg-plan-monthly">월 환산 약 9,100원</div>
-              <span class="ptg-plan-tag popular-tag">가장 많이 선택</span>
-            </div>
-
-            <div class="ptg-plan-cell">
-              <div class="ptg-plan-name">12개월</div>
-              <div class="ptg-plan-month">장기 준비 · 재응시 대비</div>
-              <div class="ptg-plan-price">99,000원</div>
-              <div class="ptg-plan-monthly">월 환산 약 8,250원</div>
-              <span class="ptg-plan-tag value-tag">가성비 최고</span>
-            </div>
+            있습니다.
           </div>
-
-          <p class="ptg-note" style="margin-top: 14px">
-            ※ 기간이 끝나면 자동 결제되지 않으며, 필요 시 다시 원하는 플랜으로
-            재결제해서 이용하실 수 있습니다.<br />
-            ※ 12개월 플랜은 한시적으로 <b>런칭 특가 110,000원</b> 옵션을 제공할
-            수 있습니다. (이벤트 기간 내 별도 안내)
-          </p>
         </div>
       </div>
 
@@ -459,9 +428,10 @@
             국시까지 끝까지 함께 가는 <b>완전 오픈·무제한 학습 플랜</b>입니다.
           </p>
 
-          <p class="ptg-price">
-            1개월 9,900원 / 3개월 29,000원 / 6개월 55,000원 / 12개월 99,000원
-          </p>
+          <!-- Dynamic Price Grid -->
+          <div class="ptg-plan-grid">
+            <div style="grid-column: 1 / -1; text-align:center; color: #6b7280; padding: 20px;">로딩 중...</div>
+          </div>
 
           <ul class="ptg-benefits">
             <li>생성문항 전체 <b>무제한 학습</b></li>
@@ -490,6 +460,7 @@
             결제 및 환불 규정은 <b>이용약관</b>과 <b>유료 결제 환불 정책</b>을
             참고해 주세요.
           </p>
+          <!-- (Removed redundant outdated note lines here) -->
         </div>
       </div>
     </div>

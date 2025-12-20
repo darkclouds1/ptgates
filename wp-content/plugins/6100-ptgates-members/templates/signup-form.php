@@ -46,6 +46,7 @@
 
             <div class="ptg-input-group ptg-password-wrapper">
                 <input type="password" name="pass_confirm" class="ptg-input" placeholder="패스워드 확인" required autocomplete="new-password">
+                <span class="dashicons dashicons-visibility ptg-password-toggle"></span>
             </div>
 
             <div class="ptg-button-row">

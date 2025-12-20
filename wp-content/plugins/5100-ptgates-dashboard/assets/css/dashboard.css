@@ -1,3 +1,15 @@
 /* PTGates Dashboard Styles */
 /* 스타일은 템플릿 파일의 인라인 스타일로 관리됩니다. */
 
+/* Force Centering for Plan Grid in Dashboard View */
+.ptg-plan-grid {
+    display: flex;
+    justify-content: center !important;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+

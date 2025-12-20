@@ -149,7 +149,10 @@ class Social {
         ));
 
         if ( ! empty( $users ) ) {
-            return $users[0];
+            $u = $users[0];
+            // [FIX] Auto-approve existing Kakao users
+            update_user_meta( $u->ID, 'account_status', 'approved' );
+            return $u;
         }
 
         // 2. Find by Email
@@ -159,6 +162,8 @@ class Social {
                 // Link account
                 update_user_meta( $user->ID, 'wpklk_kakao_id', $kakao_id );
                 update_user_meta( $user->ID, 'wpklk_email_verified', 1 ); // Trust Kakao email
+                // [FIX] Auto-approve linked users
+                update_user_meta( $user->ID, 'account_status', 'approved' );
                 return $user;
             }
         }
@@ -178,6 +183,10 @@ class Social {
             update_user_meta( $user_id, 'wpklk_kakao_id', $kakao_id );
             update_user_meta( $user_id, 'display_name', $nickname );
             update_user_meta( $user_id, 'wpklk_email_verified', 1 ); // Verified by Kakao
+            
+            // [FIX] Auto-approve Kakao users (avoid 'Pending' status in UM/WP)
+            update_user_meta( $user_id, 'account_status', 'approved' );
+            
             wp_update_user( array( 'ID' => $user_id, 'display_name' => $nickname ) );
             
             return get_user_by( 'ID', $user_id );

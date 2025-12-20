@@ -80,62 +80,15 @@ class API {
 
         \add_action('rest_api_init', [__CLASS__, 'register_routes']);
         \add_action('admin_init', [__CLASS__, 'maybe_add_indexes']);
-        \add_action('init', [__CLASS__, 'add_rewrite_endpoints']);
-        \add_action('template_redirect', [__CLASS__, 'handle_payment_return']);
+        // Legacy rules removed.
     }
 
     public static function add_rewrite_endpoints() {
-        add_rewrite_tag('%ptg_payment%', '([^&]+)');
-        add_rewrite_rule('^ptg-payment-return/?', 'index.php?ptg_payment=return', 'top');
-        add_rewrite_rule('^ptg-payment-close/?', 'index.php?ptg_payment=close', 'top');
-        add_rewrite_rule('^ptg-payment-return-mobile/?', 'index.php?ptg_payment=mobile_return', 'top');
+        // PortOne V2 uses SPA/API flow, no redirects needed. Legacy rules removed.
     }
     
     public static function handle_payment_return() {
-        global $wp_query;
-        $action = $wp_query->get('ptg_payment');
-        
-        if (!$action) {
-            return;
-        }
-
-        if (!class_exists('\PTG\Platform\Payment')) {
-             $platform_payment = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-payment.php';
-             if (file_exists($platform_payment)) require_once $platform_payment;
-        }
-
-        if ($action === 'close') {
-            // Close Popup/Modal helper
-            echo '<script>window.close();</script>';
-            exit;
-        }
-
-        if ($action === 'return' || $action === 'mobile_return') {
-            // KG Inicis Return Logic
-            // KG Inicis Return Logic
-            // PC: result code, auth token delivered. Need to verify.
-            // Mobile: P_STATUS, P_RMESG1, etc.
-            
-            $params = $_REQUEST;
-            $oid = $params['oid'] ?? ($params['P_OID'] ?? '');
-            
-            if (!$oid) {
-                wp_die('Invalid Payment Return');
-            }
-
-            // Step 3. 승인 요청 (Server-to-Server)
-            // approve_transaction 내부에서 승인 요청 후 complete_transaction 호출
-            $result = \PTG\Platform\Payment::approve_transaction($params);
-            
-            if (is_wp_error($result)) {
-                // 실패 시 상세 에러 표시
-                wp_die($result->get_error_message());
-            }
-            
-            // Redirect to Dashboard Membership page with success message
-            wp_redirect(home_url('/dashboard?view=membership&payment=success'));
-            exit;
-        }
+        // Legacy Inicis return handler removed.
     }
 
     /**
@@ -279,15 +232,17 @@ class API {
                  return is_user_logged_in();
             },
         ]);
-        
-        // 결제 준비
-        $result4 = \register_rest_route(self::REST_NAMESPACE, '/payment/prepare', [
+
+        // 결제 완료 (검증)
+        $result5 = \register_rest_route(self::REST_NAMESPACE, '/payment/complete', [
             'methods' => 'POST',
-            'callback' => [__CLASS__, 'payment_prepare'],
+            'callback' => [__CLASS__, 'payment_complete'],
             'permission_callback' => function() {
                  return is_user_logged_in();
             },
         ]);
+        
+
         
         // 정상 로그는 debug.log에 기록하지 않음 (성공 시 로그 제거)
         // 실패 시에만 로그 기록
@@ -888,12 +843,11 @@ class API {
     }
 
     /**
-     * 결제 준비 API
+     * 결제 준비 API (V2)
      */
     public static function payment_prepare($request) {
         $user_id = get_current_user_id();
         $product_code = $request->get_param('product_code');
-        $device_type = $request->get_param('device_type') ?: 'pc';
         
         if (!class_exists('\PTG\Platform\Payment')) {
              $platform_payment = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-payment.php';
@@ -904,13 +858,37 @@ class API {
             return new \WP_Error('system_error', '결제 모듈을 로드할 수 없습니다.', ['status' => 500]);
         }
         
-        $result = \PTG\Platform\Payment::prepare_transaction($user_id, $product_code, $device_type, home_url());
+        $result = \PTG\Platform\Payment::prepare_transaction($user_id, $product_code);
         
         if (is_wp_error($result)) {
             return $result;
         }
         
         return rest_ensure_response($result);
+    }
+
+    /**
+     * 결제 완료 검증 API (V2)
+     */
+    public static function payment_complete($request) {
+        $user_id = get_current_user_id();
+        $payment_id = $request->get_param('paymentId');
+
+        if (empty($payment_id)) {
+            return new \WP_Error('invalid_param', 'Payment ID Missing', ['status' => 400]);
+        }
+
+        if (!class_exists('\PTG\Platform\Payment')) {
+            return new \WP_Error('system_error', 'Payment Module Missing', ['status' => 500]);
+        }
+
+        $result = \PTG\Platform\Payment::verify_payment($payment_id);
+
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return rest_ensure_response(['success' => true]);
     }
 }
 

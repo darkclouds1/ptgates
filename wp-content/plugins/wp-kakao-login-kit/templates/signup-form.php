@@ -36,11 +36,21 @@
                 </div>
 
                 <div class="ptg-input-group">
-                    <input type="email" name="email" class="ptg-input" placeholder="이메일" required>
+                    <input type="text" name="username" class="ptg-input" placeholder="아이디 (필수)" required>
+                </div>
+
+                <div class="ptg-input-group">
+                    <input type="email" name="email" class="ptg-input" placeholder="이메일 (필수)" required>
                 </div>
 
                 <div class="ptg-input-group ptg-password-wrapper">
                     <input type="password" name="password" class="ptg-input" placeholder="패스워드 (8자리 이상)" required minlength="8">
+                    <span class="dashicons dashicons-visibility ptg-password-toggle" onclick="togglePassword(this)"></span>
+                </div>
+
+                <div class="ptg-input-group ptg-password-wrapper">
+                    <input type="password" name="password_confirm" class="ptg-input" placeholder="패스워드 확인" required>
+                    <span class="dashicons dashicons-visibility ptg-password-toggle" onclick="togglePassword(this)"></span>
                 </div>
 
                 <div class="ptg-button-row">

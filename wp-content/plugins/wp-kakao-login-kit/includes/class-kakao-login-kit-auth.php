@@ -17,19 +17,36 @@ class Auth {
 
         $email    = sanitize_email( $_POST['email'] );
         $password = $_POST['password'];
+        $pc       = $_POST['password_confirm'];
         $name     = sanitize_text_field( $_POST['name'] );
+        $username = isset($_POST['username']) ? sanitize_user( $_POST['username'] ) : '';
 
         // Initial Validation
         if ( empty( $email ) || empty( $password ) ) {
             $this->redirect_with_error( 'signup', 'missing_fields' );
         }
+        
+        // Username Check
+        if ( empty( $username ) ) {
+            $username = $email; // Fallback only if not provided, but form should require it
+        }
 
-        if ( email_exists( $email ) || username_exists( $email ) ) {
-            $this->redirect_with_error( 'signup', 'email_exists' );
+        if ( $password !== $pc ) {
+            // ... (existing logic)
+            wp_safe_redirect( add_query_arg( 'error', 'password_mismatch', wp_get_referer() ) );
+            exit;
+        }
+
+        if ( email_exists( $email ) ) {
+             $this->redirect_with_error( 'signup', 'email_exists' );
+        }
+
+        if ( username_exists( $username ) ) {
+             $this->redirect_with_error( 'signup', 'username_exists' );
         }
 
         // Create User (Pending Verification)
-        $user_id = wp_create_user( $email, $password, $email ); // Username is email
+        $user_id = wp_create_user( $username, $password, $email );
 
         if ( is_wp_error( $user_id ) ) {
             $this->redirect_with_error( 'signup', $user_id->get_error_code() );
@@ -67,11 +84,18 @@ class Auth {
             home_url( '/' ) // Fallback to home, logic handles it on init
         );
 
-        $subject = sprintf( '[%s] 이메일 인증을 완료해주세요.', get_bloginfo( 'name' ) );
+        $subject = sprintf( '[ptGates] 이메일 인증을 완료해주세요.', get_bloginfo( 'name' ) );
         $message = sprintf( "안녕하세요,\n\n아래 링크를 클릭하여 회원가입을 완료해주세요:\n%s\n\n감사합니다.", $verify_url );
-        $headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+        $headers = array( 'Content-Type: text/plain; charset=UTF-8', 'From: ptGates <no-reply@ptgates.com>' );
 
-        wp_mail( $email, $subject, $message, $headers );
+        error_log( "[WPKLK] Attempting to send verification email to: $email" );
+        $result = wp_mail( $email, $subject, $message, $headers );
+        
+        if ( $result ) {
+            error_log( "[WPKLK] Email sent successfully to: $email" );
+        } else {
+            error_log( "[WPKLK] Failed to send email to: $email. Check SMTP settings." );
+        }
     }
 
     /**
