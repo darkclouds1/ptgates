@@ -607,6 +607,7 @@ class Study_API {
 
         // [NEW] Mock Exam Context Filter
         $include_ids = [];
+        $index_map = []; // Map question_id -> exam number (1-based)
         $mock_exam_id = (int) $request->get_param('mock_exam_id');
         
         if ($mock_exam_id > 0) {
@@ -623,10 +624,14 @@ class Study_API {
             if ($history && !empty($history->answers_json)) {
                 $answers = json_decode($history->answers_json, true);
                 if (is_array($answers)) {
-                    foreach ($answers as $ans) {
+                    foreach ($answers as $idx => $ans) {
+                        // Store exam index for ALL questions (to use for sorting/display)
+                        $q_id = (int) $ans['question_id'];
+                        $index_map[$q_id] = $idx + 1;
+
                         // Check if answer is incorrect (is_correct must be true to pass, so anything else is wrong)
                         if (empty($ans['is_correct']) || $ans['is_correct'] !== true) {
-                            $include_ids[] = (int) $ans['question_id'];
+                            $include_ids[] = $q_id;
                         }
                     }
                 }
@@ -638,8 +643,15 @@ class Study_API {
                 }
                 
                 // Override filters to focus ONLY on these questions
-                $max_items = count($include_ids);
-                $repo_limit = $limit; // Reset repo limit as we are explicit now
+                // [FIX] Do NOT set max_items here blindly. The raw include_ids contains ALL wrong answers (mixed subjects).
+                // We must let LegacyRepo count how many of these IDs match the current Subject.
+                // $max_items = count($include_ids); 
+                
+                // [FIX] For Mock Review, we MUST fetch ALL relevant questions from DB first, 
+                // because we need to sort them by 'Exam Index' (which DB doesn't know about) BEFORE pagination.
+                // If we let DB paginate (Limit 5), it gives us 5 random/ID-sorted questions, 
+                // and sorting those 5 by Exam Index is useless for global order.
+                $repo_limit = 9999; 
                 
                 // Disable global wrong_only filter if we use explicit mock filter, as we ALREADY filtered for wrong answers here
                 // We trust the history record over the current global state (which might have changed)
@@ -651,13 +663,16 @@ class Study_API {
 		$args = [
 			'subject'          => $matched_subject,
 			'limit'            => ($random && !$is_smart_random) ? 1000 : $repo_limit, 
-			'offset'           => (!empty($exclude_ids)) ? 0 : ($random ? 0 : $offset), // exclude_ids가 있으면 offset 0
+            // [FIX] If Mock Exam mode (index_map exists), force Offset 0 to fetch ALL for PHP sorting.
+			'offset'           => (!empty($exclude_ids) || !empty($index_map)) ? 0 : ($random ? 0 : $offset), 
 			'exam_session_min' => 1000,
             'random'           => $random,
             'smart_random_user_id' => $is_smart_random ? $user_id : null,
             'smart_random_exclude_correct' => $is_smart_random, 
             'wrong_only_user_id' => $wrong_only ? $user_id : null,
-            'exclude_ids'      => $exclude_ids,
+            // [FIX] In Mock Mode (index_map), we fetch ALL and slice manually by offset.
+            // So we MUST ignore exclude_ids (which JS sends for infinite scroll) to avoid double-skipping.
+            'exclude_ids'      => (!empty($index_map)) ? [] : $exclude_ids, 
             'include_ids'      => $include_ids, // [NEW] Pass specific IDs
 		];
 
@@ -666,22 +681,38 @@ class Study_API {
 			'subject'             => $matched_subject,
 			'exam_session_min'    => 1000,
             'wrong_only_user_id'  => $wrong_only ? $user_id : null,
+            'include_ids'         => $include_ids, // [FIX] Ensure count is limited to the history context
 		]);
         
-        // Fallback: If Map lookup failed, use DB count as max_items
+        // [FIX] Use the real filtered count as max_items
+        $max_items = $total_count;
+
+        // Fallback: If Map lookup failed, use DB count as max_items (Already identical now)
         if ($max_items == 0) {
             $max_items = $total_count;
         }
 
-        // Enforce Limit (Post-Fetch Slicing)
-        // This ensures we never return more than allowed, even if Repo returned more or random mode fetched duplicates
-        $remaining = max(0, $max_items - $offset);
-        if (count($questions) > $remaining) {
-            $questions = array_slice($questions, 0, $remaining);
+        // [FIX] Apply Manual Pagination (Slicing) AFTER sorting if needed
+        if (!empty($index_map)) {
+             // Sor by Exam Index
+             usort($questions, function($a, $b) use ($index_map) {
+                $idxA = isset($index_map[$a['question_id']]) ? $index_map[$a['question_id']] : 999999;
+                $idxB = isset($index_map[$b['question_id']]) ? $index_map[$b['question_id']] : 999999;
+                return $idxA <=> $idxB;
+             });
+             // Manual Pagination
+             $questions = array_slice($questions, $offset, $limit);
+
+        } else {
+            // Standard check (Enforce Limit Post-Fetch Slicing)
+            $remaining = max(0, $max_items - $offset);
+            if (count($questions) > $remaining) {
+                $questions = array_slice($questions, 0, $remaining);
+            }
         }
         
         // Update total_count for response to match the effective limit
-        $total_count = $max_items;
+        // $total_count = $max_items; // Redundant as set above // Redundant as set above
 
         if (empty($questions) && $offset < $max_items) {
             // 틀린 문제만 보기 모드일 때는 404 에러 대신 빈 결과를 반환하여 클라이언트에서 처리하도록 함
@@ -700,7 +731,8 @@ class Study_API {
         }
 
 		// 정렬/랜덤 처리
-		if ($random) {
+        // [NOTE] Mock Exam sort handled above
+        if ($random) {
             if (!$is_smart_random) {
                 // Legacy Random (PHP Shuffle for guests)
 			    shuffle($questions);
@@ -720,7 +752,7 @@ class Study_API {
         $user_stats = LegacyRepo::get_user_question_stats($user_id, $question_ids);
         $user_states = LegacyRepo::get_user_states($user_id, $question_ids);
 
-		$formatted_lessons = array_map(function($q) use ($user_stats, $user_states) {
+		$formatted_lessons = array_map(function($q) use ($user_stats, $user_states, $index_map) {
             $stats = isset($user_stats[$q['question_id']]) ? $user_stats[$q['question_id']] : null;
             $state = isset($user_states[$q['question_id']]) ? $user_states[$q['question_id']] : null;
             
@@ -731,6 +763,7 @@ class Study_API {
             }
 			return [
 				'id'          => $q['question_id'],
+                'exam_index'  => isset($index_map[$q['question_id']]) ? $index_map[$q['question_id']] : null, // [NEW] Real Exam Number
 				'title'       => '문제 #' . $q['question_id'],
 				'content'     => $q['content'],
 				'answer'      => $q['answer'],

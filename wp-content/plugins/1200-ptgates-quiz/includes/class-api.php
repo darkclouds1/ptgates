@@ -108,6 +108,19 @@ class API {
                 ),
             ),
         ));
+
+        // [NEW] Mock Retry Questions (오답 다시 풀기)
+        register_rest_route(self::NAMESPACE, '/questions/mock-retry', array(
+            'methods' => 'GET',
+            'callback' => array(__CLASS__, 'get_mock_retry_questions'),
+            'permission_callback' => array(__CLASS__, 'check_permission'),
+            'args' => array(
+                'mock_exam_id' => array('required' => true, 'type' => 'integer'),
+                'course_no'    => array('required' => false),
+                'wrong_only'   => array('required' => false, 'default' => 0),
+                'random'       => array('required' => false, 'default' => 0)
+            )
+        ));
         
         // 문제 조회
         register_rest_route(self::NAMESPACE, '/questions/(?P<question_id>\d+)', array(
@@ -2286,54 +2299,135 @@ class API {
      */
     public static function get_mock_sessions() {
         global $wpdb;
+
+        // [PERFORMANCE] Use Transient Cache
+        $cache_key = 'ptg_quiz_mock_sessions_list';
+        $cached_sessions = get_transient($cache_key);
+
+        if ($cached_sessions !== false) {
+            return Rest::success($cached_sessions);
+        }
         
         // [RULE] All ptgates_ tables do NOT use db prefix
         $table_name = 'ptgates_categories';
 
-        // 1. DB에서 회차 정보 조회 (중복 제거, 내림차순 정렬)
-        // exam_course(교시)도 함께 조회하여 회차별 가능한 교시 목록을 구성
-        $query = "SELECT DISTINCT exam_session, exam_course 
+        // 2. DB에서 회차 정보 조회 (GROUP_CONCAT 활용)
+        // [OPTIMIZATION] User suggested GROUP_CONCAT to fetch session and courses in one grouped row
+        $query = "SELECT 
+                    exam_session, 
+                    GROUP_CONCAT(DISTINCT exam_course ORDER BY exam_course ASC) AS exam_courses
                   FROM {$table_name} 
                   WHERE exam_session BETWEEN 1001 AND 1999 
-                  ORDER BY exam_session DESC, exam_course ASC";
+                  GROUP BY exam_session
+                  ORDER BY exam_session DESC";
 
         $results = $wpdb->get_results($query);
 
         $sessions = [];
-        $temp_map = [];
 
         if (!empty($results)) {
             foreach ($results as $row) {
                 $code = intval($row->exam_session);
-                // exam_course가 '1교시', '2교시' 등의 문자열일 수 있으므로 숫자만 추출하거나 그대로 사용
-                // class-import.php에서는 문자열로 저장됨. 여기서는 숫자로 변환 시도
-                $course_val = $row->exam_course; 
-                // 숫자만 추출 (예: "1교시" -> 1)
-                if (preg_match('/(\d+)/', $course_val, $m)) {
-                    $course_num = intval($m[1]);
-                } else {
-                    $course_num = intval($course_val);
+                $round_num = $code - 1000;
+                
+                $session_data = [
+                    'id' => $code,
+                    'title' => "{$round_num}회차",
+                    'courses' => []
+                ];
+
+                // Parse GROUP_CONCAT result (comma separated)
+                if (!empty($row->exam_courses)) {
+                    $courses_raw = explode(',', $row->exam_courses);
+                    foreach ($courses_raw as $course_val) {
+                        $course_val = trim($course_val);
+                        // 숫자만 추출 (예: "1교시" -> 1)
+                        if (preg_match('/(\d+)/', $course_val, $m)) {
+                            $course_num = intval($m[1]);
+                        } else {
+                            $course_num = intval($course_val);
+                        }
+                        
+                        if ($course_num > 0) {
+                            $session_data['courses'][] = $course_num;
+                        }
+                    }
+                    // Ensure courses are unique and sorted (though DB did sort, clean up just in case)
+                    $session_data['courses'] = array_values(array_unique($session_data['courses']));
                 }
                 
-                if (!isset($temp_map[$code])) {
-                    $round_num = $code - 1000;
-                    $temp_map[$code] = [
-                        'id' => $code,
-                        'title' => "{$round_num}회차",
-                        'courses' => []
-                    ];
-                }
-                
-                if ($course_num > 0 && !in_array($course_num, $temp_map[$code]['courses'])) {
-                    $temp_map[$code]['courses'][] = $course_num;
-                }
+                $sessions[] = $session_data;
             }
-            
-            // 맵을 배열로 변환
-            $sessions = array_values($temp_map);
         }
 
+        // Cache the result for 24 hours
+        set_transient($cache_key, $sessions, DAY_IN_SECONDS);
+
         return Rest::success($sessions);
+    }
+
+    /**
+     * Get Questions for Mock Retry (Wrong Answers Only)
+     * Extracts wrong answers from ptgates_mock_history.answers_json
+     */
+    public static function get_mock_retry_questions($request) {
+        global $wpdb;
+        $mock_exam_id = $request->get_param('mock_exam_id');
+        $wrong_only = $request->get_param('wrong_only');
+        $user_id = get_current_user_id();
+
+        if (empty($mock_exam_id)) {
+            return new \WP_Error('missing_params', 'Mock Exam ID is required', ['status' => 400]);
+        }
+
+        // Fetch answers_json from history
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT answers_json FROM ptgates_mock_history WHERE history_id = %d AND user_id = %d",
+            $mock_exam_id, $user_id
+        ));
+
+        if (!$row || empty($row->answers_json)) {
+            // No data or permission denied
+            return Rest::success([]);
+        }
+
+        $answers = json_decode($row->answers_json, true);
+        $ids = [];
+
+        if (is_array($answers)) {
+            foreach($answers as $ans) {
+                // Determine correctness
+                $is_correct = !empty($ans['is_correct']);
+                
+                // If wrong_only is requested, skip correct answers
+                if ($wrong_only && $is_correct) {
+                    continue;
+                }
+                
+                if (isset($ans['question_id'])) {
+                    $ids[] = intval($ans['question_id']);
+                }
+            }
+        }
+        
+        if (empty($ids)) {
+            return Rest::success([]);
+        }
+
+        // Fetch full question data
+        $args = [
+            'include_ids' => $ids,
+            'limit' => 9999 // Unlimited (LegacyRepo treats 0 as LIMIT 0)
+        ];
+        
+        // Randomize if requested
+        if ($request->get_param('random')) {
+            $args['random'] = true;
+        }
+
+        $questions = LegacyRepo::get_questions_with_categories($args);
+        
+        return Rest::success($questions);
     }
 }
 

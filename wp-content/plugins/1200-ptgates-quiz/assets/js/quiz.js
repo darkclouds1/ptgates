@@ -1152,6 +1152,13 @@ function PTG_quiz_alert(message) {
     // 키보드 단축키
     setupKeyboardShortcuts();
 
+    // [FIX] 포기하기 버튼 이벤트 연결 (Ghost Button Fix)
+    const btnGiveup = document.getElementById("ptgates-giveup-btn");
+    if (btnGiveup) {
+      btnGiveup.removeEventListener("click", giveUpQuiz);
+      btnGiveup.addEventListener("click", giveUpQuiz);
+    }
+
     // 초기화 완료 플래그 설정
     QuizState.isInitialized = true;
     QuizState.initializing = false;
@@ -5624,18 +5631,149 @@ function PTG_quiz_alert(message) {
     startQuizFromFilter();
   }
 
+  /**
+   * [NEW] Mock Retry 모드 시작 (오답 다시 풀기)
+   */
+  /**
+   * [NEW] Mock Retry 모드 시작 (오답 다시 풀기)
+   */
+  async function startQuizFromMockRetry(mockExamId, wrongOnly, random) {
+    console.log("[PTG Quiz] Mock Retry Start:", {
+      mockExamId,
+      wrongOnly,
+      random,
+    });
+
+    // 표준 init() 실행 차단 (중복 실행 방지)
+    QuizState.initializing = true;
+    QuizState.isInitialized = true;
+
+    // initInterval 정지 시도 (scope 내 변수 접근)
+    try {
+      if (typeof initInterval !== "undefined" && initInterval) {
+        clearInterval(initInterval);
+      }
+    } catch (e) {}
+
+    const container = document.getElementById("ptg-quiz-container");
+    let loader = null;
+
+    if (container) {
+      // 기존 필터/그리드 UI 숨기기
+      const filterSection = document.getElementById("ptg-quiz-filter-section");
+      const gridSection = document.getElementById("ptg-quiz-grid-section");
+
+      if (filterSection) filterSection.style.display = "none";
+      if (gridSection) gridSection.style.display = "none";
+
+      // 로딩 메시지 추가
+      loader = document.createElement("div");
+      loader.id = "ptg-mock-retry-loader";
+      loader.className = "ptg-quiz-loading";
+      loader.style.padding = "40px";
+      loader.style.textAlign = "center";
+      loader.innerHTML =
+        '<p style="font-size:16px;">오답 문제를 불러오는 중입니다...</p>';
+      container.appendChild(loader);
+    }
+
+    try {
+      const endpoint = "ptg-quiz/v1/questions/mock-retry";
+      const query = {
+        mock_exam_id: mockExamId,
+        wrong_only: wrongOnly,
+        random: random,
+      };
+
+      const response = await PTGPlatform.get(endpoint, query);
+
+      // 로딩 제거
+      if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+      if (!response || !response.success)
+        throw new Error(response.message || "데이터 로드 실패");
+
+      const questions = response.data; // Objects array
+      if (!Array.isArray(questions) || questions.length === 0) {
+        alert("틀린 문제가 없습니다.");
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      console.log("[PTG Quiz] Questions Loaded:", questions.length);
+
+      const ids = questions.map((q) => q.question_id || q.id);
+
+      // 퀴즈 상태 초기화
+      QuizState.questions = ids;
+      QuizState.currentIndex = 0;
+      QuizState.questionId = ids[0];
+      QuizState.answers = [];
+      QuizState.isAnswered = false;
+      QuizState.userAnswer = "";
+      QuizState.startTime = Date.now();
+      QuizState.mode = "mock_retry";
+
+      // 타이머 설정
+      const urlParams = new URL(window.location.href).searchParams;
+      const courseStr = String(urlParams.get("course_no") || "");
+      let timerMinutes = 50;
+      if (courseStr.includes("1")) timerMinutes = 90;
+      else if (courseStr.includes("2") || courseStr.includes("3"))
+        timerMinutes = 75;
+
+      // 일단 Unlimited 여부 확인
+      if (container && container.dataset.unlimited === "1") {
+        // Unlimited
+      } else {
+        // Set timer
+        QuizState.timerSeconds = timerMinutes * 60;
+        startTimer();
+      }
+
+      // 이벤트 리스너 설정 (필수: init 차단으로 인해 수동 호출)
+      setupEventListeners();
+
+      setState("running");
+      showProgressSection();
+      updateProgress(1, ids.length);
+
+      await loadQuestion();
+    } catch (e) {
+      console.error(e);
+      if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+      alert("오류: " + e.message);
+      // window.location.href = '/dashboard';
+    }
+  }
+
   // DOM 로드 완료 시 초기화
   function autoInit() {
+    // 1. Mock Retry 모드 우선 체크 (가장 먼저 실행)
+    if (typeof window !== "undefined" && window.location) {
+      const urlParams = new URL(window.location.href).searchParams;
+      if (urlParams.get("mode") === "mock_retry") {
+        const mockExamId = urlParams.get("mock_exam_id");
+        if (mockExamId) {
+          // startQuizFromMockRetry 호출 후 종료
+          startQuizFromMockRetry(
+            mockExamId,
+            urlParams.get("wrong_only"),
+            urlParams.get("random")
+          );
+          return;
+        }
+      }
+    }
+
     const container = document.getElementById("ptg-quiz-container");
     if (container) {
       try {
         init();
 
-        // Auto-start check from URL
+        // [UI Sync] Checkbox sync from URL
         if (typeof window !== "undefined" && window.location) {
           const urlParams = new URL(window.location.href).searchParams;
 
-          // [UI Sync] Checkbox sync from URL
           if (
             urlParams.get("review_only") === "1" ||
             urlParams.get("review_only") === "true"

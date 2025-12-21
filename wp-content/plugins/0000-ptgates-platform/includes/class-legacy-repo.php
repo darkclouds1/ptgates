@@ -231,6 +231,28 @@ class LegacyRepo {
             $where_values[] = absint($args['exam_session_min']);
         }
 
+        // exclude_ids 필터
+        if (!empty($args['exclude_ids']) && is_array($args['exclude_ids'])) {
+            $exclude_ids = array_map('absint', $args['exclude_ids']);
+            $exclude_ids = array_filter($exclude_ids); // 0 제거
+            if (!empty($exclude_ids)) {
+                $placeholders = implode(',', array_fill(0, count($exclude_ids), '%d'));
+                $where[] = "q.question_id NOT IN ($placeholders)";
+                $where_values = array_merge($where_values, $exclude_ids);
+            }
+        }
+
+        // include_ids 필터 (특정 문제만 포함 - 중요: Mock Review Total Count Fix)
+        if (!empty($args['include_ids']) && is_array($args['include_ids'])) {
+            $include_ids = array_map('absint', $args['include_ids']);
+            $include_ids = array_filter($include_ids); // 0 제거
+            if (!empty($include_ids)) {
+                $placeholders = implode(',', array_fill(0, count($include_ids), '%d'));
+                $where[] = "q.question_id IN ($placeholders)";
+                $where_values = array_merge($where_values, $include_ids);
+            }
+        }
+
         // Wrong Only Filter (count에도 동일 적용)
         $join_clause = "INNER JOIN {$categories_table} c ON q.question_id = c.question_id";
         if (!empty($args['wrong_only_user_id'])) {

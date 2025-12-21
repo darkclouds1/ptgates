@@ -37,32 +37,14 @@ $pass_class = $history->is_pass ? 'pass' : 'fail';
 ?>
 
 <div class="ptg-mock-result-container">
-    <!-- Header -->
-    <div class="ptg-result-header ptg-card">
-        <div class="header-left">
-            <h2><?php echo esc_html($history->session_code); ?>회차 결과 상세</h2>
-            <span class="badge <?php echo $pass_class; ?>"><?php echo $pass_status; ?></span>
-            <span class="score">총점: <?php echo esc_html($history->total_score); ?>점</span>
-        </div>
-        <div class="header-right">
-            <a href="<?php echo esc_url( remove_query_arg( 'result_id' ) ); ?>" class="ptg-btn ptg-btn-outline">목록보기</a>
-        </div>
-    </div>
+    <?php 
+    // Include shared Summary View
+    include plugin_dir_path(__FILE__) . 'part-result-summary.php'; 
+    ?>
 
-    <!-- Summary (Subject Scores) -->
-    <div class="ptg-result-summary ptg-card">
-        <h3>과목별 점수</h3>
-        <div class="subject-scores-grid">
-            <?php foreach ($subjects as $subj): ?>
-                <div class="subject-score-item <?php echo ($subj->is_fail) ? 'fail' : ''; ?>">
-                    <span class="subj-name"><?php echo esc_html($subj->subject_name); ?></span>
-                    <span class="subj-score"><?php echo esc_html($subj->score); ?>점</span>
-                    <?php if ($subj->is_fail): ?>
-                        <span class="fail-badge">과락</span>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
+    <!-- Navigation (Original Detail Page Only) -->
+    <div class="result-nav" style="margin-top:20px; text-align:right;">
+         <a href="<?php echo esc_url( remove_query_arg( 'result_id' ) ); ?>" class="ptg-btn ptg-btn-outline">목록보기</a>
     </div>
 
     <!-- Question List -->

@@ -622,6 +622,13 @@
     isWrongOnly = false,
     mockExamId = null // [NEW]
   ) {
+    // [FIX] Auto-detect mock_exam_id from URL if not provided (preserves context for infinite scroll/refresh)
+    if (!mockExamId) {
+      mockExamId = new URLSearchParams(window.location.search).get(
+        "mock_exam_id"
+      );
+    }
+
     const displayName = subjectLabel || decodeURIComponent(subjectId);
 
     const rest = getRestConfig();
@@ -752,6 +759,7 @@
           random: random,
           wrongOnly: isWrongOnly,
           initialInfiniteState: initialInfiniteState,
+          mockExamId: mockExamId, // [NEW] Pass context
         });
       })
       .fail(function (jqXHR, textStatus, errorThrown) {
@@ -831,6 +839,11 @@
       }
     }
 
+    // [FIX] Auto-detect mock_exam_id from URL (preserves context)
+    const mockExamId = new URLSearchParams(window.location.search).get(
+      "mock_exam_id"
+    );
+
     currentXhr = $.ajax({
       url: rest.baseUrl + "courses/" + category.id,
       method: "GET",
@@ -843,6 +856,7 @@
         random: isRandom ? 1 : 0,
         wrong_only: isWrongOnly ? 1 : 0,
         infinite_scroll: initialInfiniteState ? 1 : 0,
+        mock_exam_id: mockExamId, // [NEW] Pass context
       },
       beforeSend: function (xhr) {
         if (rest.nonce) {
@@ -907,6 +921,7 @@
         wrongOnly: !!isWrongOnly,
         rawSubjects: rawSubjects,
         initialInfiniteState: initialInfiniteState,
+        mockExamId: mockExamId, // [NEW] Pass context
       });
     });
   }
@@ -934,6 +949,7 @@
       typeof meta.initialInfiniteState === "boolean"
         ? meta.initialInfiniteState
         : true;
+    const mockExamId = meta.mockExamId || null; // [NEW] context
 
     const lessons =
       courseDetail && Array.isArray(courseDetail.lessons)
@@ -963,8 +979,9 @@
                                 }>
                                 <span>무한스크롤</span>
                             </label>
+                            </label>
                             ${
-                              subjectId || isCategory
+                              (subjectId || isCategory) && !mockExamId // [FIX] Hide random/wrong-only if Mock Review
                                 ? `
                                 <label class="ptg-random-toggle">
                                     <input type="checkbox" id="ptg-random-toggle" ${
@@ -1151,7 +1168,11 @@
 
     lessons.forEach(function (lesson, index) {
       // Calculate absolute index for numbering (optional, if needed)
-      const absIndex = currentOffset + index + 1;
+      // [FIX] Use exam_index if available (Mock Review Mode), else fallback to sequential loop index
+      const absIndex =
+        lesson.exam_index !== null && lesson.exam_index !== undefined
+          ? lesson.exam_index
+          : currentOffset + index + 1;
       const questionHtml = renderQuestionFromUI(lesson, absIndex);
 
       const explanationSubject =
@@ -1191,14 +1212,15 @@
                 )}">
                     ${questionHtml}
                     <div class="ptg-lesson-answer-area">
-                        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 5px;">
+                        <!-- [FIX] Improved alignment for buttons and stats -->
+                        <div class="ptg-q-action-bar" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                             <button class="toggle-answer ptg-btn ptg-btn-primary">정답 및 해설 보기</button>
                             ${
                               lesson.question_image
                                 ? '<button class="toggle-answer-img ptg-btn ptg-btn-primary">학습 이미지</button>'
                                 : ""
                             }
-                            <div class="ptg-answer-buttons-container"></div>
+                            <div class="ptg-answer-buttons-container" style="display: inline-flex; align-items: center;"></div>
                             ${statsHtml}
                         </div>
                         <div class="answer-content" style="display: none;">

@@ -181,7 +181,7 @@ class API {
             }
         }
 
-        // 3. Calculate Scores
+        // 3. Calculate Scores (WITHOUT Token Generation yet)
         // [FIX] Map Subject -> Category using ptgates_subject table
         $table_subject_map = 'ptgates_subject';
         $su_rows = $wpdb->get_results("SELECT category, subcategory FROM $table_subject_map");
@@ -215,7 +215,7 @@ class API {
                 'total' => $total,
                 'correct' => $correct,
                 'score' => $score,
-                'review_token' => self::generate_review_token($history_id, $subj, $user_id) // [NEW] Token
+                // 'review_token' => ... // [FIX] Token generation deferred until history_id exists
             ];
 
             $total_score_sum += $score; // This is sum of subject %
@@ -240,7 +240,7 @@ class API {
         $is_pass = ( $avg_score >= 60 && !$has_fail ) ? 1 : 0;
 
 
-        // 4. Save to DB
+        // 4. Save to DB (History First)
         $table_history = 'ptgates_mock_history';
         $inserted = $wpdb->insert( $table_history, [
             'user_id' => $user_id,
@@ -261,9 +261,14 @@ class API {
 
         $history_id = $wpdb->insert_id;
 
-        // Insert details
+        // 5. Generate Tokens and Insert Details (Now that we have history_id)
         $table_results = 'ptgates_mock_results';
-        foreach ( $processed_results as $res ) {
+        
+        // Use reference to update original array directly
+        foreach ( $processed_results as &$res ) {
+            // [FIX] Generate token now with valid history_id
+            $res['review_token'] = self::generate_review_token($history_id, $res['subject'], $user_id);
+            
             $is_fail = ($res['score'] < 40) ? 1 : 0;
             $wpdb->insert( $table_results, [
                 'history_id' => $history_id,
@@ -274,20 +279,21 @@ class API {
                 'is_fail' => $is_fail
             ] );
         }
+        unset($res); // Break reference
 
         return [
             'success' => true,
             'history_id' => $history_id,
             'is_pass' => $is_pass,
             'score' => $avg_score,
-            'subjects' => $processed_results // [NEW] Return subject breakdown for frontend briefing
+            'subjects' => $processed_results // [NEW] Return subject breakdown (with tokens) for frontend briefing
         ];
     }
 
     /**
      * Generate secure token for review link
      */
-    private static function generate_review_token($history_id, $subject, $user_id) {
+    public static function generate_review_token($history_id, $subject, $user_id) {
         $payload = json_encode([
             'hid' => $history_id,
             'sub' => $subject,
@@ -364,6 +370,25 @@ class API {
         // 2. Subject Results
         $subjects = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_r WHERE history_id = %d", $history_id));
 
+        // [FIX] Map Subject -> Category using ptgates_subject table (Same logic as submit_result)
+        $table_subject_map = 'ptgates_subject';
+        $su_rows = $wpdb->get_results("SELECT category, subcategory FROM $table_subject_map");
+        $sub_to_cat = [];
+        if (!empty($su_rows)) {
+            foreach($su_rows as $r) {
+                if (!empty($r->subcategory)) {
+                    $sub_to_cat[$r->subcategory] = $r->category;
+                }
+            }
+        }
+
+        // Attach category to each subject
+        if (!empty($subjects)) {
+            foreach ($subjects as $subj) {
+                $subj->category = isset($sub_to_cat[$subj->subject_name]) ? $sub_to_cat[$subj->subject_name] : $subj->subject_name;
+            }
+        }
+
         // 3. Questions Details
         $user_answers = [];
         if (!empty($history->answers_json)) {
@@ -415,5 +440,123 @@ class API {
             'subjects' => $subjects,
             'questions' => $questions_data
         ];
+    }
+
+
+
+    /**
+     * Get Aggregated Dashboard Stats for User
+     */
+    public static function get_dashboard_stats($user_id) {
+        global $wpdb;
+        $user_id = intval($user_id);
+        $table_h = 'ptgates_mock_history';
+        $table_r = 'ptgates_mock_results';
+
+        // 1. Basic KPIs
+        $kpi_data = $wpdb->get_row($wpdb->prepare("
+            SELECT 
+                COUNT(*) as total_exams,
+                AVG(total_score) as avg_score,
+                MAX(total_score) as best_score,
+                SUM(CASE WHEN is_pass = 1 THEN 1 ELSE 0 END) as pass_count
+            FROM $table_h 
+            WHERE user_id = %d AND exam_type = 'mock'
+        ", $user_id));
+
+        $total_exams = $kpi_data->total_exams ?? 0;
+        $pass_rate = ($total_exams > 0) ? round(($kpi_data->pass_count / $total_exams) * 100, 1) : 0;
+        
+        // 2. Trend Data (Last 10)
+        $history_latest = $wpdb->get_results($wpdb->prepare("
+            SELECT session_code, course_no, total_score, created_at 
+            FROM $table_h 
+            WHERE user_id = %d AND exam_type = 'mock'
+            ORDER BY created_at DESC 
+            LIMIT 10
+        ", $user_id));
+        $trend_data = array_reverse($history_latest);
+
+        // 3. Subject Weakness (Radar Chart)
+        $table_subject_map = 'ptgates_subject';
+        $su_rows = $wpdb->get_results("SELECT category, subcategory FROM $table_subject_map");
+        $sub_to_cat = [];
+        if (!empty($su_rows)) {
+            foreach($su_rows as $r) {
+                if (!empty($r->subcategory)) {
+                    $sub_to_cat[$r->subcategory] = $r->category;
+                }
+            }
+        }
+
+        $subj_results = $wpdb->get_results($wpdb->prepare("
+            SELECT r.subject_name, r.score
+            FROM $table_r r
+            JOIN $table_h h ON r.history_id = h.history_id
+            WHERE h.user_id = %d AND h.exam_type = 'mock'
+        ", $user_id));
+
+        $cat_stats = []; 
+        if (!empty($subj_results)) {
+            foreach($subj_results as $row) {
+                $cat = isset($sub_to_cat[$row->subject_name]) ? $sub_to_cat[$row->subject_name] : $row->subject_name;
+                if (!isset($cat_stats[$cat])) {
+                    $cat_stats[$cat] = ['sum' => 0, 'count' => 0];
+                }
+                $cat_stats[$cat]['sum'] += $row->score;
+                $cat_stats[$cat]['count']++;
+            }
+        }
+
+        $radar_data = [];
+        foreach($cat_stats as $cat => $data) {
+            $radar_data[$cat] = ($data['count'] > 0) ? round($data['sum'] / $data['count'], 1) : 0;
+        }
+
+        return [
+            'kpi' => [
+                'total' => $total_exams,
+                'avg' => round($kpi_data->avg_score, 1),
+                'best' => $kpi_data->best_score ?? 0,
+                'pass_rate' => $pass_rate
+            ],
+            'trend' => $trend_data,
+            'radar' => $radar_data
+        ];
+    }
+    /**
+     * Delete Mock History (and related results)
+     * Security: Ensures user_id matches.
+     */
+    public static function delete_mock_history($history_id, $user_id) {
+        global $wpdb;
+        $history_id = intval($history_id);
+        $user_id = intval($user_id);
+
+        $table_h = 'ptgates_mock_history';
+        $table_r = 'ptgates_mock_results';
+
+        // 1. Verify Ownership
+        $check = $wpdb->get_var($wpdb->prepare(
+            "SELECT history_id FROM $table_h WHERE history_id = %d AND user_id = %d",
+            $history_id, $user_id
+        ));
+
+        if (!$check) {
+            return new \WP_Error('permission_denied', '삭제 권한이 없거나 존재하지 않는 이력입니다.');
+        }
+
+        // 2. Delete (Transaction recommended or just sequential)
+        // Delete details first
+        $wpdb->delete($table_r, ['history_id' => $history_id], ['%d']);
+        
+        // Delete history
+        $deleted = $wpdb->delete($table_h, ['history_id' => $history_id], ['%d']);
+
+        if ($deleted === false) {
+            return new \WP_Error('db_error', '삭제 중 오류가 발생했습니다.');
+        }
+
+        return true;
     }
 }

@@ -55,207 +55,241 @@ if (isset($payload['exp']) && $payload['exp'] < time()) {
 $history_id = intval($payload['hid']);
 $subject_name = isset($payload['sub']) ? $payload['sub'] : '';
 
-// 3. Fetch History to find incorrect IDs
-global $wpdb;
-$history = $wpdb->get_row($wpdb->prepare(
-    "SELECT * FROM ptgates_mock_history WHERE history_id = %d AND user_id = %d",
-    $history_id,
-    get_current_user_id()
-));
+// 3. Setup UI for Study Mode
+// (Redundant History DB Query removed - we rely on the API to fetch data via study.js)
 
-if (!$history) {
-    wp_die('시험 기록을 찾을 수 없습니다.');
+// 2. Enqueue Assets manually
+$plugin_instance = \PTG_Study_Plugin::get_instance();
+$plugin_dir_url = plugin_dir_url(PTG_STUDY_MAIN_FILE);
+
+// Enqueue Platform CSS (for Dashboard UI)
+$platform_css_url = plugins_url('0000-ptgates-platform/assets/css/platform.css');
+$platform_css_path = WP_PLUGIN_DIR . '/0000-ptgates-platform/assets/css/platform.css';
+if (file_exists($platform_css_path)) {
+    wp_enqueue_style(
+        'ptg-platform-style',
+        $platform_css_url,
+        [],
+        filemtime($platform_css_path)
+    );
 }
 
-$answers = json_decode($history->answers_json, true);
-$wrong_ids = [];
-
-if (is_array($answers)) {
-    foreach ($answers as $ans) {
-        if (empty($ans['is_correct']) || $ans['is_correct'] !== true) {
-            
-            // If subject filtering is needed, we need to verify if this question belongs to the subject.
-            // Since we don't have subject map here easily without querying DB, 
-            // and the user wants to see WRONG answers for THIS subject,
-            // we should technically filter by subject.
-            // However, optimization: Just fetch ALL wrong answers, then filter by subject in the Repo query if possible,
-            // OR fetch metadata for these IDs.
-            
-            // Let's rely on Repo's subject filter.
-            $wrong_ids[] = intval($ans['question_id']);
-        }
-    }
-}
-
-if (empty($wrong_ids)) {
-    wp_die('오답이 없습니다.');
-}
-
-// 4. Fetch Questions via LegacyRepo
-// We need to load LegacyRepo or use direct SQL. Use Repo if available.
-// Assume PTG\Platform\LegacyRepo exists.
-if (!class_exists('PTG\Platform\LegacyRepo')) {
-    // Fallback or explicit require?
-    // It should be loaded by Platform plugin.
-    wp_die('플랫폼 플러그인이 활성화되지 않았습니다.');
-}
-
-$repo_args = [
-    'limit' => -1, // No limit
-    'subject' => $subject_name, // Filter by Subject
-    'include_ids' => $wrong_ids // Filter by Wrong IDs
-];
-
-$repo = new \PTG\Platform\LegacyRepo();
-$result = $repo->get_questions_with_categories($repo_args);
-$questions = $result['questions'];
+// Enqueue CSS immediately
+wp_enqueue_style(
+    'ptg-study-style',
+    $plugin_dir_url . 'assets/css/study.css',
+    ['ptg-platform-style'], // Dependent on platform style
+    filemtime(plugin_dir_path(PTG_STUDY_MAIN_FILE) . 'assets/css/study.css')
+);
 
 // HTML Render
-get_header(); // Use site header or minimal? Site header is safer for styles.
+get_header(); 
+
+// 3. Render the Standard Study App Container
+// 3. Render the Standard Study App Container
+echo $plugin_instance->render_study_shortcode([]);
+
+// 4. Initialize the App with Review Data via JS Injection
 ?>
-
-<div class="ptg-mock-review-container">
-    <div class="ptg-review-header">
-        <h1>오답 노트: <?php echo esc_html($subject_name); ?></h1>
-        <p><?php echo count($questions); ?> 문제를 복습합니다.</p>
-    </div>
-
-    <?php if (empty($questions)): ?>
-        <p class="ptg-no-data">해당 과목의 오답이 없거나 데이터를 불러올 수 없습니다.</p>
-    <?php else: ?>
-        <div class="ptg-review-list">
-            <?php foreach ($questions as $idx => $q): ?>
-                <div class="ptg-review-item">
-                    <div class="ptg-review-q-header">
-                        <span class="ptg-review-idx">문제 <?php echo $idx + 1; ?></span>
-                        <span class="ptg-review-id">ID: <?php echo $q['id']; ?></span>
-                    </div>
-                    
-                    <div class="ptg-review-content">
-                        <?php echo wp_kses_post($q['content']); ?>
-                        
-                        <?php if (!empty($q['question_image'])): ?>
-                             <?php 
-                             // Image Path Construction (Assuming specific structure)
-                             $cat_year = isset($q['category']['year']) ? $q['category']['year'] : '';
-                             $cat_sess = isset($q['category']['session']) ? $q['category']['session'] : '';
-                             if ($cat_year && $cat_sess) {
-                                 $img_url = "/wp-content/uploads/ptgates-questions/$cat_year/$cat_sess/" . $q['question_image'];
-                                 echo '<img src="' . esc_url($img_url) . '" class="ptg-q-image">';
-                             }
-                             ?>
-                        <?php endif; ?>
-                    </div>
-
-                    <?php if (!empty($q['options'])): ?>
-                        <ul class="ptg-review-options">
-                            <?php foreach ($q['options'] as $oidx => $opt): ?>
-                                <li class="ptg-review-option <?php echo ($oidx + 1 == $q['answer']) ? 'is-correct' : ''; ?>">
-                                    <span class="ptg-opt-num"><?php echo $oidx + 1; ?></span>
-                                    <?php echo esc_html($opt); ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
-
-                    <div class="ptg-review-explanation">
-                        <h4>해설</h4>
-                        <div class="ptg-expl-text">
-                            <?php echo wp_kses_post($q['explanation']); ?>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-</div>
+<script type="text/javascript">
+(function() {
+    // Construct the review mode URL parameters for study.js
+    var targetSubject = '<?php echo esc_js($subject_name); ?>';
+    var mockExamId = '<?php echo esc_js($history_id); ?>'; 
+    
+    // Use replaceState to simulate these parameters being present from the start
+    var newUrl = new URL(window.location);
+    newUrl.searchParams.set('subject', targetSubject);
+    newUrl.searchParams.set('mock_exam_id', mockExamId);
+    newUrl.searchParams.set('wrong_only', '1'); 
+    newUrl.searchParams.set('random', '0'); // [FIX] Disable random shuffle to keep exam order
+    newUrl.searchParams.set('infinite_scroll', '1'); // [FIX] Enable infinite scroll explicitly
+    
+    // Update URL without reloading
+    window.history.replaceState({path: newUrl.href}, '', newUrl.href);
+})();
+</script>
 
 <style>
-    .ptg-mock-review-container {
-        max_width: 800px;
-        margin: 40px auto;
-        padding: 0 20px;
-        font-family: 'Pretendard', sans-serif;
+    /* [FIX] Fix Header Right Checkbox Fonts */
+    /* [FIX] Fix Header Right Checkbox Fonts */
+    .ptg-study-header-right label,
+    .ptg-controls-wrapper label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-right: 15px;
+        color: #4a5568;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-    .ptg-review-header {
-        text-align: center;
-        margin-bottom: 40px;
-    }
-    .ptg-review-header h1 {
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
-    .ptg-review-item {
-        background: #fff;
+    
+    /* [FIX] Style "Back to Course List" Button */
+    /* Only target the back button, do not touch global header buttons */
+    #back-to-courses,
+    .ptg-study-dashboard-link {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        background: #edf2f7 !important;
+        color: #4a5568 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        padding: 8px 16px !important;
+        border-radius: 6px !important;
+        text-decoration: none !important;
+        transition: all 0.2s ease;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
     }
-    .ptg-review-q-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        color: #64748b;
-        font-size: 14px;
+    #back-to-courses:hover,
+    .ptg-study-dashboard-link:hover {
+        background: #e2e8f0 !important;
+        color: #2d3748 !important;
+        text-decoration: none !important;
     }
-    .ptg-review-idx {
-        font-weight: 600;
-        color: #3b82f6;
+</style>
+<!-- [FIX] Inject Critical Dashboard Styles (extracted from Plugin Class) -->
+<style>
+    /* Card Styles (Important Overrides) */
+    .ptg-category[data-category-id="ptg-foundation"] .ptg-category-header {
+        background: linear-gradient(180deg, #ecfeff 0%, #f0fdf4 100%) !important;
+        border-bottom-color: #dcfce7 !important;
     }
-    .ptg-review-content {
-        font-size: 16px;
-        line-height: 1.6;
-        color: #1e293b;
-        margin-bottom: 20px;
+    .ptg-category[data-category-id="ptg-foundation"] .ptg-session-badge {
+        color: #064e3b !important;
+        background: #d1fae5 !important;
+        border-color: #10b981 !important;
     }
-    .ptg-q-image {
-        max-width: 100%;
-        height: auto;
-        margin-top: 10px;
-        border-radius: 8px;
+    .ptg-category[data-category-id="ptg-assessment"] .ptg-category-header {
+        background: linear-gradient(180deg, #eff6ff 0%, #e0f2fe 100%) !important;
+        border-bottom-color: #dbeafe !important;
     }
-    .ptg-review-options {
-        list-style: none;
-        padding: 0;
-        margin: 0 0 20px 0;
+    .ptg-category[data-category-id="ptg-assessment"] .ptg-session-badge {
+        color: #1e3a8a !important;
+        background: #dbeafe !important;
+        border-color: #60a5fa !important;
     }
-    .ptg-review-option {
-        padding: 8px 12px;
-        margin-bottom: 4px;
-        border-radius: 6px;
-        background: #f8fafc;
-        display: flex;
-        gap: 10px;
+    .ptg-category[data-category-id="ptg-intervention"] .ptg-category-header {
+        background: linear-gradient(180deg, #f5f3ff 0%, #eef2ff 100%) !important;
+        border-bottom-color: #e9d5ff !important;
     }
-    .ptg-review-option.is-correct {
-        background: #dbeafe;
-        color: #1e40af;
-        font-weight: 600;
+    .ptg-category[data-category-id="ptg-intervention"] .ptg-session-badge {
+        color: #3730a3 !important;
+        background: #e0e7ff !important;
+        border-color: #818cf8 !important;
     }
-    .ptg-opt-num {
-        display: inline-block;
-        width: 20px;
-        text-align: center;
-        font-weight: bold;
+    .ptg-category[data-category-id="ptg-medlaw"] .ptg-category-header {
+        background: linear-gradient(180deg, #fffbeb 0%, #fef2f2 100%) !important;
+        border-bottom-color: #fde68a !important;
     }
-    .ptg-review-explanation {
-        background: #f1f5f9;
-        padding: 16px;
-        border-radius: 8px;
+    .ptg-category[data-category-id="ptg-medlaw"] .ptg-session-badge {
+        color: #7c2d12 !important;
+        background: #fef3c7 !important;
+        border-color: #f59e0b !important;
     }
-    .ptg-review-explanation h4 {
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        color: #475569;
+    .ptg-session-badge {
+        display: inline-block !important;
+        padding: 2px 8px !important;
+        margin-right: 8px !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        border-radius: 9999px !important;
+        vertical-align: middle !important;
+        background: #f3f4f6; /* Fallback */
+        border: 1px solid #d1d5db;
     }
-    .ptg-expl-text {
-        font-size: 14px;
-        color: #334155;
-        line-height: 1.6;
+    .ptg-category {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+    }
+    .ptg-category-header {
+        padding: 14px 16px 8px 16px !important;
+        border-bottom: 1px solid #f1f5f9;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%) !important;
+    }
+    /* [FIX] Layout Logic (Grid & Flex) */
+    .ptg-course-categories {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        gap: 20px !important;
+    }
+    .ptg-session-group {
+        grid-column: 1 / -1 !important;
+        padding: 0 !important;
+        border-top: none !important;
+    }
+    .ptg-session-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        gap: 20px !important;
+    }
+    .ptg-category-title {
+        margin: 0 0 6px 0 !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+    .ptg-course-categories {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        gap: 20px !important;
+    }
+    .ptg-subject-list {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+        gap: 6px !important;
+        padding: 12px 12px 14px 12px !important;
+        margin: 0 !important;
+    }
+    .ptg-subject-item {
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px !important;
+        background: #f8fafc !important;
+        padding: 8px 12px !important;
+    }
+    .ptg-subject-item:hover {
+        background: #eef2ff !important;
+        border-color: #c7d2fe !important;
+    }
+    /* [FIX] Header Card Style */
+    .ptg-study-header {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 12px !important;
+        margin-bottom: 18px !important;
+        padding: 12px 14px !important;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 12px rgba(15,23,42,0.06) !important;
+    }
+    .ptg-study-header-right {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        flex-shrink: 0 !important;
+    }
+    .ptg-study-header h2 {
+        margin: 0 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        letter-spacing: -0.01em !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
     }
 </style>
 
-<?php get_footer(); ?>
+<?php
+get_footer();
+?>

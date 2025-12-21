@@ -27,6 +27,11 @@ final class PTG_Mock_Results {
         add_action( 'plugins_loaded', [ $this, 'check_version' ] );
         add_action( 'rest_api_init', [ $this, 'init_rest_api' ] );
         add_action( 'init', [ $this, 'register_shortcode' ] );
+
+        // AJAX for Result Summary
+        add_action( 'wp_ajax_ptg_mock_result_summary', [ $this, 'ajax_get_result_summary' ] );
+        // AJAX for Delete
+        add_action( 'wp_ajax_ptg_mock_delete_result', [ $this, 'ajax_delete_result' ] );
     }
 
     public function check_version() {
@@ -34,6 +39,55 @@ final class PTG_Mock_Results {
             $this->install_tables();
             update_option( 'ptg_mock_results_version', '1.0.4' );
         }
+    }
+
+    public function ajax_get_result_summary() {
+        if ( ! is_user_logged_in() ) {
+            wp_die( '로그인이 필요합니다.' );
+        }
+
+        $result_id = isset($_POST['result_id']) ? intval($_POST['result_id']) : 0;
+        if ( $result_id <= 0 ) {
+            wp_die( '잘못된 요청입니다.' );
+        }
+
+        // Fetch Data
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+        if ( class_exists( '\PTG\Mock\Results\API' ) ) {
+            $data = \PTG\Mock\Results\API::get_mock_result_full_data( $result_id );
+            
+            if ( ! $data || empty($data['history']) ) {
+                echo '<p>결과를 찾을 수 없습니다.</p>';
+            } else {
+                $history = $data['history'];
+                $subjects = $data['subjects'];
+                // Include Template Part
+                include plugin_dir_path( __FILE__ ) . 'templates/part-result-summary.php';
+            }
+        }
+        wp_die();
+    }
+
+    public function ajax_delete_result() {
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( '로그인이 필요합니다.', 401 );
+        }
+
+        $result_id = isset($_POST['result_id']) ? intval($_POST['result_id']) : 0;
+        if ( $result_id <= 0 ) {
+            wp_send_json_error( '잘못된 요청입니다.', 400 );
+        }
+
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-api.php';
+        if ( class_exists( '\PTG\Mock\Results\API' ) ) {
+            $deleted = \PTG\Mock\Results\API::delete_mock_history( $result_id, get_current_user_id() );
+            if ( is_wp_error( $deleted ) ) {
+                wp_send_json_error( $deleted->get_error_message(), 500 );
+            } else {
+                wp_send_json_success( '삭제되었습니다.' );
+            }
+        }
+        wp_die();
     }
 
     public function install_tables() {

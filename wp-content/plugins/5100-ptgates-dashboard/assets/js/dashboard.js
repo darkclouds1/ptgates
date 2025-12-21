@@ -599,6 +599,15 @@
     },
 
     bindEvents: function () {
+      // [User Request] Elementor Tabs Scroll Top
+      // e-n-tabs-heading 클래스를 가진 요소(탭 헤더) 클릭 시 스크롤 상단 이동
+      $(document).on("click", ".e-n-tabs-heading", function () {
+        const $this = $(this);
+        setTimeout(() => {
+          $this[0].scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      });
+
       // Quick Actions
       this.$container.on("click", "[data-action], [data-url]", function (e) {
         e.preventDefault();
