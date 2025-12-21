@@ -49,7 +49,7 @@ class PTG_Flashcards_DB {
         if ($result === false) {
             // Log the error for debugging
             error_log('PTG Flashcard Insert Error: ' . $wpdb->last_error);
-            error_log('Insert Data: ' . print_r($insert_data, true));
+
             return false;
         }
         

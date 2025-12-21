@@ -147,7 +147,7 @@ class API {
         if (!empty($questions_meta)) {
             $log_entry .= "Sample (First): " . print_r($questions_meta[0], true) . "\n";
         }
-        error_log($log_entry);
+        // error_log($log_entry);
         // [END DEBUG]
 
         $subject_map = []; // id -> subject

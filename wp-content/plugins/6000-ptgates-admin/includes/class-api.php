@@ -1325,19 +1325,20 @@ class API {
         
         foreach ($rows as $row) {
             // 2. Config 테이블에서 매칭되는 코드 조회
-            // subject와 subject_category 모두 일치하는 것을 우선 찾음
+            // subject만 일치하면 매핑 (사용자 요청: 세부과목명이 일치하면 자동 매핑)
             $config = $wpdb->get_row($wpdb->prepare(
-                "SELECT subject_category_code, subject_code 
+                "SELECT subject_category_code, subject_code, subject_category 
                  FROM {$config_table} 
-                 WHERE subject = %s AND subject_category = %s
+                 WHERE subject = %s
                  LIMIT 1",
-                $row->subject,
-                $row->subject_category
+                $row->subject
             ));
             
             if ($config) {
-                // 3. 코드 업데이트
+                // 3. 코드 및 카테고리 업데이트
                 $update_data = array();
+                
+                // 코드가 있으면 업데이트
                 if (!empty($config->subject_category_code)) {
                     $update_data['subject_category_code'] = $config->subject_category_code;
                 }
@@ -1345,12 +1346,17 @@ class API {
                     $update_data['subject_code'] = $config->subject_code;
                 }
                 
+                // 카테고리 명도 정규화된 이름으로 업데이트 (자동 보정)
+                if (!empty($config->subject_category)) {
+                    $update_data['subject_category'] = $config->subject_category;
+                }
+                
                 if (!empty($update_data)) {
                     $result = $wpdb->update(
                         $categories_table,
                         $update_data,
                         array('category_id' => $row->category_id),
-                        array('%s', '%s'),
+                        null, // format inferred
                         array('%d')
                     );
                     

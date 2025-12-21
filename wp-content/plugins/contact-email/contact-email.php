@@ -137,17 +137,15 @@ add_action('wp_ajax_submit_contact_email', 'handle_contact_email_submission');
 add_action('wp_ajax_nopriv_submit_contact_email', 'handle_contact_email_submission');
 
 function handle_contact_email_submission() {
-    error_log('========================================');
-    error_log('Contact Email Form 제출 시작');
-    error_log('POST 데이터: ' . print_r($_POST, true));
+
     
     // Nonce 검증
     if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'contact_email_nonce')) {
-        error_log('❌ Nonce 검증 실패');
+
         wp_send_json_error(array('message' => '보안 검증에 실패했습니다.'));
         return;
     }
-    error_log('✅ Nonce 검증 성공');
+
     
     // 데이터 검증 및 정제
     $company = isset($_POST['company']) ? sanitize_text_field($_POST['company']) : '';
@@ -156,23 +154,23 @@ function handle_contact_email_submission() {
     $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
     $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
     
-    error_log('수신한 데이터 - 문의명(요약): ' . $company . ', 담당자: ' . $name . ', 연락처: ' . $phone . ', 이메일: ' . $email);
+
     
     // 빈 필드 검증
     if (empty($company) || empty($name) || empty($phone) || empty($email) || empty($message)) {
-        error_log('❌ 빈 필드 검증 실패');
+
         wp_send_json_error(array('message' => '모든 필드를 입력해주세요.'));
         return;
     }
-    error_log('✅ 필드 검증 통과');
+
     
     // 이메일 유효성 검증
     if (!is_email($email)) {
-        error_log('❌ 이메일 형식 검증 실패: ' . $email);
+
         wp_send_json_error(array('message' => '유효한 이메일 주소를 입력해주세요.'));
         return;
     }
-    error_log('✅ 이메일 형식 검증 통과');
+
     
     // DB에 저장 (메일 발송 대신)
     $post_data = array(
@@ -190,8 +188,7 @@ function handle_contact_email_submission() {
         update_post_meta( $post_id, '_ptg_contact_phone', $phone );
         update_post_meta( $post_id, '_ptg_contact_email', $email );
         
-        error_log('✅ 문의 DB 저장 성공! ID: ' . $post_id);
-        error_log('========================================');
+
         
         // Clean output buffer to prevent JSON errors
         while (ob_get_level()) {

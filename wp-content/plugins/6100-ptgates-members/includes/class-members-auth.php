@@ -117,11 +117,11 @@ class PTG_Members_Auth {
 
         $headers = [ 'Content-Type: text/plain; charset=UTF-8', 'From: ptGates <no-reply@ptgates.com>' ];
 
-        error_log( "[PTG Auth] Attempting to send verification email to: $email" );
+        // error_log( "[PTG Auth] Attempting to send verification email to: $email" );
         $result = wp_mail( $email, $subject, $message, $headers );
         
         if ( $result ) {
-            error_log( "[PTG Auth] Email sent successfully to: $email" );
+            // error_log( "[PTG Auth] Email sent successfully to: $email" );
         } else {
             error_log( "[PTG Auth] Failed to send email to: $email. Check SMTP/Mail settings." );
         }

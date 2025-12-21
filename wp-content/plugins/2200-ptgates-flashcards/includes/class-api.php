@@ -443,11 +443,10 @@ class API {
 					$query_args[] = $limit;
 				}
 
-				error_log( 'PTG Flashcards Debug SQL: ' . $sql );
-				error_log( 'PTG Flashcards Debug Args: ' . print_r( $query_args, true ) );
+
 
 				$source_cards = $wpdb->get_results( $wpdb->prepare( $sql, $query_args ) );
-				error_log( 'PTG Flashcards Result Count: ' . count( $source_cards ) );
+
 			}
 		}
 

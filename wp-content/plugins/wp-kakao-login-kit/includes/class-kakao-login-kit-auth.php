@@ -88,11 +88,11 @@ class Auth {
         $message = sprintf( "안녕하세요,\n\n아래 링크를 클릭하여 회원가입을 완료해주세요:\n%s\n\n감사합니다.", $verify_url );
         $headers = array( 'Content-Type: text/plain; charset=UTF-8', 'From: ptGates <no-reply@ptgates.com>' );
 
-        error_log( "[WPKLK] Attempting to send verification email to: $email" );
+        // error_log( "[WPKLK] Attempting to send verification email to: $email" );
         $result = wp_mail( $email, $subject, $message, $headers );
         
         if ( $result ) {
-            error_log( "[WPKLK] Email sent successfully to: $email" );
+            // error_log( "[WPKLK] Email sent successfully to: $email" );
         } else {
             error_log( "[WPKLK] Failed to send email to: $email. Check SMTP settings." );
         }

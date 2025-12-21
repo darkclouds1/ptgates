@@ -640,20 +640,16 @@ async function initiatePayment(productCode, price, productName) {
         }
 
         // 2. Request Payment (PortOne V2)
-        const response = await PortOne.requestPayment({
-            storeId: prepareRes.storeId,
-            channelKey: prepareRes.channelKey,
-            paymentId: prepareRes.paymentId,
-            orderName: prepareRes.orderName,
-            totalAmount: prepareRes.totalAmount,
-            currency: prepareRes.currency,
-            payMethod: prepareRes.payMethod,
-            customer: prepareRes.customer,
+        // 백엔드에서 받은 파라미터를 그대로 전달 (bypass 등 포함)
+        const paymentParams = {
+            ...prepareRes,
             windowType: {
                 pc: 'IFRAME',
                 mobile: 'REDIRECTION'
             }
-        });
+        };
+
+        const response = await PortOne.requestPayment(paymentParams);
 
         // 3. Process Response
         if (response.code != null) {

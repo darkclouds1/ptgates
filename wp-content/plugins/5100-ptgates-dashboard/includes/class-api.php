@@ -241,6 +241,15 @@ class API {
                  return is_user_logged_in();
             },
         ]);
+
+        // PortOne Webhook (Public)
+        $result6 = \register_rest_route(self::REST_NAMESPACE, '/payment/webhook', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'payment_webhook'],
+            'permission_callback' => function() {
+                return true;
+            },
+        ]);
         
 
         
@@ -889,6 +898,47 @@ class API {
         }
 
         return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * PortOne Webhook Handler
+     * Public endpoint for server-to-server notifications
+     */
+    public static function payment_webhook($request) {
+        $payment_id = $request->get_param('paymentId');
+        
+        // PortOne V2 can send different payloads, support both camelCase and snake_case if needed
+        if (empty($payment_id)) {
+            $payment_id = $request->get_param('payment_id');
+        }
+
+        // Log webhook attempt (Optional, for debugging)
+        // error_log('[PortOne Webhook] Received: ' . print_r($request->get_params(), true));
+
+        if (empty($payment_id)) {
+            return new \WP_Error('invalid_param', 'Payment ID Missing', ['status' => 400]);
+        }
+
+        if (!class_exists('\PTG\Platform\Payment')) {
+            $platform_payment = WP_PLUGIN_DIR . '/0000-ptgates-platform/includes/class-payment.php';
+            if (file_exists($platform_payment)) require_once $platform_payment;
+        }
+
+        if (!class_exists('\PTG\Platform\Payment')) {
+            return new \WP_Error('system_error', 'Payment Module Missing', ['status' => 500]);
+        }
+
+        // Verify and Complete
+        $result = \PTG\Platform\Payment::verify_payment($payment_id);
+
+        if (is_wp_error($result)) {
+            // PortOne expects 200 OK to stop retrying, but if we fail, we might want them to retry?
+            // Usually, return 400/500 to trigger retry.
+            // PortOne V2 Webhook response: Any 2xx code is considered success.
+            return $result;
+        }
+
+        return rest_ensure_response(['success' => true, 'message' => 'Processed via Webhook']);
     }
 }
 

@@ -82,10 +82,16 @@
           });
           const result = await response.json();
           if (result.success) {
-            rawSubjects.value = result.data.map((item) => ({
-              ...item,
-              selectedConfigId: "", // For dropdown
-            }));
+            rawSubjects.value = result.data.map((item) => {
+              // Auto-match logic
+              const match = subjects.value.find(
+                (s) => s.subject.trim() === item.subject.trim()
+              );
+              return {
+                ...item,
+                selectedConfigId: match ? match.config_id : "",
+              };
+            });
           }
         } catch (error) {
           showMessage("원시 과목 로드 실패: " + error.message, "error");

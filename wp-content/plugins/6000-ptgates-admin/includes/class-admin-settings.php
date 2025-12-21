@@ -26,7 +26,7 @@ class PTG_Admin_Settings {
                 <?php if ( ! $is_new_plugin_active ) : ?>
                 <a href="?page=ptgates-admin-settings&tab=kakao" class="nav-tab <?php echo $active_tab === 'kakao' ? 'nav-tab-active' : ''; ?>">Kakao</a>
                 <?php endif; ?>
-                <a href="?page=ptgates-admin-settings&tab=payment" class="nav-tab <?php echo $active_tab === 'payment' ? 'nav-tab-active' : ''; ?>">KG 이니시스</a>
+                <a href="?page=ptgates-admin-settings&tab=payment" class="nav-tab <?php echo $active_tab === 'payment' ? 'nav-tab-active' : ''; ?>">NHN KCP (PortOne V2)</a>
             </nav>
             
             <div class="ptg-settings-content" style="margin-top: 20px;">
@@ -162,25 +162,42 @@ class PTG_Admin_Settings {
      */
     private static function render_payment_tab() {
         // Option Saving
+        // Option Saving
         if ( isset( $_POST['ptg_payment_save'] ) && check_admin_referer( 'ptg_payment_settings_nonce' ) ) {
             $store_id = sanitize_text_field( $_POST['ptg_portone_store_id'] );
             $channel_key = sanitize_text_field( $_POST['ptg_portone_channel_key'] );
             $api_secret = sanitize_text_field( $_POST['ptg_portone_api_secret'] );
 
-            // Legacy support (optional, can be removed)
-            // update_option( 'ptg_payment_mid_pc', sanitize_text_field( $_POST['ptg_payment_mid_pc'] ) );
+            // KCP V2 Bypass Settings
+            $kcp_site_name = sanitize_text_field( $_POST['ptg_kcp_site_name'] );
+            $kcp_site_logo = sanitize_url( $_POST['ptg_kcp_site_logo'] );
+            $kcp_skin_indx = intval( $_POST['ptg_kcp_skin_indx'] );
+
+            $bypass = [
+                'kcp_v2' => [
+                    'site_name' => $kcp_site_name,
+                    'site_logo' => $kcp_site_logo,
+                    'skin_indx' => $kcp_skin_indx
+                ]
+            ];
 
             update_option( 'ptg_portone_store_id', $store_id );
             update_option( 'ptg_portone_channel_key', $channel_key );
             update_option( 'ptg_portone_api_secret', $api_secret );
+            update_option( 'ptg_portone_bypass', $bypass );
 
-            echo '<div class="notice notice-success is-dismissible"><p>PortOne V2 결제 설정이 저장되었습니다.</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>PortOne V2 (NHN KCP) 결제 설정이 저장되었습니다.</p></div>';
         }
 
         // Retrieve Options
         $store_id = get_option( 'ptg_portone_store_id', '' );
         $channel_key = get_option( 'ptg_portone_channel_key', '' );
         $api_secret = get_option( 'ptg_portone_api_secret', '' );
+        
+        $bypass = get_option( 'ptg_portone_bypass', [] );
+        $kcp_site_name = isset($bypass['kcp_v2']['site_name']) ? $bypass['kcp_v2']['site_name'] : 'PTGates';
+        $kcp_site_logo = isset($bypass['kcp_v2']['site_logo']) ? $bypass['kcp_v2']['site_logo'] : '';
+        $kcp_skin_indx = isset($bypass['kcp_v2']['skin_indx']) ? $bypass['kcp_v2']['skin_indx'] : 1;
 
         ?>
         <form method="post" action="">
@@ -209,9 +226,40 @@ class PTG_Admin_Settings {
                 </tr>
             </table>
             
+            </table>
+            
+            <h3>KCP 결제창 설정 (Bypass)</h3>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">상점명 (Site Name)</th>
+                    <td>
+                        <input type="text" name="ptg_kcp_site_name" value="<?php echo esc_attr( $kcp_site_name ); ?>" class="regular-text" placeholder="PTGates">
+                        <p class="description">결제창 상단에 표시될 상점 이름입니다.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">로고 URL (Site Logo)</th>
+                    <td>
+                        <input type="url" name="ptg_kcp_site_logo" value="<?php echo esc_attr( $kcp_site_logo ); ?>" class="large-text" placeholder="https://...">
+                        <p class="description">결제창에 표시할 로고 이미지 URL (150x50 미만, jpg/gif).</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">스킨 색상 (Skin Index)</th>
+                    <td>
+                        <select name="ptg_kcp_skin_indx">
+                            <?php for($i=1; $i<=12; $i++): ?>
+                                <option value="<?php echo $i; ?>" <?php selected($kcp_skin_indx, $i); ?>><?php echo $i; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                        <p class="description">결제창 색상 테마 (1~12)</p>
+                    </td>
+                </tr>
+            </table>
+
             <hr>
             <p class="description">
-                <strong>참고:</strong> 기존 KG이니시스 V1 설정은 더 이상 사용되지 않습니다.<br>
+                <strong>참고:</strong> 이 설정은 NHN KCP V2 연동에 최적화되어 있습니다.<br>
                 연동 가이드는 <a href="https://developers.portone.io/opi/ko/integration/start/v2/readme?v=v2" target="_blank">포트원 개발자 센터</a>를 참조하세요.
             </p>
 

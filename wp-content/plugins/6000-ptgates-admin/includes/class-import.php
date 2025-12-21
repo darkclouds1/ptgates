@@ -1207,6 +1207,51 @@ function process_csv_import($wpdb) {
             $log[] = "✅ 정리할 특수문자가 없습니다.";
         }
         
+        // 4. 과목 코드 및 카테고리 자동 매핑 (Backfill)
+        $log[] = "🔧 과목 코드/카테고리 자동 매핑 중...";
+        
+        $config_table = 'ptgates_subject_config';
+        
+        // 매핑 대상 조회 (코드가 없는 항목)
+        $unmapped_rows = $wpdb->get_results("
+            SELECT category_id, subject 
+            FROM {$categories_table} 
+            WHERE (subject_category_code IS NULL OR subject_category_code = '')
+               OR (subject_code IS NULL OR subject_code = '')
+        ");
+        
+        $backfill_count = 0;
+        if ($unmapped_rows) {
+            foreach ($unmapped_rows as $row) {
+                // Config 테이블에서 매칭 (Subject 기준)
+                $config = $wpdb->get_row($wpdb->prepare(
+                    "SELECT subject_category_code, subject_code, subject_category 
+                     FROM {$config_table} 
+                     WHERE subject = %s 
+                     LIMIT 1", 
+                    $row->subject
+                ));
+                
+                if ($config) {
+                    $update_data = array();
+                    if (!empty($config->subject_category_code)) $update_data['subject_category_code'] = $config->subject_category_code;
+                    if (!empty($config->subject_code)) $update_data['subject_code'] = $config->subject_code;
+                    if (!empty($config->subject_category)) $update_data['subject_category'] = $config->subject_category;
+                    
+                    if (!empty($update_data)) {
+                        $wpdb->update($categories_table, $update_data, array('category_id' => $row->category_id));
+                        $backfill_count++;
+                    }
+                }
+            }
+        }
+        
+        if ($backfill_count > 0) {
+            $log[] = "✅ {$backfill_count}개 항목의 과목 코드를 자동으로 매핑했습니다.";
+        } else {
+            $log[] = "✅ 매핑할 항목이 없거나 매칭되는 설정이 없습니다.";
+        }
+
         // 마지막 업로드 파일 정보를 세션에 저장
         $_SESSION['last_uploaded_file'] = array(
             'original_filename' => $original_filename,

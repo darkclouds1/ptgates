@@ -58,10 +58,25 @@ class Payment {
         // 4. PortOne V2 파라미터 반환
         $store_id = get_option('ptg_portone_store_id', '');
         $channel_key = get_option('ptg_portone_channel_key', '');
+        
+        // KCP V2 Bypass 및 추가 설정 (옵션 또는 하드코딩된 기본값 사용)
+        $bypass = get_option('ptg_portone_bypass', []); 
+        // 예시: ['kcp_v2' => ['site_logo' => '...', 'skin_indx' => 6]]
+        // 옵션이 비어있으면 기본값 적용 (필요 시)
+        if (empty($bypass)) {
+             $bypass = [
+                 'kcp_v2' => [
+                     'site_name' => 'PTGates',
+                     'skin_indx' => 1, 
+                 ]
+             ];
+        }
 
         if (empty($store_id) || empty($channel_key)) {
             return new \WP_Error('config_error', '결제 설정(Store ID/Channel Key)이 누락되었습니다.');
         }
+
+        $current_user = wp_get_current_user();
 
         // 리턴 데이터 (프론트엔드 SDK 전달용)
         $data = [
@@ -71,12 +86,15 @@ class Payment {
             'orderName' => $product->title,
             'totalAmount' => (int)$product->price,
             'currency' => 'CURRENCY_KRW',
-            'payMethod' => 'CARD', // Default, can be easy_pay etc.
+            'payMethod' => 'CARD', // Default
             'customer' => [
-                 'fullName' => wp_get_current_user()->display_name,
-                 'email' => wp_get_current_user()->user_email,
-                 'phoneNumber' => '', // Optional
-            ]
+                 'fullName' => $current_user->display_name,
+                 'email' => $current_user->user_email,
+                 'phoneNumber' => '', // 필요 시 추가
+                 'id' => (string)$user_id, // 사용자 식별용
+            ],
+            'bypass' => $bypass,
+            'redirectUrl' => home_url('/membership/'), // 모바일 결제 후 복귀 URL (필수는 아니지만 권장)
         ];
 
         return $data;
