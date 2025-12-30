@@ -403,7 +403,7 @@ class Study_API {
                 'subjects'         => $subject_names,
                 'limit'            => ($max_items > 0) ? $max_items : 1000,
                 'offset'           => 0,
-                'exam_session_min' => 1000,
+                'exam_session_min' => $random ? 0 : 1000,
                 'wrong_only_user_id' => $wrong_only ? get_current_user_id() : null,
             ];
             
@@ -665,7 +665,7 @@ class Study_API {
 			'limit'            => ($random && !$is_smart_random) ? 1000 : $repo_limit, 
             // [FIX] If Mock Exam mode (index_map exists), force Offset 0 to fetch ALL for PHP sorting.
 			'offset'           => (!empty($exclude_ids) || !empty($index_map)) ? 0 : ($random ? 0 : $offset), 
-			'exam_session_min' => 1000,
+			'exam_session_min' => $random ? 0 : 1000,
             'random'           => $random,
             'smart_random_user_id' => $is_smart_random ? $user_id : null,
             'smart_random_exclude_correct' => $is_smart_random, 
@@ -679,7 +679,7 @@ class Study_API {
 		$questions = LegacyRepo::get_questions_with_categories($args);
 		$total_count = LegacyRepo::count_questions_with_categories([
 			'subject'             => $matched_subject,
-			'exam_session_min'    => 1000,
+			'exam_session_min'    => $random ? 0 : 1000,
             'wrong_only_user_id'  => $wrong_only ? $user_id : null,
             'include_ids'         => $include_ids, // [FIX] Ensure count is limited to the history context
 		]);

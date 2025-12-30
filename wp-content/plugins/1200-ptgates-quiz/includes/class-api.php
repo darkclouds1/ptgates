@@ -714,7 +714,11 @@ class API {
         // 기출문제 제외: exam_session >= 1000 (기출문제는 exam_session < 1000)
         // 단, 검색(ID)이나 복습/오답/북마크 필터가 있는 경우 모든 문제 포함 (사용자가 푼 문제는 다 나와야 함)
         if (empty($search_id) && !$review_only && !$wrong_only && !$needs_review && !$bookmarked && !$has_drawing) {
-            $where[] = "c.exam_session >= 1000";
+            // [FIX] Random Mode: exam_session filter removed (previously >= 2000, now unlimited)
+            // Only non-random mode filters for >= 1000 (excluding past papers)
+            if (!$is_random) {
+                $where[] = "c.exam_session >= 1000";
+            }
         }
 
         // 고급 퀴즈 유형 필터링 (Basic 등급은 고급 유형 제외)

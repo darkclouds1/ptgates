@@ -4,35 +4,46 @@ if (!defined('ABSPATH')) {
 }
 
 if (empty($history) || empty($subjects)) {
-    echo '<p>데이터가 없습니다.</p>';
+    echo '<p style="padding:20px; text-align:center; color:#888;">데이터가 없습니다.</p>';
     return;
 }
 
-// 1. Calculate Insights (Best/Worst by Subject Name for the banner)
+// 1. Data Preparation
 $subjects_sorted = $subjects;
-usort($subjects_sorted, function($a, $b) {
-    return $b->score - $a->score; 
-});
+usort($subjects_sorted, function($a, $b) { return $b->score - $a->score; });
 $best_subject = $subjects_sorted[0];
 $worst_subject = end($subjects_sorted);
 
-// Pass/Fail
 $pass_status = $history->is_pass ? '합격' : '불합격';
 $pass_class = $history->is_pass ? 'pass' : 'fail';
+$pass_icon = $history->is_pass ? '✅' : '❌';
 
-// Header Text
 $session_num = $history->session_code - 1000;
 $period_text = (strpos($history->course_no, '교시') !== false) ? $history->course_no : $history->course_no . '교시';
+$date_str = date('Y.m.d', strtotime($history->created_at));
+
+// Banner Link
+$banner_url = sprintf('/ptg_quiz/?mode=mock_retry&mock_exam_id=%d&course_no=%s&wrong_only=1&random=0', 
+    $history->history_id, urlencode($history->course_no));
+
+// Grouping Subjects
+$grouped = [];
+foreach ($subjects as $subj) {
+    $cat = $subj->category;
+    if (!isset($grouped[$cat])) {
+        $grouped[$cat] = [
+            'name' => $cat,
+            'total_q' => 0, 'total_c' => 0, 'scores' => 0, 'is_fail' => false, 'items' => []
+        ];
+    }
+    $grouped[$cat]['total_q'] += $subj->question_count;
+    $grouped[$cat]['total_c'] += $subj->correct_count;
+    $grouped[$cat]['scores'] += $subj->score; 
+    if ($subj->is_fail) $grouped[$cat]['is_fail'] = true; 
+    $grouped[$cat]['items'][] = $subj;
+}
 ?>
 
-<div class="ptg-insight-view">
-    
-    <!-- 1. Header (Updated Format) -->
-    <div class="ptg-summary-compact">
-        <div class="info-group">
-            <div class="session-title">
-                <?php echo esc_html($session_num); ?>회차 <span class="divider">·</span> <?php echo esc_html($period_text); ?>
-            </div>
             <span class="ptg-badge <?php echo $pass_class; ?>"><?php echo $pass_status; ?></span>
         </div>
         <div class="score-group">

@@ -90,7 +90,7 @@ class Payment {
             'customer' => [
                  'fullName' => $current_user->display_name,
                  'email' => $current_user->user_email,
-                 'phoneNumber' => '', // 필요 시 추가
+                 'phoneNumber' => get_user_meta($user_id, 'billing_phone', true) ?: '010-0000-0000', // PortOne V2 Required field
                  'id' => (string)$user_id, // 사용자 식별용
             ],
             'bypass' => $bypass,
@@ -288,6 +288,86 @@ class Payment {
                 'updated_at' => $now
             ]);
         }
+    }
+
+    /**
+     * 결제 취소 (사용자 취소/실패 시 상태 업데이트)
+     * 
+     * @param string $oid
+     * @param string $reason
+     * @return bool|WP_Error
+     */
+    public static function cancel_transaction($oid, $reason = 'User Cancelled') {
+        global $wpdb;
+
+        // 1. 주문 조회
+        $history_table = 'ptgates_billing_history';
+        $transaction = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $history_table WHERE order_id = %s",
+            $oid
+        ));
+
+        if (!$transaction) {
+            return new \WP_Error('invalid_order', '주문 정보를 찾을 수 없습니다.');
+        }
+
+        // 이미 완료된 건은 취소 불가 (별도 환불 로직 필요)
+        if ($transaction->status === 'paid') {
+            return new \WP_Error('invalid_status', '이미 결제 완료된 건입니다.');
+        }
+
+        // 2. DB 업데이트 (Cancelled)
+        $result = $wpdb->update($history_table, [
+            'status' => 'cancelled',
+            'memo' => $transaction->memo . " | Cancelled: " . $reason 
+        ], ['order_id' => $oid]);
+
+        if ($result === false) {
+            return new \WP_Error('db_error', 'DB 업데이트 실패');
+        }
+
+        return true;
+    }
+
+    /**
+     * 결제 내역 삭제 (Pending/Cancelled/Failed 상태만 가능)
+     * 
+     * @param int $user_id
+     * @param string $oid
+     * @return bool|WP_Error
+     */
+    public static function delete_transaction($user_id, $oid) {
+        global $wpdb;
+
+        $history_table = 'ptgates_billing_history';
+        
+        // 1. 주문 조회 및 권한 확인
+        $transaction = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $history_table WHERE order_id = %s AND user_id = %d",
+            $oid,
+            $user_id
+        ));
+
+        if (!$transaction) {
+            // 주문이 없거나 권한이 없는 경우
+            return new \WP_Error('invalid_order', '주문 정보를 찾을 수 없습니다.', ['status' => 404]);
+        }
+
+        // 2. 삭제 가능 상태 확인
+        // paid, refunded는 삭제 불가
+        if (in_array($transaction->status, ['paid', 'refunded'])) {
+            return new \WP_Error('invalid_status', '결제 완료 또는 환불된 내역은 삭제할 수 없습니다.', ['status' => 400]);
+        }
+
+        // 3. 삭제
+        $result = $wpdb->delete($history_table, ['order_id' => $oid]);
+
+        if ($result === false) {
+             error_log('[PTG DB Error] Delete failed: ' . $wpdb->last_error);
+            return new \WP_Error('db_error', '삭제 실패: 데이터베이스 오류', ['status' => 500]);
+        }
+
+        return true;
     }
 }
 

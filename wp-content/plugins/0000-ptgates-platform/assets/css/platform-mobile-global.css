@@ -1,0 +1,405 @@
+/* 
+ * PTGates Global Mobile Spacing Reset (V8 - Scoped Protection Policy)
+ * 🌟 Core Principle: 
+ *    1. Protect Page Level: Never touch global .elementor-* padding (Marketing/Landing pages safe).
+ *    2. Scoped Reset: Aggressive removal only inside .ptg-*-container (Plugin Areas).
+ *    3. Safe Content: Lists/Buttons always get padding.
+ */
+
+:root {
+    --ptg-spacing-xs: 4px;
+    --ptg-spacing-sm: 8px;
+    --ptg-spacing-md: 12px;
+    --ptg-spacing-lg: 16px;
+    --ptg-btn-height: 48px;
+    --ptg-card-radius: 12px;
+}
+
+@media (max-width: 768px) {
+
+    /* ==========================================================================
+       [1] PAGE LEVEL PROTECTION (V8)
+       We DO NOT reset .elementor-section or .e-con globally anymore.
+       This ensures Marketing/Landing pages keep their theme-defined 10px padding.
+       ========================================================================== */
+
+
+    /* ==========================================================================
+       [2] PLUGIN AREA SCOPED RESET (The "My Area" Rule)
+       Aggressively remove padding ONLY inside PTG Plugin Wrappers.
+       This creates the "Tight" UI for apps, without breaking the site.
+       ========================================================================== */
+    
+    /* Target all Plugin Root Containers */
+    #ptg-study-app, .ptg-study-container,
+    #ptg-quiz-container, .ptg-quiz-container,
+    #ptg-mynote-app, .ptg-mynote-container,
+    #ptg-flash-app, .ptg-flash-container,
+    #ptg-selftest-app, .ptg-selftest-container,
+    #ptg-analytics-app, .ptg-analytics-container,
+    #ptg-reviewer-app, .ptg-reviewer-container,
+    #ptg-dashboard-app, .ptg-dashboard-container,
+    .ptg-mock-results-container, .ptg-membership-container,
+    .ptg-qna-wrapper {
+        
+        /* A. The Root itself gets the Standard Mobile Gutter */
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        
+        /* B. But EVERYTHING INSIDE is aggressively reset to 0 to prevent nesting */
+        /* Note: This is SCSS-like logic flattened for CSS */
+    }
+
+    /* B-1. Reset Elementor Wrappers INSIDE Plugin Containers */
+    .ptg-study-container .elementor-section-wrap,
+    .ptg-study-container .elementor-element.elementor-section,
+    .ptg-study-container .elementor-container,
+    .ptg-study-container .e-con,
+    
+    .ptg-quiz-container .elementor-section-wrap,
+    .ptg-quiz-container .elementor-element.elementor-section,
+    .ptg-quiz-container .elementor-container,
+    .ptg-quiz-container .e-con,
+
+    .ptg-dashboard-container .elementor-section-wrap,
+    .ptg-dashboard-container .elementor-container,
+    .ptg-dashboard-container .e-con,
+
+    /* Generic Fallback for all PTG Apps */
+    [class*="ptg-"][class*="-container"] .elementor-section-wrap,
+    [class*="ptg-"][class*="-container"] .elementor-container,
+    [class*="ptg-"][class*="-container"] .e-con,
+    [id*="ptg-"][id*="-app"] .elementor-container
+    {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+
+
+    /* ==========================================================================
+       [3] EFFECTIVE ROOT EXCEPTIONS (V5 Strategy Retained)
+       For pages where the Theme Wrapper (main#content) is the real root (Page 299).
+       ========================================================================== */
+    
+    body.page-id-299 main#content,
+    body.page-id-299 .site-content {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        width: 100% !important;
+    }
+    /* Nullify the inner root padding since the outer one handled it */
+    body.page-id-299 #ptg-quiz-container,
+    body.page-id-299 .ptg-quiz-container {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+
+    /* ==========================================================================
+       [4] SAFE CONTENT CONTENT (V7 - Retained)
+       Restoring padding for actual interactive components.
+       This applies Globally because a "Button List" should always have padding,
+       even if reused in a marketing page.
+       ========================================================================== */
+    
+    /* Lists & Options */
+    .ptg-subject-list,
+    .ptg-quiz-subject-list,
+    .sub-subject-list,
+    .ptg-question-options,
+    .ptg-options-list {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        list-style: none !important;
+    }
+
+    /* List Items */
+    .ptg-subject-list li,
+    .ptg-quiz-subject-list li {
+        padding: 4px !important;
+        margin-left: 0 !important;
+    }
+
+    /* Filter Boxes & Forms */
+    .ptgates-filter-section,
+    .ptg-quiz-filter-section,
+    .form-group {
+        padding: 12px !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+    }
+
+    /* Cards */
+    .card-main, .ptg-card, .ptg-box, .mock-card, .flashcard-item {
+        padding: 12px !important;
+        border-radius: 12px !important;
+        margin-bottom: 12px !important;
+    }
+
+    /* [5] UNIFIED BUTTON SYSTEM (V9 - Standardization) */
+    /* Fixes "Squashed" buttons by enforcing height/padding/centering globally */
+    
+    /* A. Base Button Style (Strong Reset & Unification) */
+    .ptg-btn, 
+    .btn, 
+    button, 
+    .elementor-button,
+    input[type="submit"],
+    input[type="button"],
+    input[type="reset"],
+    .ptg-quiz-toolbar button {
+        min-height: 44px !important;       /* Touch Target Standard */
+        padding: 10px 16px !important;     /* Safe Content Area */
+        font-size: 14px !important;
+        line-height: 1.3 !important;
+        display: inline-flex !important;   /* Flex Centering */
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        border-radius: 8px !important;     /* Consistent Radius */
+        width: auto !important;            /* Default to auto width */
+        margin-bottom: 4px !important;
+        white-space: nowrap !important;    /* Prevent weird wrapping */
+    }
+
+    /* B. Primary Actions (Full Width) */
+    input[type="submit"], 
+    .ptg-btn-block, 
+    .ptg-btn-primary,
+    .elementor-button.elementor-size-xl,
+    .elementor-button.elementor-size-lg {
+        width: 100% !important;
+        max-width: none !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+    }
+
+    /* C. Icon / Compact Buttons (Exceptions) */
+    .ptg-btn-icon,
+    .ptg-btn-sm,
+    .ptg-btn-draw,
+    .ptgates-time-tip-btn,
+    .ptg-study-tip-close,
+    .ptg-modal-close {
+        min-height: 36px !important;       /* Compact but usable */
+        height: auto !important;
+        padding: 6px 10px !important;      /* Tighter padding */
+        width: auto !important;
+        display: inline-flex !important;
+        margin-bottom: 0 !important;
+    }
+
+    /* D. Pure Icons (Square) */
+    .ptg-btn-icon, .ptg-btn-draw {
+        width: 36px !important;
+        height: 36px !important;
+        padding: 0 !important;             /* Center icon perfectly */
+    }
+    
+    /* E. Quiz Toolbar Specifics (prevent giant toolbar) */
+    .ptg-quiz-toolbar {
+        min-height: auto !important;
+        height: auto !important;
+        padding: 4px !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* Global Text Safety */
+    h1, h2, h3, h4, h5, p, span, div, li, a {
+        word-break: keep-all !important;
+        overflow-wrap: break-word !important;
+    }
+    
+    html, body {
+        overflow-x: hidden !important;
+    }
+}
+
+
+/* ==========================================================================
+   [7] QnA BOARD MOBILE OPTIMIZATION (V15 - Full Viewport Breakout)
+   Forces QnA Wrapper to break out of any Elementor parent padding using VW units.
+   Guarantees 100vw width with exactly 15px side padding.
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    /* 1. NUCLEAR BREAKOUT: Force Wrapper to 100% Viewport Width */
+    html body .ptg-qna-wrapper {
+        width: 100vw !important;
+        position: relative !important;
+        left: 50% !important;
+        right: 50% !important;
+        margin-left: -50vw !important;
+        margin-right: -50vw !important;
+        
+        padding-left: 15px !important;
+        padding-right: 15px !important;
+        box-sizing: border-box !important;
+        max-width: none !important;
+        background: #fff !important; /* Ensure bg covers breakout area */
+    }
+
+    /* 2. Inner Wrappers: Full Width, No Extra Padding */
+    html body .ptg-qna-single,
+    html body .ptg-qna-form-wrapper,
+    html body .ptg-qna-list {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        border-radius: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* 3. List View */
+    .ptg-qna-list-header { display: none !important; }
+    
+    .ptg-qna-item {
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 16px 0 !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+        background: #fff !important;
+        width: 100% !important;
+    }
+    
+    .ptg-qna-item:last-child { border-bottom: none !important; }
+
+    .ptg-qna-item .col-title {
+        width: 100% !important;
+        margin-bottom: 8px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        order: 1 !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* Meta items */
+    .ptg-qna-item .col-status,
+    .ptg-qna-item .col-author,
+    .ptg-qna-item .col-date {
+        font-size: 13px !important;
+        color: #888 !important;
+        display: inline-block !important;
+        margin-right: 8px !important;
+    }
+    .ptg-qna-item .col-status { order: 2 !important; margin-bottom: 4px !important; }
+    .ptg-qna-item .col-author, .ptg-qna-item .col-date { order: 3 !important; }
+
+    /* 4. Single View: Full Width usage */
+    .qna-single-header {
+        margin-bottom: 15px !important;
+        padding: 0 0 15px 0 !important;
+        border-bottom: 1px solid #eee !important;
+        width: 100% !important;
+    }
+
+    .qna-single-header h3 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 10px !important;
+        word-break: keep-all !important;
+    }
+    
+    .qna-meta { padding: 0 !important; font-size: 13px !important; }
+
+    /* Content Areas: Use 100% of the 15px-padded root */
+    html body .qna-content-box,
+    html body .qna-answer-box, 
+    html body .qna-no-answer {
+        width: 100% !important;
+        margin: 0 0 30px 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Answer Box internal padding for look, but full width outer */
+    html body .qna-answer-box {
+        background: #f9fbfd !important;
+        padding: 15px !important;
+        border-radius: 8px !important; 
+        display: block !important;
+        min-width: 0 !important;
+    }
+
+    .qna-content, .answer-content {
+        font-size: 16px !important;
+        line-height: 1.6 !important;
+        color: #333 !important;
+        width: 100% !important;
+    }
+    
+    /* Ensure no parent is constraining width */
+    .ptg-qna-single,
+    .qna-content-box {
+        display: block !important;
+    }
+
+    /* 5. Form & Buttons */
+    .ptg-qna-form-wrapper .form-group,
+    .ptg-qna-form-wrapper input[type="text"],
+    .ptg-qna-form-wrapper textarea,
+    .qna-actions, 
+    .form-actions,
+    .qna-actions .ptg-btn,
+    .form-actions .ptg-btn {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    .qna-actions, .form-actions {
+        margin-top: 20px !important;
+        padding: 0 !important;
+        gap: 10px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-top: none !important;
+    }
+    
+    .qna-actions .ptg-btn,
+    .form-actions .ptg-btn {
+        justify-content: center !important;
+    }
+}
+
+/* ==========================================================================
+   [5] ADMIN BAR OVERLAP FIX (V6.1)
+   Logged-in Admin Header Fix.
+   ========================================================================== */
+
+body.admin-bar .elementor-sticky, 
+body.admin-bar .site-header, 
+body.admin-bar #masthead,
+body.admin-bar .elementor-location-header,
+body.admin-bar .ptg-header-toolbar,
+body.admin-bar .elementor-section.elementor-sticky--active {
+    top: var(--wp-admin--admin-bar--height, 46px) !important;
+    height: auto !important;
+    min-height: 50px !important;
+    overflow: visible !important;
+    z-index: 9999 !important;
+}
+
+@media (min-width: 783px) {
+    body.admin-bar .elementor-sticky, 
+    body.admin-bar .site-header, 
+    body.admin-bar #masthead,
+    body.admin-bar .elementor-location-header,
+    body.admin-bar .ptg-header-toolbar,
+    body.admin-bar .elementor-section.elementor-sticky--active {
+        top: var(--wp-admin--admin-bar--height, 32px) !important;
+    }
+}
+
+body.admin-bar .elementor-sticky__spacer {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}

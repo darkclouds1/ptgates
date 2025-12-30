@@ -229,6 +229,14 @@ class PTG_Platform {
             array(),
             PTG_PLATFORM_VERSION
         );
+
+        // [NEW] 플랫폼 전역 모바일 리셋 CSS (Elementor 여백 제거 및 공통 Spacing)
+        wp_enqueue_style(
+            'ptg-platform-mobile-global-style',
+            PTG_PLATFORM_PLUGIN_URL . 'assets/css/platform-mobile-global.css',
+            array('ptg-platform-style'), // Load after base style
+            PTG_PLATFORM_VERSION
+        );
         
         // 공통 퀴즈 UI CSS
         wp_enqueue_style(

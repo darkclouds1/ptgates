@@ -945,6 +945,9 @@ function process_csv_import($wpdb) {
     if (!$has_exam_year) {
         $log[] = "⚠️ exam_year 컬럼이 없습니다. 자동으로 {$current_year}년으로 설정합니다.";
     }
+
+    // 그룹별 마지막 question_no 캐싱
+    $max_question_numbers = array();
     
     // 덮어쓰기 모드인 경우 기존 데이터 삭제 (특정 연도/회차만)
     // 주의: 덮어쓰기 모드는 현재 파일의 연도/회차에 해당하는 데이터만 삭제합니다.
@@ -1145,9 +1148,37 @@ function process_csv_import($wpdb) {
                 throw new Exception("질문 ID를 가져올 수 없습니다! (라인: {$line_number})");
             }
             
+            // 질문 번호(question_no) 자동 생성 로직
+            $group_key = "{$exam_year}_{$exam_session}_{$exam_course}";
+            if (!isset($max_question_numbers[$group_key])) {
+                // DB에서 해당 그룹의 최대 question_no 조회
+                // 주의: exam_session이 NULL인 경우 처리 필요
+                if ($exam_session !== null) {
+                    $max_no_query = $wpdb->prepare(
+                        "SELECT MAX(question_no) FROM {$categories_table} 
+                         WHERE exam_year = %d AND exam_session = %d AND exam_course = %s",
+                        $exam_year, $exam_session, $exam_course
+                    );
+                } else {
+                    $max_no_query = $wpdb->prepare(
+                        "SELECT MAX(question_no) FROM {$categories_table} 
+                         WHERE exam_year = %d AND exam_session IS NULL AND exam_course = %s",
+                        $exam_year, $exam_course
+                    );
+                }
+                
+                $max_no = $wpdb->get_var($max_no_query);
+                $max_question_numbers[$group_key] = $max_no ? intval($max_no) : 0;
+            }
+            
+            // 새 번호 할당
+            $max_question_numbers[$group_key]++;
+            $next_question_no = $max_question_numbers[$group_key];
+
             // ptgates_categories 테이블에 삽입
             $category_data = array(
                 'question_id'    => $question_id,
+                'question_no'    => $next_question_no,
                 'exam_year'      => $exam_year,
                 'exam_session'   => $exam_session,
                 'exam_course'    => $exam_course,

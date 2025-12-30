@@ -1032,3 +1032,6 @@ window.ptg_dashboard_vars = {
     document.body.appendChild(script);
 })();
 </script>
+
+<!-- PortOne V2 SDK -->
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>

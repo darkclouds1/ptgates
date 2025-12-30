@@ -122,7 +122,7 @@ final class PTG_Reviewer_Plugin {
 
 		ob_start();
 		?>
-		<div id="ptg-reviewer-app" data-mode="<?php echo esc_attr( $atts['mode'] ); ?>">
+		<div id="ptg-reviewer-app" class="ptg-reviewer-container" data-mode="<?php echo esc_attr( $atts['mode'] ); ?>">
 			<div class="ptg-loading">복습 스케줄을 불러오는 중...</div>
 		</div>
 		<?php

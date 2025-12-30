@@ -783,7 +783,9 @@ var PTGates_Admin_List = {
                 <div class="ptg-question-card">
                     <div class="ptg-question-header">
                         <div class="ptg-question-id-info">
-                            <strong>문제 ID: ${q.question_id}</strong>
+                            <strong>문제 ID: ${q.question_id} ${
+      q.question_no ? `(no: ${q.question_no})` : ""
+    }</strong>
                             <span class="ptg-question-meta-info">${metaInfo}</span>
                             ${imageIcon}
                         </div>

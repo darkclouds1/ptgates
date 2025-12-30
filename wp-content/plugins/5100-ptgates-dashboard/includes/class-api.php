@@ -250,8 +250,33 @@ class API {
                 return true;
             },
         ]);
-        
 
+        // Payment Cancel (User initiated)
+        $result7 = \register_rest_route(self::REST_NAMESPACE, '/payment/cancel', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'payment_cancel'],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ]);
+
+         // Payment Delete (History Clean up) - DELETE Method
+         $result8 = \register_rest_route(self::REST_NAMESPACE, '/payment/history', [
+            'methods' => 'DELETE',
+            'callback' => [__CLASS__, 'payment_delete'],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ]);
+
+        // Payment Delete (History Clean up) - POST Method Fallback
+        $result9 = \register_rest_route(self::REST_NAMESPACE, '/payment/delete-history', [
+            'methods' => 'POST',
+            'callback' => [__CLASS__, 'payment_delete'],
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
+        ]);
         
         // 정상 로그는 debug.log에 기록하지 않음 (성공 시 로그 제거)
         // 실패 시에만 로그 기록
@@ -898,6 +923,104 @@ class API {
         }
 
         return rest_ensure_response(['success' => true]);
+    }
+
+    /**
+     * 결제 취소 처리 API (사용자 취소 시)
+     */
+    public static function payment_cancel($request) {
+        $user_id = get_current_user_id();
+        $payment_id = $request->get_param('paymentId');
+        $reason = $request->get_param('reason') ?: 'User Cancelled';
+
+        if (empty($payment_id)) {
+            return new \WP_Error('invalid_param', 'Payment ID Missing', ['status' => 400]);
+        }
+
+        // Inline Cancellation Logic to bypass Class Loading Issues
+        global $wpdb;
+        $history_table = 'ptgates_billing_history';
+
+        // 1. Check if eligible
+        $transaction = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $history_table WHERE order_id = %s",
+            $payment_id
+        ));
+
+        if (!$transaction) {
+             return new \WP_Error('invalid_order', '주문 정보를 찾을 수 없습니다.');
+        }
+
+        if ($transaction->status === 'paid') {
+             return new \WP_Error('invalid_status', '이미 결제 완료된 건입니다.');
+        }
+
+        // 2. Update to 'cancelled'
+        $result = $wpdb->update($history_table, [
+            'status' => 'cancelled',
+            'memo' => $transaction->memo . " | Cancelled: " . $reason 
+        ], ['order_id' => $payment_id]);
+
+        if ($result === false) {
+             return new \WP_Error('db_error', 'DB 업데이트 실패');
+        }
+
+        return rest_ensure_response(['success' => true]);
+    }
+
+
+
+    /**
+     * 결제 내역 삭제 API
+     */
+    public static function payment_delete($request) {
+        $user_id = get_current_user_id();
+        $payment_id = $request->get_param('paymentId');
+
+        if (empty($payment_id)) {
+            return new \WP_Error('invalid_param', 'Payment ID Missing', ['status' => 400]);
+        }
+
+
+
+        try {
+            global $wpdb;
+            $history_table = 'ptgates_billing_history'; // Use prefix if needed, or stick to raw if consistent
+            // Safety check for table existence if possible, or just try.
+            
+            // 1. Check order
+            $transaction = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $history_table WHERE order_id = %s AND user_id = %d",
+                $payment_id,
+                $user_id
+            ));
+
+            if (!$transaction) {
+                 return new \WP_Error('invalid_order', '주문 정보를 찾을 수 없습니다.', ['status' => 404]);
+            }
+
+            // 2. Check status
+            if (in_array($transaction->status, ['paid', 'refunded'])) {
+                return new \WP_Error('invalid_status', '결제 완료 또는 환불된 내역은 삭제할 수 없습니다.', ['status' => 400]);
+            }
+
+            // 3. Delete
+            $result = $wpdb->delete($history_table, ['order_id' => $payment_id]);
+
+            if ($result === false) {
+                error_log('[PTG Error] Delete SQL failed: ' . $wpdb->last_error);
+                return new \WP_Error('db_error', '삭제 실패: 데이터베이스 오류', ['status' => 500]);
+            }
+        
+            return new \WP_REST_Response(['success' => true], 200);
+
+        } catch (\Exception $e) {
+            error_log('[PTG Error] Delete Transaction Exception: ' . $e->getMessage());
+            return new \WP_Error('server_error', $e->getMessage(), ['status' => 500]);
+        } catch (\Error $e) {
+            error_log('[PTG Error] Delete Transaction Fatal: ' . $e->getMessage());
+            return new \WP_Error('server_error', 'Fatal: ' . $e->getMessage(), ['status' => 500]);
+        }
     }
 
     /**

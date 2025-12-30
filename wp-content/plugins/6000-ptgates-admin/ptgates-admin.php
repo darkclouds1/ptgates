@@ -60,7 +60,60 @@ final class PTG_Admin_Plugin {
 		if ( php_sapi_name() === 'cli' ) {
 			$this->init_cli();
 		}
+
+        // DB 스키마 점검 및 업데이트 (question_no 추가)
+        add_action( 'admin_init', [ $this, 'check_and_update_db_schema' ] );
 	}
+
+    /**
+     * DB 스키마 점검 및 업데이트 (question_no 컬럼 추가 및 백필)
+     */
+    public function check_and_update_db_schema() {
+        // 옵션으로 이미 실행되었는지 확인
+        if ( get_option( 'ptg_db_question_no_updated' ) ) {
+            return;
+        }
+
+        global $wpdb;
+        $table_name = 'ptgates_categories';
+
+        // 테이블이 존재하는지 확인
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) != $table_name ) {
+            return;
+        }
+
+        // 컬럼 존재 여부 확인
+        $column_exists = $wpdb->get_row( "SHOW COLUMNS FROM $table_name LIKE 'question_no'" );
+
+        if ( ! $column_exists ) {
+            // 컬럼 추가
+            $wpdb->query( "ALTER TABLE $table_name ADD COLUMN question_no INT NULL AFTER question_id" );
+        }
+
+        // 데이터 백필 (Backfill) - question_no가 NULL인 데이터가 있으면 실행
+        $has_null = $wpdb->get_var( "SELECT COUNT(*) FROM $table_name WHERE question_no IS NULL" );
+        
+        if ( $has_null > 0 ) {
+            // MySQL 변수를 사용하여 그룹핑 및 순번 매기기
+            $wpdb->query( "
+                UPDATE $table_name t
+                JOIN (
+                    SELECT id, 
+                        @rn := IF(@prev_year = exam_year AND @prev_sess = IFNULL(exam_session, 0) AND @prev_course = exam_course, @rn + 1, 1) AS row_number,
+                        @prev_year := exam_year,
+                        @prev_sess := IFNULL(exam_session, 0),
+                        @prev_course := exam_course
+                    FROM $table_name, (SELECT @rn:=0, @prev_year:=NULL, @prev_sess:=NULL, @prev_course:=NULL) vars
+                    ORDER BY exam_year ASC, exam_session ASC, exam_course ASC, id ASC
+                ) derived ON t.id = derived.id
+                SET t.question_no = derived.row_number
+                WHERE t.question_no IS NULL
+            " );
+        }
+
+        // 작업 완료 표시
+        update_option( 'ptg_db_question_no_updated', 1 );
+    }
 
 	/**
 	 * AJAX 요청 처리 (WordPress 헤더 출력 전)
@@ -142,7 +195,7 @@ final class PTG_Admin_Plugin {
         }
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'ptgates_products';
+        $table_name = 'ptgates_products';
         
         // 테이블 존재 확인
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {

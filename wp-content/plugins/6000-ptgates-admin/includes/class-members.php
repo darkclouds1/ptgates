@@ -283,6 +283,7 @@ class PTG_Admin_Members {
 				<tr>
 					<th scope="col" class="manage-column column-cb check-column"><input type="checkbox"></th>
 					<th scope="col" class="manage-column column-username">사용자</th>
+                    <th scope="col" class="manage-column">ID</th>
                     <th scope="col" class="manage-column">이름</th>
 					<th scope="col" class="manage-column">가입일</th>
 					<th scope="col" class="manage-column">접속</th>
@@ -310,6 +311,7 @@ class PTG_Admin_Members {
 								<strong><a href="<?php echo get_edit_user_link($member['user_id']); ?>"><?php echo esc_html($member['user_login']); ?></a></strong>
 								<br><?php echo esc_html($member['user_email']); ?>
 							</td>
+                            <td><?php echo esc_html($member['user_id']); ?></td>
                             <td><?php echo esc_html($dname); ?></td>
 							<td>
 								<?php echo date('Y-m-d', strtotime($member['user_registered'])); ?>

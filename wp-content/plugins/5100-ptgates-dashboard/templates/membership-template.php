@@ -2,6 +2,11 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+?>
+<div style="background:red;color:white;padding:20px;text-align:center;font-size:20px;font-weight:bold;z-index:99999;border:5px solid yellow; position:relative;">
+    SYSTEM CHECK: 이 붉은 박스가 보여야 수정한 파일이 로드된 것입니다.
+</div>
+<?php
 
 // 사용자 정보 가져오기
 $user = wp_get_current_user();
@@ -98,7 +103,7 @@ $billing_history = [];
 $billing_history = [];
 if ($wpdb->get_var("SHOW TABLES LIKE 'ptgates_billing_history'") === 'ptgates_billing_history') {
     $billing_history = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM ptgates_billing_history WHERE user_id = %d ORDER BY transaction_date DESC",
+        "SELECT * FROM ptgates_billing_history WHERE user_id = %d AND status IN ('paid', 'refunded') ORDER BY transaction_date DESC",
         $user_id
     ));
 }
@@ -251,12 +256,16 @@ $active_products = \PTG\Dashboard\API::get_active_products();
         color: #6b7280;
         margin-bottom: 8px;
         display: block;
+        white-space: nowrap; /* Prevent wrapping */
+        word-break: keep-all;
     }
 
     .ptg-usage-value {
         font-size: 16px;
         font-weight: 600;
         color: #111827;
+        white-space: nowrap; /* Prevent wrapping */
+        word-break: keep-all;
     }
 
     .ptg-usage-bar {
@@ -359,6 +368,15 @@ $active_products = \PTG\Dashboard\API::get_active_products();
             width: 100%;
             text-align: center;
         }
+        /* Mobile text adjustment */
+        .ptg-usage-label {
+            font-size: 12px; 
+            letter-spacing: -0.5px;
+        }
+        .ptg-usage-value {
+            font-size: 14px;
+            letter-spacing: -0.5px;
+        }
     }
 </style>
 
@@ -460,17 +478,38 @@ $active_products = \PTG\Dashboard\API::get_active_products();
                         gap: 20px;
                         justify-content: center;
                     }
+
+                    /* Mobile Optimization (<768px) */
+                    @media (max-width: 768px) {
+                        .ptg-products-grid {
+                            grid-template-columns: 1fr; /* Force single column */
+                            gap: 16px; 
+                        }
+                    }
+
                     .ptg-pricing-card {
                         margin: 0; /* Override auto margin */
                         max-width: none;
                         display: flex;
                         flex-direction: column;
                         height: 100%;
+                        cursor: pointer; /* Require click interaction */
+                        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
                     }
+                    .ptg-pricing-card:hover {
+                         border-color: #4f46e5;
+                         box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+                    }
+                    .ptg-pricing-card:active {
+                        transform: scale(0.98);
+                        background-color: #f3f4f6;
+                    }
+
                     .ptg-pricing-card.is-featured {
                         border: 2px solid #4f46e5;
                         box-shadow: 0 8px 30px rgba(79, 70, 229, 0.15);
                         transform: scale(1.02);
+                        z-index: 1; /* Bring forward */
                     }
                     .ptg-pricing-badge {
                         background: #4f46e5;
@@ -483,6 +522,7 @@ $active_products = \PTG\Dashboard\API::get_active_products();
                         top: -12px;
                         left: 50%;
                         transform: translateX(-50%);
+                        white-space: nowrap;
                     }
                 </style>
                 
@@ -497,7 +537,10 @@ $active_products = \PTG\Dashboard\API::get_active_products();
                                 $is_featured = $prod->featured_level > 0;
                                 $features = $prod->features; // Array or Object
                             ?>
-                            <div class="ptg-pricing-card <?php echo $is_featured ? 'is-featured' : ''; ?>" style="position: relative;">
+                            <div class="ptg-pricing-card <?php echo $is_featured ? 'is-featured' : ''; ?>" 
+                                 style="position: relative;"
+                                 onclick="initiatePaymentNew('<?php echo esc_attr($prod->product_code); ?>', <?php echo intval($prod->price); ?>, '<?php echo esc_attr($prod->title); ?>')">
+                                
                                 <?php if ($is_featured): ?>
                                     <div class="ptg-pricing-badge">RECOMMENDED</div>
                                 <?php endif; ?>
@@ -525,7 +568,7 @@ $active_products = \PTG\Dashboard\API::get_active_products();
                                     <div style="flex-grow: 1;"></div>
                                 <?php endif; ?>
                                 
-                                <button type="button" class="ptg-pricing-btn" onclick="initiatePayment('<?php echo esc_attr($prod->product_code); ?>', <?php echo intval($prod->price); ?>, '<?php echo esc_attr($prod->title); ?>')">
+                                <button type="button" class="ptg-pricing-btn" onclick="event.stopPropagation(); initiatePaymentNew('<?php echo esc_attr($prod->product_code); ?>', <?php echo intval($prod->price); ?>, '<?php echo esc_attr($prod->title); ?>')">
                                     선택하기
                                 </button>
                             </div>
@@ -614,19 +657,34 @@ function switchPmTab(tabName) {
 }
 
 
-async function initiatePayment(productCode, price, productName) {
+async function initiatePaymentNew(productCode, price, productName) {
+    alert('시스템 점검: 결제 모듈 V3 로드됨'); 
+    
     if (!confirm(productName + ' (' + price.toLocaleString() + '원)을 결제하시겠습니까?')) {
         return;
     }
     
     // Show Loading
-    var overlay = document.createElement('div');
-    overlay.id = 'ptg-pay-loading';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;flex-direction:column;gap:10px;';
-    overlay.innerHTML = '<div>결제 준비 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">창을 닫지 마세요.</div>';
-    document.body.appendChild(overlay);
+    setTimeout(async function() {
+        alert('DEBUG: 단계 1 진입 (Overlay 생성)'); // Debug Point 1
+        
+        var overlay = document.createElement('div');
+        overlay.id = 'ptg-pay-loading';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;flex-direction:column;gap:10px;';
+        overlay.innerHTML = '<div>결제 준비 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">창을 닫지 마세요.</div>';
+        try {
+             document.body.appendChild(overlay);
+        } catch(err) {
+             alert('Overlay Error: ' + err);
+        }
 
-    try {
+        try {
+        // Debug Checks
+        if (typeof PortOne === 'undefined') {
+            alert('PortOne V2 SDK가 로드되지 않았습니다.');
+            throw new Error('SDK Missing');
+        }
+
         // 1. Prepare Payment (Get paymentId)
         const prepareRes = await jQuery.ajax({
             url: '/wp-json/ptg-dash/v1/payment/prepare',
@@ -636,11 +694,15 @@ async function initiatePayment(productCode, price, productName) {
         });
 
         if (!prepareRes || !prepareRes.paymentId) {
-            throw new Error('결제 정보를 불러오지 못했습니다.');
+            alert('결제 준비 실패 (Server Error): ' + JSON.stringify(prepareRes));
+            throw new Error('Prepare Failed');
         }
+        
+        // Debug: Check Keys
+        if (!prepareRes.storeId) alert('주의: Store ID가 없습니다!');
+        if (!prepareRes.channelKey) alert('주의: Channel Key가 없습니다!');
 
         // 2. Request Payment (PortOne V2)
-        // 백엔드에서 받은 파라미터를 그대로 전달 (bypass 등 포함)
         const paymentParams = {
             ...prepareRes,
             windowType: {
@@ -648,8 +710,12 @@ async function initiatePayment(productCode, price, productName) {
                 mobile: 'REDIRECTION'
             }
         };
+        
+        // ALERT PARAMETERS BEFORE CALL
+        alert('결제 요청 시작!\nStore ID: ' + paymentParams.storeId + '\nChannel Key: ' + paymentParams.channelKey + '\nPayment ID: ' + paymentParams.paymentId);
 
         const response = await PortOne.requestPayment(paymentParams);
+
 
         // 3. Process Response
         if (response.code != null) {
@@ -681,16 +747,16 @@ async function initiatePayment(productCode, price, productName) {
              throw new Error('검증 실패: ' + (verifyRes.message || '알 수 없는 오류'));
         }
 
-    } catch (e) {
-        console.error(e);
-        let msg = e.message || e.responseJSON?.message || e.statusText || '알 수 없는 오류';
-        alert('오류 발생: ' + msg);
     } finally {
         if (document.getElementById('ptg-pay-loading')) {
             document.body.removeChild(document.getElementById('ptg-pay-loading'));
         }
     }
+    }, 100); // End setTimeout
 }
+
+// Backward Compatibility for Cached HTML
+window.initiatePayment = initiatePaymentNew;
 </script>
 
 <style>

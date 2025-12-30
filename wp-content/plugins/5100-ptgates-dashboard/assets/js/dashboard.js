@@ -79,6 +79,29 @@
                 font-weight: 700;
             }
 
+            .ptg-card-stat strong {
+                color: #111827;
+                font-weight: 700;
+            }
+
+            /* Usage Stats Text Fix */
+            .ptg-usage-label {
+                font-size: 13px;
+                color: #6b7280;
+                margin-bottom: 8px;
+                display: block;
+                white-space: nowrap; /* Prevent wrapping */
+                word-break: keep-all;
+            }
+
+            .ptg-usage-value {
+                font-size: 16px;
+                font-weight: 600;
+                color: #111827;
+                white-space: nowrap; /* Prevent wrapping */
+                word-break: keep-all;
+            }
+
             /* Hide progress bar for compact single-row layout */
             .ptg-card-progress {
                 display: none; 
@@ -99,6 +122,35 @@
                 
                 .ptg-dash-card {
                     padding: 14px 16px;
+                }
+
+                /* Mobile Font Adjustments for Usage Stats */
+                .ptg-usage-label {
+                    font-size: 12px;
+                    letter-spacing: -0.5px;
+                }
+                .ptg-usage-value {
+                    font-size: 14px;
+                    letter-spacing: -0.5px;
+                }
+                .ptg-usage-value {
+                    font-size: 14px;
+                    letter-spacing: -0.5px;
+                }
+
+                /* Mobile Space Optimization (Usage Stats) */
+                .ptg-mb-section .ptg-usage-grid {
+                    gap: 8px; /* Reduce gap between cards */
+                }
+                .ptg-mb-section .ptg-usage-item {
+                    padding: 12px 10px; /* Reduce internal padding */
+                }
+                /* Ensure section itself doesn't have excessive side margin */
+                .ptg-mb-section {
+                    margin-left: 0;
+                    margin-right: 0;
+                    padding-left: 0;
+                    padding-right: 0;
                 }
             }
             /* Payment Management Styles */
@@ -495,22 +547,35 @@
                 margin-bottom: -2px;
             }
 
-            /* 플랜 비교표 */
+            /* 플랜 비교표 - Center Alignment Enforced (Matched with pricing-guide.html) */
             .ptg-plan-grid {
-                display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 10px;
+                display: flex;
+                justify-content: center !important;
+                flex-wrap: wrap;
+                gap: 20px;
                 margin-top: 12px;
+                width: 100%;
+                margin-left: auto;
+                margin-right: auto;
             }
 
             .ptg-plan-cell {
                 background: #f9fafb;
                 border-radius: 14px;
-                padding: 10px 10px 12px;
+                padding: 20px 16px;
                 border: 1px solid rgba(148, 163, 184, 0.4);
                 font-size: 13px;
+                width: 240px;      /* Fixed width */
+                min-height: 260px; /* Min height to prevent overflow */
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
                 cursor: pointer;
                 transition: all 0.2s;
+                flex: 0 0 auto;
             }
 
             .ptg-plan-cell:hover {
@@ -527,9 +592,13 @@
             }
 
             .ptg-plan-name {
-                font-weight: 700;
-                margin-bottom: 4px;
+                font-size: 20px; /* Increased from default */
+                font-weight: 800; /* Extra bold for emphasis */
+                margin-bottom: 6px;
                 color: #111827;
+                word-break: keep-all; /* Prevent awkward mid-word breaks */
+                overflow-wrap: break-word; /* Ensure functionality within card width */
+                line-height: 1.35;
             }
 
             .ptg-plan-month {
@@ -571,6 +640,9 @@
 
             /* 반응형 */
             @media (max-width: 768px) {
+                .ptg-plan-name {
+                    font-size: 19px; /* Slightly smaller on mobile but still big */
+                }
                 .ptg-membership-wrapper {
                     margin-top: 24px;
                 }
@@ -584,8 +656,16 @@
                     flex-direction: column;
                     align-items: flex-start;
                 }
+                /* Mobile: Stack vertically */
                 .ptg-plan-grid {
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 16px;
+                }
+                .ptg-plan-cell {
+                    width: 100%; /* Full width on mobile */
+                    max-width: 320px; /* But don't get too crazy */
+                    min-height: auto;
                 }
             }
 
@@ -718,6 +798,11 @@
         // Update Content
         $(".ptg-pm-content").removeClass("is-active");
         $("#ptg-pm-content-" + tabName).addClass("is-active");
+
+        // [User Request] Refresh data on History tab click to ensure no caching
+        if (tabName === "history") {
+          Dashboard.fetchSummary();
+        }
       });
 
       // 사용자 데이터 초기화 버튼
@@ -748,7 +833,13 @@
     /**
      * 결제 시작 (PC/Mobile 분기)
      */
-    initiatePayment: function (productCode, price, productName) {
+    /**
+     * 결제 시작 (PortOne V2)
+     */
+    initiatePayment: async function (productCode, price, productName) {
+      // DEBUG CHECK
+      // alert('시스템 점검: PortOne V2 결제 모듈 (Dashboard.js)');
+
       if (
         !confirm(
           productName +
@@ -760,148 +851,113 @@
         return;
       }
 
-      // 1. Device Check
-      var isMobile =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        );
-      var deviceType = isMobile ? "mobile" : "pc";
-
-      // 2. Loading UI
+      // 1. Loading UI
       var overlay = document.createElement("div");
       overlay.id = "ptg-pay-loading";
       overlay.style.cssText =
-        "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;";
-      overlay.innerHTML = "결제 준비 중입니다...";
+        "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.8);z-index:99999;display:flex;justify-content:center;align-items:center;font-size:18px;font-weight:bold;flex-direction:column;gap:10px;";
+      overlay.innerHTML =
+        '<div>결제 준비 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">창을 닫지 마세요.</div>';
       document.body.appendChild(overlay);
 
-      // 3. API Call
-      $.ajax({
-        url: "/wp-json/ptg-dash/v1/payment/prepare",
-        method: "POST",
-        headers: {
-          "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "",
-        },
-        data: {
-          product_code: productCode,
-          device_type: deviceType,
-        },
-        success: function (response) {
-          if (document.getElementById("ptg-pay-loading"))
-            document.body.removeChild(
-              document.getElementById("ptg-pay-loading")
-            );
-
-          // Form 찾기
-          // dashboard.js가 실행되는 페이지에 폼이 없을 수 있으므로 동적 생성
-          let form = document.getElementById("ptg-payment-form");
-          if (!form) {
-            // Create Form if not exists
-            const formHtml = `
-                    <form id="ptg-payment-form" method="POST" style="display:none;">
-                        <!-- StdPay PC Fields -->
-                        <input type="hidden" name="version" >
-                        <input type="hidden" name="gopaymethod" >
-                        <input type="hidden" name="mid" >
-                        <input type="hidden" name="oid" >
-                        <input type="hidden" name="price" >
-                        <input type="hidden" name="timestamp" >
-                        <input type="hidden" name="use_chkfake" >
-                        <input type="hidden" name="signature" >
-                        <input type="hidden" name="verification" >
-                        <input type="hidden" name="mKey" >
-                        <input type="hidden" name="currency" >
-                        <input type="hidden" name="goodname" >
-                        <input type="hidden" name="buyername" >
-                        <input type="hidden" name="buyertel" >
-                        <input type="hidden" name="buyeremail" >
-                        <input type="hidden" name="returnUrl" >
-                        <input type="hidden" name="closeUrl" >
-                        <input type="hidden" name="acceptmethod" >
-                        <input type="hidden" name="payViewType" value="overlay">
-                        <input type="hidden" name="charset" value="UTF-8">
-                        
-                        <!-- Mobile Specific (Smart Pay) -->
-                        <input type="hidden" name="P_MID" >
-                        <input type="hidden" name="P_OID" >
-                        <input type="hidden" name="P_AMT" >
-                        <input type="hidden" name="P_UNAME" >
-                        <input type="hidden" name="P_GOODS" >
-                        <input type="hidden" name="P_NEXT_URL" >
-                        <input type="hidden" name="P_NOTI_URL" >
-                        <input type="hidden" name="P_HPP_METHOD" value="1">
-                    </form>`;
-            $("body").append(formHtml);
-            form = document.getElementById("ptg-payment-form");
-          }
-
-          if (deviceType === "mobile") {
-            form.action = "https://stgmobile.inicis.com/smart/payment/";
-            form.acceptCharset = "UTF-8";
-
-            if (response.mid) form.P_MID.value = response.mid;
-            if (response.oid) form.P_OID.value = response.oid;
-            if (response.price) form.P_AMT.value = response.price;
-            if (response.buyername) form.P_UNAME.value = response.buyername;
-            if (response.goodname) form.P_GOODS.value = response.goodname;
-            if (response.P_NEXT_URL)
-              form.P_NEXT_URL.value = response.P_NEXT_URL;
-            if (response.P_NOTI_URL)
-              form.P_NOTI_URL.value = response.P_NOTI_URL;
-
-            form.submit();
-          } else {
-            // Check INIStdPay
-            if (typeof INIStdPay === "undefined") {
-              // Load Script Dynamically
-              $.getScript("https://stgstdpay.inicis.com/stdjs/INIStdPay.js")
-                .done(function () {
-                  executePcPayment(form, response);
-                })
-                .fail(function () {
-                  alert("결제 모듈 로드 실패");
-                });
-            } else {
-              executePcPayment(form, response);
-            }
-          }
-        },
-        error: function (xhr) {
-          if (document.getElementById("ptg-pay-loading"))
-            document.body.removeChild(
-              document.getElementById("ptg-pay-loading")
-            );
-          alert(
-            "오류 발생: " +
-              (xhr.responseJSON ? xhr.responseJSON.message : xhr.statusText)
+      try {
+        // SDK Check
+        if (typeof PortOne === "undefined") {
+          throw new Error(
+            "PortOne V2 SDK가 로드되지 않았습니다. 새로고침 후 다시 시도해주세요."
           );
-        },
-      });
+        }
 
-      function executePcPayment(form, response) {
-        form.version.value = response.version || "1.0";
-        form.gopaymethod.value = response.gopaymethod || "Card";
-        form.mid.value = response.mid;
-        form.oid.value = response.oid;
-        form.price.value = response.price;
-        form.timestamp.value = response.timestamp;
-        form.use_chkfake.value = response.use_chkfake || "Y";
-        form.signature.value = response.signature;
-        form.verification.value = response.verification;
-        form.mKey.value = response.mKey;
-        form.currency.value = response.currency || "WON";
-        form.goodname.value = response.goodname;
-        form.buyername.value = response.buyername;
-        form.buyertel.value = response.buyertel || "010-0000-0000"; // 임시
-        form.buyeremail.value = response.buyeremail;
-        form.returnUrl.value = response.returnUrl;
-        form.closeUrl.value = response.closeUrl;
-        form.acceptmethod.value = response.acceptmethod || "centerCd(Y)";
+        // 2. Prepare Payment (API Call)
+        const prepareRes = await new Promise((resolve, reject) => {
+          $.ajax({
+            url: "/wp-json/ptg-dash/v1/payment/prepare",
+            method: "POST",
+            headers: { "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "" },
+            data: { product_code: productCode },
+            success: resolve,
+            error: function (xhr, status, err) {
+              reject(
+                new Error(xhr.responseJSON?.message || err || "결제 준비 실패")
+              );
+            },
+          });
+        });
 
-        try {
-          INIStdPay.pay("ptg-payment-form");
-        } catch (e) {
-          alert("결제 모듈 실행 오류: " + e.message);
+        if (!prepareRes || !prepareRes.paymentId) {
+          throw new Error("결제 준비 실패 (Invalid Response)");
+        }
+
+        // 3. Request Payment (PortOne V2)
+        const paymentParams = {
+          storeId: prepareRes.storeId ? prepareRes.storeId.trim() : "",
+          channelKey: prepareRes.channelKey ? prepareRes.channelKey.trim() : "",
+          paymentId: prepareRes.paymentId,
+          orderName: prepareRes.orderName || productName,
+          totalAmount: prepareRes.totalAmount || price,
+          currency: prepareRes.currency || "CURRENCY_KRW",
+          payMethod: "CARD",
+          customer: prepareRes.customer,
+          windowType: {
+            pc: "IFRAME",
+            mobile: "REDIRECTION",
+          },
+        };
+
+        // console.log('Payment Params:', paymentParams);
+
+        const response = await PortOne.requestPayment(paymentParams);
+
+        if (response.code != null) {
+          // Failure or User Cancelled
+          // Update Server Status to 'cancelled'
+          $.ajax({
+            url: "/wp-json/ptg-dash/v1/payment/cancel",
+            method: "POST",
+            headers: { "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "" },
+            data: {
+              paymentId: prepareRes.paymentId,
+              reason: response.message || "User Cancelled",
+            },
+          });
+
+          // Alert only if it's an error, maybe silent for simple cancel?
+          // PortOne V2 response.message usually contains "User cancelled" or similar
+          alert("결제 취소/실패: " + response.message);
+          return;
+        }
+
+        // 4. Verify Payment (Server-side)
+        overlay.innerHTML =
+          '<div>결제 확인 중입니다...</div><div style="font-size:14px;font-weight:normal;color:#666;">잠시만 기다려주세요.</div>';
+
+        const verifyRes = await new Promise((resolve, reject) => {
+          $.ajax({
+            url: "/wp-json/ptg-dash/v1/payment/complete",
+            method: "POST",
+            headers: { "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "" },
+            data: { paymentId: response.paymentId || prepareRes.paymentId },
+            success: resolve,
+            error: function (xhr, status, err) {
+              reject(
+                new Error(xhr.responseJSON?.message || err || "결제 검증 실패")
+              );
+            },
+          });
+        });
+
+        if (verifyRes && verifyRes.success) {
+          alert("결제가 완료되었습니다!");
+          window.location.reload();
+        } else {
+          throw new Error(verifyRes.message || "검증 실패");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("오류 발생: " + e.message);
+      } finally {
+        if (document.getElementById("ptg-pay-loading")) {
+          document.body.removeChild(document.getElementById("ptg-pay-loading"));
         }
       }
     },
@@ -1310,6 +1366,14 @@
     },
 
     render: function (data) {
+      // [User Request] Preserve Tab State on Re-render
+      // Before wiping HTML, check current state
+      const wasMembershipDetailsVisible = $("#ptg-membership-details").is(
+        ":visible"
+      );
+      const wasPaymentVisible = $("#ptg-payment-management").is(":visible");
+      const activeTab = $(".ptg-pm-tab.is-active").data("pm-tab") || "product";
+
       this.products = data.products || []; // Store products for global access
 
       const {
@@ -1353,7 +1417,10 @@
                   paid: "결제완료",
                   failed: "실패",
                   refunded: "환불",
+                  failed: "실패",
+                  refunded: "환불",
                   pending: "대기",
+                  cancelled: "취소",
                 };
                 const statusText = statusMap[item.status] || item.status;
                 const statusClass = item.status === "paid" ? "completed" : "";
@@ -1372,15 +1439,30 @@
                   expiryHtml = ` <span style="color: #6b7280; font-weight: normal; font-size: 13px;">(~ ${formattedExp})</span>`;
                 }
 
+                // Delete Button (Trash Icon) - Only for non-completed/non-refunded
+                let deleteHtml = "";
+                const isDeletable = ![
+                  "paid",
+                  "refunded",
+                  "partial_refunded",
+                ].includes(item.status);
+
+                if (isDeletable) {
+                  deleteHtml = `<button type="button" class="ptg-history-delete" onclick="Dashboard.deletePaymentHistory('${item.order_id}')" title="내역 삭제">🗑️</button>`;
+                }
+
                 return `
                 <div class="ptg-history-item">
                     <div class="ptg-history-row">
                         <span class="ptg-history-date">${this.escapeHtml(
                           formattedDate
                         )}</span>
-                        <span class="ptg-history-status ${statusClass}">${this.escapeHtml(
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="ptg-history-status ${statusClass}">${this.escapeHtml(
                   statusText
                 )}</span>
+                            ${deleteHtml}
+                        </div>
                     </div>
                     <div class="ptg-history-row" style="margin-top: 6px;">
                         <span class="ptg-history-product">
@@ -1559,7 +1641,8 @@
                                         <div class="ptg-card-inner">
                                             <div class="ptg-plan-title">Premium 플랜 선택</div>
                                             <p class="ptg-plan-sub">
-                                                학습 기간과 예산에 맞게 Premium 이용 기간을 선택하세요.
+                                                학습 기간과 예산에 맞게 Premium 이용 기간을 선택하세요.<br>
+                                                <span style="display:block; margin-top:4px; font-size:13px; color:#888;">서비스 제공 기간: 결제 후 즉시 사용 가능</span>
                                             </p>
 
                                             <div class="ptg-plan-grid">
@@ -1704,6 +1787,28 @@
       // Combine all sections (Row 1: Welcome, Row 2: Cards Grid, Row 3: Learning)
       this.$container.html(welcomeHtml + cardsHtml + learningHtml);
       this.bindLearningTipModal();
+
+      // [User Request] Restore Tab State
+
+      // 1. Restore Membership Details (Parent Container)
+      if (wasMembershipDetailsVisible) {
+        $("#ptg-membership-details").show();
+        $("#ptg-membership-toggle").addClass("is-active");
+      }
+
+      // 2. Restore Payment Management (Child Container)
+      if (wasPaymentVisible) {
+        const $section = $("#ptg-payment-management");
+        $section.show();
+        $("[data-toggle-payment]").attr("aria-expanded", "true");
+
+        // Restore Active Tab
+        $(".ptg-pm-tab").removeClass("is-active");
+        $(`.ptg-pm-tab[data-pm-tab="${activeTab}"]`).addClass("is-active");
+
+        $(".ptg-pm-content").removeClass("is-active");
+        $(`#ptg-pm-content-${activeTab}`).addClass("is-active");
+      }
     },
 
     renderLearningRecords: function (records) {
@@ -1753,6 +1858,50 @@
                     </div>
                 </div>
             `;
+    },
+
+    /**
+     * 결제 내역 삭제
+     */
+    deletePaymentHistory: function (orderId) {
+      if (!confirm("정말로 이 결제 내역을 삭제하시겠습니까?")) {
+        return;
+      }
+
+      const self = this;
+
+      $.ajax({
+        url: "/wp-json/ptg-dash/v1/payment/delete-history",
+        method: "POST",
+        headers: { "X-WP-Nonce": window.ptg_dashboard_vars.nonce || "" },
+        data: JSON.stringify({ paymentId: orderId }),
+        contentType: "application/json",
+        success: function (response) {
+          alert("삭제되었습니다.");
+
+          // [User Request] Remove from DOM immediately
+          // Find and remove the row
+          const $btn = $(
+            `button[onclick="Dashboard.deletePaymentHistory('${orderId}')"]`
+          );
+          if ($btn.length) {
+            const $row = $btn.closest(".ptg-history-item");
+            $row.fadeOut(300, function () {
+              $(this).remove();
+              // If empty, fetch to show 'empty' message or just leave it
+              if ($(".ptg-history-item").length === 0) {
+                self.fetchSummary();
+              }
+            });
+          } else {
+            // Fallback
+            self.fetchSummary();
+          }
+        },
+        error: function (xhr) {
+          alert("삭제 실패: " + (xhr.responseJSON?.message || xhr.statusText));
+        },
+      });
     },
 
     buildSubjectCard: function (session, subject) {

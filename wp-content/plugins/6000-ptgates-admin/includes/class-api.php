@@ -583,6 +583,7 @@ class API {
             
             // 문제 목록 조회 (년도, 회차, 교시 정보 포함)
             $list_sql = "SELECT DISTINCT q.question_id, q.content, q.answer, q.explanation, q.type, q.difficulty, q.is_active, q.question_image,
+                        MAX(c.question_no) as question_no,
                         GROUP_CONCAT(DISTINCT c.subject ORDER BY c.subject SEPARATOR ', ') as subjects,
                         GROUP_CONCAT(DISTINCT c.exam_year ORDER BY c.exam_year SEPARATOR ', ') as exam_years,
                         GROUP_CONCAT(DISTINCT c.exam_session ORDER BY c.exam_session SEPARATOR ', ') as exam_sessions,
@@ -591,7 +592,7 @@ class API {
                  INNER JOIN {$categories_table} c ON q.question_id = c.question_id
                  WHERE {$where_clause}
                  GROUP BY q.question_id
-                 ORDER BY q.question_id DESC
+                 ORDER BY q.question_id ASC
                  LIMIT %d OFFSET %d";
             
             // Subjects 클래스 로드 확인 (최초 로드는 0000-ptgates-platform에서 수행됨)

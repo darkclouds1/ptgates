@@ -105,35 +105,59 @@ $results = $wpdb->get_results( $wpdb->prepare(
                     $score = number_format( $row->total_score, 1 );
                     $is_pass = $row->is_pass;
                     $status_class = $is_pass ? 'status-pass' : 'status-fail';
-                    // Pulse animation for high scores or pass
                     $pulse_class = ($row->total_score >= 60) ? 'score-pulse' : '';
                 ?>
                 <div class="ptg-timeline-item">
                     <!-- Marker -->
                     <div class="ptg-timeline-marker <?php echo $status_class; ?>"></div>
                     
-                    <!-- Date Label (Desktop Side) -->
-                    <div class="ptg-timeline-date"><?php echo $date; ?></div>
+                    <!-- Date Label (Desktop Only) -->
+                    <div class="ptg-timeline-date desktop-date"><?php echo $date; ?></div>
 
                     <!-- Card Body -->
                     <div class="ptg-timeline-card">
                         <div class="card-main" onclick="toggleTimelineDetail(<?php echo $row->history_id; ?>, this)">
-                            <div class="card-info">
-                                <span class="session-tag"><?php echo $session_label; ?></span>
-                                <span class="result-tag <?php echo $status_class; ?>">
-                                    <?php echo $is_pass ? 'PASS' : 'FAIL'; ?>
-                                </span>
+                            
+                            <!-- Mobile Header: Date -->
+                            <div class="ptg-mobile-date">📅 <?php echo $date; ?></div>
+
+                            <!-- Content Wrapper -->
+                            <div class="ptg-card-content">
+                                <div class="ptg-row-item">
+                                    <span class="ptg-icon">🧪</span>
+                                    <span class="ptg-info-text"><?php echo $session_label; ?></span>
+                                </div>
+                                <div class="ptg-row-item">
+                                    <span class="ptg-icon">📊</span>
+                                    <span class="ptg-info-text">점수: <strong><?php echo $score; ?>점</strong></span>
+                                </div>
+                                <div class="ptg-row-item">
+                                    <span class="ptg-icon"><?php echo $is_pass ? '✅' : '❌'; ?></span>
+                                    <span class="ptg-info-text">결과: <span class="ptg-result-text <?php echo $status_class; ?>"><?php echo $is_pass ? 'PASS' : 'FAIL'; ?></span></span>
+                                </div>
                             </div>
-                            <div class="card-score">
-                                <span class="val <?php echo $pulse_class; ?>"><?php echo $score; ?></span>
-                                <span class="unit">점</span>
+
+                            <!-- Desktop Legacy Layout (Hidden on Mobile) -->
+                            <div class="desktop-card-layout">
+                                <div class="card-info">
+                                    <span class="session-tag"><?php echo $session_label; ?></span>
+                                    <span class="result-tag <?php echo $status_class; ?>">
+                                        <?php echo $is_pass ? 'PASS' : 'FAIL'; ?>
+                                    </span>
+                                </div>
+                                <div class="card-score">
+                                    <span class="val <?php echo $pulse_class; ?>"><?php echo $score; ?></span>
+                                    <span class="unit">점</span>
+                                </div>
                             </div>
+
+                            <!-- Action Buttons -->
                             <div class="card-action">
-                                <button class="btn-delete" onclick="event.stopPropagation(); confirmDeleteMock(<?php echo $row->history_id; ?>, this)">
-                                    삭제
-                                </button>
-                                <button class="btn-expand">
+                                <button class="btn-action btn-expand">
                                     <span class="icon-arrow">Details ▾</span>
+                                </button>
+                                <button class="btn-action btn-delete" onclick="event.stopPropagation(); confirmDeleteMock(<?php echo $row->history_id; ?>, this)">
+                                    삭제
                                 </button>
                             </div>
                         </div>
@@ -158,7 +182,8 @@ $results = $wpdb->get_results( $wpdb->prepare(
 var ptg_ajax_url = '<?php echo admin_url('admin-ajax.php'); ?>';
 
 function toggleTimelineDetail(id, cardEl) {
-    // Avoid triggering if clicking inner buttons if necessary, though card click is good
+    if (event.target.closest('.btn-delete')) return; // Stop if delete button clicked
+
     var panel = document.getElementById('detail-panel-' + id);
     var contentDiv = document.getElementById('detail-content-' + id);
     var btnText = cardEl.querySelector('.icon-arrow');
@@ -169,12 +194,10 @@ function toggleTimelineDetail(id, cardEl) {
         panel.style.display = 'block';
         if(btnText) btnText.innerHTML = 'Close ▴';
         
-        // [NEW] Scroll to top (User Request)
+         // Scroll to top
         var itemContainer = cardEl.closest('.ptg-timeline-item');
         if (itemContainer) {
             setTimeout(function() {
-                // Adjust scroll position with offset for sticky header if needed
-                // Using scrollIntoView usually works well for general cases
                 var y = itemContainer.getBoundingClientRect().top + window.pageYOffset - 80;
                 window.scrollTo({top: y, behavior: 'smooth'});
             }, 100);
@@ -208,7 +231,6 @@ function toggleTimelineDetail(id, cardEl) {
 function confirmDeleteMock(id, btn) {
     if(!confirm('해당 모의시험 이력을 완전히 삭제하시겠습니까? (점수 및 결과 기록이 모두 제거됩니다.)')) return;
     
-    // UI Loading state
     var originalText = btn.innerText;
     btn.disabled = true;
     btn.innerText = '...';
@@ -224,7 +246,6 @@ function confirmDeleteMock(id, btn) {
     .then(res => res.json())
     .then(data => {
         if(data.success) {
-            // Remove item with fade out
             var item = btn.closest('.ptg-timeline-item');
             if(item) {
                 item.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -245,14 +266,11 @@ function confirmDeleteMock(id, btn) {
     });
 }
 
-// Initialize Charts for Dashboard (Top Section)
 document.addEventListener('DOMContentLoaded', function() {
     <?php if (!empty($stats['trend'])): ?>
-    
     const trendData = <?php echo json_encode($stats['trend']); ?>;
     const radarData = <?php echo json_encode($stats['radar']); ?>;
 
-    // Trend Chart
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     new Chart(ctxTrend, {
         type: 'line',
@@ -267,15 +285,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 backgroundColor: 'rgba(37, 99, 235, 0.1)'
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } }, // Simple look
-            scales: { y: { beginAtZero: true, max: 100 } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
     });
 
-    // Radar Chart
     const ctxRadar = document.getElementById('radarChart').getContext('2d');
     new Chart(ctxRadar, {
         type: 'radar',
@@ -289,158 +301,153 @@ document.addEventListener('DOMContentLoaded', function() {
                 borderWidth: 2
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false } }
-            },
-            plugins: { legend: { display: false } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
     });
     <?php endif; ?>
 });
 </script>
 
 <style>
-/* Container & Reset */
+/* Base Styles */
 .ptg-mock-results-container {
-    max-width: 900px;
-    margin: 40px auto;
+    max-width: 900px; margin: 40px auto;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-    color: #333;
-    padding: 0 20px;
+    color: #333; padding: 0 20px;
 }
-
-/* Header */
-.ptg-timeline-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 30px;
-    padding-bottom: 10px;
-}
+.ptg-timeline-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; padding-bottom: 10px; }
 .ptg-timeline-header h2 { font-size: 26px; font-weight: 800; color: #111; margin: 0 0 5px; }
 .ptg-timeline-header p { margin: 0; color: #888; font-size: 14px; }
 
-/* Dashboard Grid (Top) */
+/* Dashboard Grid */
 .ptg-dashboard-grid { display: flex; flex-direction: column; gap: 20px; margin-bottom: 50px; }
-
 .ptg-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.ptg-kpi-card {
-    background: #fff; border-radius: 12px; padding: 20px;
-    display: flex; align-items: center; gap: 15px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f3f5;
-}
+.ptg-kpi-card { background: #fff; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f3f5; }
 .kpi-icon { font-size: 24px; background: #f8f9fa; padding: 10px; border-radius: 10px; }
 .kpi-info { display: flex; flex-direction: column; }
 .kpi-label { font-size: 13px; color: #888; font-weight: 500; }
 .kpi-value { font-size: 20px; font-weight: 800; color: #333; }
-
 .ptg-charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
-.ptg-chart-card {
-    background: #fff; border-radius: 16px; padding: 25px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f3f5;
-}
+.ptg-chart-card { background: #fff; border-radius: 16px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #f1f3f5; }
 .ptg-chart-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #444; }
 .chart-wrapper { position: relative; height: 250px; width: 100%; }
-
-/* Timeline Divider */
-.ptg-timeline-divider { 
-    margin: 40px 0 30px; 
-    border-bottom: 2px solid #333; 
-    padding-bottom: 10px; 
-}
+.ptg-timeline-divider { margin: 40px 0 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
 .ptg-timeline-divider h3 { font-size: 20px; font-weight: 700; color: #333; margin: 0; }
 
-/* Timeline Structure */
-.ptg-timeline {
-    position: relative;
-    padding-left: 20px; /* Space for line */
-    margin-top: 30px;
-}
-.ptg-timeline::before {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0; left: 6px;
-    width: 2px;
-    background: #e9ecef;
-}
-
+/* Timeline Core */
+.ptg-timeline { position: relative; padding-left: 20px; margin-top: 30px; }
+.ptg-timeline::before { content: ''; position: absolute; top: 0; bottom: 0; left: 6px; width: 2px; background: #e9ecef; }
 .ptg-timeline-item { position: relative; margin-bottom: 30px; padding-left: 30px; }
-
-/* Marker */
-.ptg-timeline-marker {
-    position: absolute; left: -25px; top: 20px;
-    width: 14px; height: 14px; border-radius: 50%;
-    background: #fff; border: 3px solid #ced4da; z-index: 2;
-}
+.ptg-timeline-marker { position: absolute; left: -25px; top: 20px; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid #ced4da; z-index: 2; }
 .ptg-timeline-marker.status-pass { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1); }
 .ptg-timeline-marker.status-fail { border-color: #ef4444; }
 
-/* Date Label */
-.ptg-timeline-date {
-    position: absolute; left: -120px; top: 22px; width: 80px; text-align: right;
-    font-size: 13px; color: #999; font-weight: 500;
-}
+/* Desktop Elements (Default) */
+.desktop-date { position: absolute; left: -120px; top: 22px; width: 80px; text-align: right; font-size: 13px; color: #999; font-weight: 500; }
+.ptg-mobile-date { display: none; } /* Hidden on Desktop */
+.ptg-card-content { display: none; } /* Hidden on Desktop */
+.desktop-card-layout { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 
-/* Card Slab */
-.ptg-timeline-card {
-    background: #fff; border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
-    border: 1px solid #f1f3f5;
-    overflow: hidden; cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
+/* Card Main */
+.ptg-timeline-card { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #f1f3f5; overflow: hidden; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
 .ptg-timeline-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+.card-main { padding: 20px 25px; display: flex; align-items: center; } /* Flex row default */
 
-/* Card Content */
-.card-main { padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; }
 .card-info { display: flex; flex-direction: column; gap: 6px; }
 .session-tag { font-size: 18px; font-weight: 700; color: #333; }
 .result-tag { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .result-tag.status-pass { color: #22c55e; }
 .result-tag.status-fail { color: #ef4444; }
-
 .card-score { text-align: right; margin-left: auto; margin-right: 30px; }
-.card-score .val { font-size: 32px; font-weight: 800; color: #333; display: inline-block; }
+.card-score .val { font-size: 32px; font-weight: 800; color: #333; }
 .card-score .unit { font-size: 14px; color: #bbb; }
-
 .score-pulse { animation: pulse-green 2s infinite; color: #2563eb !important; }
-@keyframes pulse-green {
-    0% { transform: scale(1); text-shadow: 0 0 0 rgba(37, 99, 235, 0); }
-    50% { transform: scale(1.05); text-shadow: 0 0 10px rgba(37, 99, 235, 0.2); }
-    100% { transform: scale(1); text-shadow: 0 0 0 rgba(37, 99, 235, 0); }
-}
 
-.btn-expand { background: transparent; border: none; font-size: 13px; color: #adb5bd; font-weight: 600; }
+/* Buttons Default */
+.card-action { display: flex; gap: 10px; }
+.btn-action { background: transparent; border: 1px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
+.btn-delete { color: #adb5bd; }
+.btn-delete:hover { color: #ef4444; background: #fee2e2; }
+.btn-expand { color: #495057; background: #f8f9fa; border-color: #e9ecef; }
+.btn-expand:hover { background: #e9ecef; }
 
 /* Insight Panel */
 .ptg-insight-panel { background: #f8f9fa; border-top: 1px solid #eee; }
 .panel-content { padding: 30px; }
 .ptg-loading .spinner { width: 30px; height: 30px; border: 3px solid #ddd; border-top-color: #333; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
-@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Responsive */
+/* Responsive (Mobile Logic) */
 @media (max-width: 900px) {
     .ptg-charts-row { grid-template-columns: 1fr; }
 }
+
 @media (max-width: 768px) {
+    /* Hide Desktop Elements */
+    .desktop-date, .desktop-card-layout { display: none !important; }
+
+    /* Show Mobile Elements */
+    .ptg-mobile-date { 
+        display: block; 
+        font-size: 14px; 
+        font-weight: 600; 
+        color: #6b7280; 
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    .ptg-card-content { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+
+    /* Layout Reset */
     .ptg-kpi-row { grid-template-columns: repeat(2, 1fr); }
-    .ptg-timeline { padding-left: 20px; }
-    .ptg-timeline::before { left: 8px; }
-    .ptg-timeline-item { padding-left: 25px; margin-bottom: 20px; }
-    .ptg-timeline-marker { left: -19px; }
-    .ptg-timeline-date { position: static; text-align: left; margin-bottom: 5px; width: auto; }
+    .ptg-timeline { padding-left: 10px; }
+    .ptg-timeline-item { padding-left: 15px; margin-bottom: 20px; }
+    
+    /* Marker Minimal */
+    .ptg-timeline-marker { left: -6px; width: 10px; height: 10px; border-width: 2px; }
+    .ptg-timeline::before { left: -2px; }
+
+    /* Header */
     .ptg-timeline-header { flex-direction: column; align-items: flex-start; }
+
+    /* Mobile Card Layout */
+    .card-main { 
+        padding: 20px; 
+        flex-direction: column; 
+        align-items: flex-start; 
+    }
+    
+    /* Mobile Content Rows */
+    .ptg-row-item { display: flex; align-items: center; gap: 10px; font-size: 15px; color: #1f2937; }
+    .ptg-icon { width: 24px; text-align: center; font-size: 16px; }
+    .ptg-info-text strong { font-weight: 800; color: #111; }
+    .ptg-result-text { font-weight: 800; margin-left: 4px; }
+    .ptg-result-text.status-pass { color: #22c55e; }
+    .ptg-result-text.status-fail { color: #ef4444; }
+
+    /* Mobile Buttons */
+    .card-action { 
+        width: 100%; 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 10px; 
+        margin-top: 10px; 
+    }
+    .btn-action {
+        width: 100%;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        border-radius: 8px;
+    }
+    .btn-expand { background: #f3f4f6; color: #374151; font-weight: 600; }
+    .btn-delete { background: #fee2e2; color: #dc2626; border: none; margin-right: 0; }
+
+    /* [NEW] Reduce Detail Panel Padding for Mobile */
+    .panel-content { padding: 12px !important; }
 }
+
 @media (max-width: 480px) {
     .ptg-kpi-row { grid-template-columns: 1fr; }
 }
-
-.btn-delete {
-    background: transparent; border: none; font-size: 13px; color: #adb5bd; font-weight: 500;
-    margin-right: 10px; cursor: pointer; transition: color 0.2s;
-}
-.btn-delete:hover { color: #ef4444; }
 </style>
