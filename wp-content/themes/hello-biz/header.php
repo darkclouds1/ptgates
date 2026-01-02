@@ -19,7 +19,7 @@ $skip_link_url = apply_filters( 'hello-plus-theme/skip_link_url', '#content' );
 <html <?php language_attributes(); ?>>
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
-	<meta name="viewport" content="<?php echo esc_attr( $viewport_content ); ?>">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="profile" href="https://gmpg.org/xfn/11">
 	<?php wp_head(); ?>
 </head>

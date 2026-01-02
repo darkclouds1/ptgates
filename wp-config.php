@@ -60,7 +60,7 @@ define( 'FS_METHOD', 'direct' );
 // 4. WP-Cron 비활성화 (서버 시스템 크론 사용 시)
 // 위치 수정됨: wp-settings.php 보다 위에 있어야 작동함
 define( 'DISABLE_WP_CRON', true );
-
+ 
 /* That's all, stop editing! Happy publishing. */
 
 /** Absolute path to the WordPress directory. */

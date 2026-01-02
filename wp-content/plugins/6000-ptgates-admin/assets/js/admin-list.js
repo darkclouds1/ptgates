@@ -302,6 +302,26 @@ var PTGates_Admin_List = {
       }
     );
 
+    // 14. PDF 문제 다운로드
+    jQuery(document).on(
+      "click.ptAdminList",
+      "#ptg-export-pdf-question-btn",
+      function (e) {
+        e.preventDefault();
+        self.exportPdf("question");
+      }
+    );
+
+    // 15. PDF 해설 다운로드
+    jQuery(document).on(
+      "click.ptAdminList",
+      "#ptg-export-pdf-explanation-btn",
+      function (e) {
+        e.preventDefault();
+        self.exportPdf("explanation");
+      }
+    );
+
     // 14. 무한 스크롤 (Infinite Scroll)
     jQuery(window).on("scroll.ptAdminList", function () {
       // 문서 전체 높이 - (현재 스크롤 위치 + 창 높이) < 100px 일 때 로딩
@@ -1685,6 +1705,35 @@ var PTGates_Admin_List = {
     var div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  exportPdf: function (type) {
+    var self = this;
+    var year = self.state.filters.year;
+    var session = self.state.filters.examSession;
+
+    var $sessionSelect = jQuery(self.config.selectors.sessionFilter);
+    var courseText = "";
+    if ($sessionSelect.val()) {
+      courseText = $sessionSelect.find("option:selected").text();
+    }
+
+    if (!year || !courseText || courseText === "교시") {
+      alert("PDF를 생성하려면 [년도]와 [교시]를 반드시 선택해야 합니다.");
+      return;
+    }
+
+    // Construct URL for admin_post action
+    var url = "admin.php?action=ptg_admin_export_pdf";
+    url += "&exam_year=" + encodeURIComponent(year);
+    if (session) {
+      url += "&exam_session=" + encodeURIComponent(session);
+    }
+    url += "&exam_course=" + encodeURIComponent(courseText);
+    url += "&type=" + encodeURIComponent(type);
+
+    // Trigger download
+    window.location.href = url;
   },
 };
 

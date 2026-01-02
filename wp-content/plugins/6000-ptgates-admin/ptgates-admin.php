@@ -182,6 +182,40 @@ final class PTG_Admin_Plugin {
                 }
             }
 		}
+
+        // PDF 다운로드 요청 처리 (GET 방식)
+        if ( isset( $_GET['action'] ) && $_GET['action'] === 'ptg_admin_export_pdf' ) {
+            // 권한 체크
+            if ( ! current_user_can( 'manage_options' ) ) {
+                wp_die( '권한이 없습니다.' );
+            }
+
+            $export_file = plugin_dir_path( __FILE__ ) . 'includes/class-pdf-export.php';
+            if ( file_exists( $export_file ) ) {
+                require_once $export_file;
+                
+                $year = isset( $_GET['exam_year'] ) ? intval( $_GET['exam_year'] ) : 0;
+                $session = isset( $_GET['exam_session'] ) ? intval( $_GET['exam_session'] ) : 0;
+                $course = isset( $_GET['exam_course'] ) ? sanitize_text_field( $_GET['exam_course'] ) : '';
+                $type = isset( $_GET['type'] ) ? sanitize_text_field( $_GET['type'] ) : 'question';
+
+                if ( ! $year || ! $course ) {
+                    wp_die( '필수 파라미터(년도, 교시)가 누락되었습니다.' );
+                }
+
+                if ( $type === 'explanation' ) {
+                    $expl_file = plugin_dir_path( __FILE__ ) . 'includes/class-pdf-export-expl.php';
+                    if ( file_exists( $expl_file ) ) {
+                        require_once $expl_file;
+                        \PTG\Admin\PDF_Export_Expl::generate( $year, $session, $course );
+                    } else {
+                        wp_die( '해설지 생성 모듈을 찾을 수 없습니다.' );
+                    }
+                } else {
+                    \PTG\Admin\PDF_Export::generate( $year, $session, $course, $type );
+                }
+            }
+        }
 	}
 
 	/**
@@ -1079,7 +1113,6 @@ final class PTG_Admin_Plugin {
 					<input type="text" id="ptg-search-input" placeholder="지문 또는 해설 검색..." />
 					<button id="ptg-search-btn">🔍 검색</button>
 					<button id="ptg-clear-search">초기화</button>
-                    <button id="ptg-export-excel-btn" class="button button-primary" style="margin-left: 10px;">📥 엑셀 다운로드</button>
 				</div>
 				
 				<!-- 필터 -->
@@ -1101,6 +1134,14 @@ final class PTG_Admin_Plugin {
 					</select>
 					<span id="ptg-result-count" class="ptg-result-count" style="display: none;"></span>
 				</div>
+
+                <!-- 다운로드 액션 -->
+                <div class="ptg-admin-actions-box" style="margin-bottom: 20px; padding: 10px; background: #fff; border: 1px solid #ccd0d4; border-radius: 4px;">
+                    <button id="ptg-export-excel-btn" class="button">📥 엑셀 다운로드</button>
+                    <button id="ptg-export-pdf-question-btn" class="button button-primary" style="margin-left: 10px;">📄 PDF 문제 다운로드</button>
+                    <button id="ptg-export-pdf-explanation-btn" class="button button-primary" style="margin-left: 5px;">📄 PDF 해설 다운로드</button>
+                    <p class="description" style="display:inline-block; margin-left:10px; vertical-align:middle;">※ PDF 다운로드는 년도와 교시를 반드시 선택해야 합니다.</p>
+                </div>
 			</div>
 			
 			<!-- 문제 목록 영역 -->

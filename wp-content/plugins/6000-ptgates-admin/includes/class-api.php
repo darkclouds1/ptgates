@@ -581,6 +581,15 @@ class API {
                 return Rest::error('query_failed', '쿼리 실행 중 오류: ' . $wpdb->last_error, 500);
             }
             
+            // 정렬 순서 결정 (사용자 요청: 검색 시 문제번호 순)
+            $order_by = "ORDER BY q.question_id ASC";
+            if ( !empty($search) || !empty($exam_year) || !empty($exam_session) ) {
+                // NULL인 경우 뒤로 보내기 위해 ISNULL 또는 매우 큰 값 사용 (MySQL: NULLs first by default in ASC)
+                // -question_no DESC allows NULLs (0 or null) to be last? No.
+                // Best is explicit: CASE WHEN question_no IS NULL THEN 1 ELSE 0 END, question_no ASC
+                $order_by = "ORDER BY (CASE WHEN MAX(c.question_no) IS NULL THEN 1 ELSE 0 END), MAX(c.question_no) ASC, q.question_id ASC";
+            }
+
             // 문제 목록 조회 (년도, 회차, 교시 정보 포함)
             $list_sql = "SELECT DISTINCT q.question_id, q.content, q.answer, q.explanation, q.type, q.difficulty, q.is_active, q.question_image,
                         MAX(c.question_no) as question_no,
@@ -592,7 +601,7 @@ class API {
                  INNER JOIN {$categories_table} c ON q.question_id = c.question_id
                  WHERE {$where_clause}
                  GROUP BY q.question_id
-                 ORDER BY q.question_id ASC
+                 {$order_by}
                  LIMIT %d OFFSET %d";
             
             // Subjects 클래스 로드 확인 (최초 로드는 0000-ptgates-platform에서 수행됨)
